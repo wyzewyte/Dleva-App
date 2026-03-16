@@ -189,7 +189,7 @@ SIMPLE_JWT = {
 # Phase 7: Channels Configuration
 ASGI_APPLICATION = 'core.asgi.application'
 
-# Production Redis Configuration for Render
+# Production Redis Configuration for Railway
 REDIS_URL = config('REDIS_URL', default=None)
 
 if REDIS_URL:
