@@ -47,6 +47,7 @@ import { SellerNotificationsProvider } from './context/SellerNotificationsContex
 import RiderLogin from './modules/rider/pages/auth/Login';
 import RiderRegister from './modules/rider/pages/auth/Register';
 import VerificationSetup from './modules/rider/pages/VerificationSetup';
+import PhoneVerification from './modules/rider/pages/PhoneVerification';
 import DocumentVerification from './modules/rider/pages/DocumentVerification';
 import BankDetailsVerification from './modules/rider/pages/BankDetailsVerification';
 import ServiceAreaVerification from './modules/rider/pages/ServiceAreaVerification';
@@ -186,6 +187,7 @@ function App() {
               {/* Core Pages */}
               <Route path="dashboard" element={<RiderDashboard />} />
               <Route path="home" element={<RiderHome />} />
+              <Route path="verification-phone" element={<PhoneVerification />} />
               <Route path="verification-documents" element={<DocumentVerification />} />
               <Route path="verification-bank" element={<BankDetailsVerification />} />
               <Route path="verification-location" element={<ServiceAreaVerification />} />

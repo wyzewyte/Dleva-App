@@ -234,11 +234,11 @@ const DocumentVerification = () => {
     return (
       <div
         key={docType}
-        className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow"
+        className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-shadow"
       >
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900">
               {DOCUMENT_TYPE_LABELS[docType]}
             </h3>
             {!requirement.required && (
@@ -259,10 +259,16 @@ const DocumentVerification = () => {
         {/* ✅ Show locally selected file (not yet uploaded) */}
         {selectedFile && !status && (
           <div className="bg-blue-50 border border-blue-300 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex-1">
                 <p className="text-sm font-medium text-blue-900">📄 File Selected</p>
-                <p className="text-xs text-blue-700 mt-1">{selectedFile.name}</p>
+                <p
+                  className="text-xs text-blue-700 mt-1"
+                  title={selectedFile.name}
+                  style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-all' }}
+                >
+                  {selectedFile.name}
+                </p>
                 <p className="text-xs text-blue-600 mt-1">
                   Size: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                 </p>
@@ -288,10 +294,16 @@ const DocumentVerification = () => {
         {/* ✅ Show selected file for rejected documents (so user can replace with new file) */}
         {selectedFile && status === DOCUMENT_STATUSES.REJECTED && (
           <div className="bg-blue-50 border border-blue-300 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex-1">
                 <p className="text-sm font-medium text-blue-900">📄 New File Selected</p>
-                <p className="text-xs text-blue-700 mt-1">{selectedFile.name}</p>
+                <p
+                  className="text-xs text-blue-700 mt-1"
+                  title={selectedFile.name}
+                  style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-all' }}
+                >
+                  {selectedFile.name}
+                </p>
                 <p className="text-xs text-blue-600 mt-1">
                   Size: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                 </p>
@@ -499,8 +511,8 @@ const DocumentVerification = () => {
         {/* Submit All Files or Navigation */}
         {Object.keys(selectedFiles).length > 0 ? (
           <div className="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="min-w-0">
                 <h3 className="text-lg font-semibold text-gray-900">Ready to Submit?</h3>
                 <p className="text-sm text-gray-600 mt-1">
                   You have {Object.keys(selectedFiles).length} file(s) ready to upload. Click submit to upload all documents at once.
@@ -510,7 +522,7 @@ const DocumentVerification = () => {
                 onClick={handleSubmitAll}
                 disabled={isSubmittingAll}
                 className={`
-                  flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all whitespace-nowrap
+                  w-full sm:w-auto justify-center flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all whitespace-nowrap
                   ${isSubmittingAll
                     ? 'bg-gray-400 text-white cursor-not-allowed'
                     : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
@@ -532,8 +544,8 @@ const DocumentVerification = () => {
           </div>
         ) : (
           <div className="mt-12 bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="min-w-0">
                 <h3 className="text-lg font-semibold text-gray-900">Document Verification</h3>
                 <p className="text-sm text-gray-600 mt-1">
                   {isStageComplete 
@@ -545,7 +557,7 @@ const DocumentVerification = () => {
                 onClick={handleNavigateNext}
                 disabled={!isStageComplete}
                 className={`
-                  flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all whitespace-nowrap
+                  w-full sm:w-auto justify-center flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all whitespace-nowrap
                   ${isStageComplete
                     ? 'bg-primary text-white hover:bg-primary-dark cursor-pointer'
                     : 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-50'

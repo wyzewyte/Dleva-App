@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.conf import settings
 from datetime import datetime, timedelta
 import random
 import string
@@ -15,6 +16,11 @@ from .serializers import (
     RiderOTPVerificationSerializer
 )
 from utils.twilio_service import TwilioService
+
+def normalize_phone_number(value):
+    if value is None:
+        return None
+    return str(value).strip().replace(' ', '')
 
 
 @api_view(['POST'])
@@ -49,13 +55,16 @@ def register_rider(request):
         else:
             sms_status = 'failed (check console output)'
         
-        return Response({
+        response_data = {
             'message': 'Registration successful. Please verify your phone number.',
             'user_id': user.id,
             'rider_id': rider_profile.id,
             'next_step': 'verify_phone',
             'otp_sent_to': rider_profile.phone_number
-        }, status=status.HTTP_201_CREATED)
+        }
+        if settings.DEBUG:
+            response_data['debug_otp'] = otp_code
+        return Response(response_data, status=status.HTTP_201_CREATED)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -106,7 +115,7 @@ def login_rider(request):
 @permission_classes([IsAuthenticated])
 def request_phone_otp(request):
     """Request OTP for phone verification"""
-    phone_number = request.data.get('phone_number')
+    phone_number = normalize_phone_number(request.data.get('phone_number'))
     
     if not phone_number:
         return Response(
@@ -138,20 +147,23 @@ def request_phone_otp(request):
         purpose='phone_verification'
     )
     
-    return Response({
+    response_data = {
         'message': 'OTP sent successfully.',
         'otp_sent_to': phone_number,
         'expires_in_minutes': 10,
         'sms_delivery': 'success' if sms_result.get('success') else 'pending'
-    }, status=status.HTTP_200_OK)
+    }
+    if settings.DEBUG:
+        response_data['debug_otp'] = otp_code
+    return Response(response_data, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_phone_otp(request):
     """Verify phone number with OTP"""
-    phone_number = request.data.get('phone_number')
-    otp_code = request.data.get('otp_code')
+    phone_number = normalize_phone_number(request.data.get('phone_number'))
+    otp_code = str(request.data.get('otp_code', '')).strip()
     
     if not phone_number or not otp_code:
         return Response(
@@ -219,7 +231,7 @@ def verify_phone_otp(request):
 @permission_classes([IsAuthenticated])
 def resend_phone_otp(request):
     """Resend OTP for phone verification"""
-    phone_number = request.data.get('phone_number')
+    phone_number = normalize_phone_number(request.data.get('phone_number'))
     
     if not phone_number:
         return Response(
@@ -258,19 +270,22 @@ def resend_phone_otp(request):
         purpose='phone_verification'
     )
     
-    return Response({
+    response_data = {
         'message': 'OTP resent successfully.',
         'otp_sent_to': phone_number,
         'expires_in_minutes': 10,
         'sms_delivery': 'success' if sms_result.get('success') else 'pending'
-    }, status=status.HTTP_200_OK)
+    }
+    if settings.DEBUG:
+        response_data['debug_otp'] = otp_code
+    return Response(response_data, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def resend_registration_otp(request):
     """Resend OTP during registration"""
-    phone_number = request.data.get('phone_number')
+    phone_number = normalize_phone_number(request.data.get('phone_number'))
     rider_id = request.data.get('rider_id')
     
     if not phone_number or not rider_id:
@@ -310,12 +325,15 @@ def resend_registration_otp(request):
         purpose='registration'
     )
     
-    return Response({
+    response_data = {
         'message': 'OTP resent successfully.',
         'otp_sent_to': phone_number,
         'expires_in_minutes': 10,
         'sms_delivery': 'success' if sms_result.get('success') else 'pending'
-    }, status=status.HTTP_200_OK)
+    }
+    if settings.DEBUG:
+        response_data['debug_otp'] = otp_code
+    return Response(response_data, status=status.HTTP_200_OK)
 
 
 def generate_otp():

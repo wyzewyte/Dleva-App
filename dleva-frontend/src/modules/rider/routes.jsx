@@ -17,6 +17,11 @@ import Promotion from '../pages/Promotion';
 import Help from '../pages/Help';
 import FAQ from '../pages/FAQ';
 import Contact from '../pages/Contact';
+import PhoneVerification from '../pages/PhoneVerification';
+import DocumentVerification from '../pages/DocumentVerification';
+import BankDetailsVerification from '../pages/BankDetailsVerification';
+import ServiceAreaVerification from '../pages/ServiceAreaVerification';
+import VerificationSetup from '../pages/VerificationSetup';
 
 export const riderRoutes = [
   {
@@ -30,6 +35,26 @@ export const riderRoutes = [
   {
     path: '/rider/dashboard',
     element: <Dashboard />,
+  },
+  {
+    path: '/rider/verification-setup',
+    element: <VerificationSetup />,
+  },
+  {
+    path: '/rider/verification-phone',
+    element: <PhoneVerification />,
+  },
+  {
+    path: '/rider/verification-documents',
+    element: <DocumentVerification />,
+  },
+  {
+    path: '/rider/verification-bank',
+    element: <BankDetailsVerification />,
+  },
+  {
+    path: '/rider/verification-location',
+    element: <ServiceAreaVerification />,
   },
   {
     path: '/rider/orders',

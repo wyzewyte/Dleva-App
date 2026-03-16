@@ -28,6 +28,7 @@ const defaultRiderAuthContext = {
   verifyPhoneOTP: async () => { throw new Error('useRiderAuth: Provider not initialized'); },
   logout: async () => {},
   updateProfile: () => {},
+  refreshRider: async () => {},
   isAuthenticated: false,
 };
 
@@ -231,6 +232,28 @@ export const RiderAuthProvider = ({ children }) => {
     localStorage.setItem('rider_profile', JSON.stringify(updated));
   };
 
+  // Refresh rider profile from server
+  const refreshRider = async () => {
+    if (!token) return null;
+    try {
+      const profile = await riderAuth.getProfile();
+      const normalize = (p) => {
+        if (!p) return p;
+        const copy = { ...p };
+        if (copy.is_online !== undefined) copy.is_online = Boolean(copy.is_online);
+        if (copy.can_go_online !== undefined) copy.can_go_online = Boolean(copy.can_go_online);
+        return copy;
+      };
+      const normalized = normalize(profile);
+      setRider(normalized);
+      localStorage.setItem('rider_profile', JSON.stringify(normalized));
+      return normalized;
+    } catch (err) {
+      console.error('[RiderAuth] refreshRider error:', err);
+      throw err;
+    }
+  };
+
   return (
     <RiderAuthContext.Provider
       value={{
@@ -243,6 +266,7 @@ export const RiderAuthProvider = ({ children }) => {
         verifyPhoneOTP,
         logout,
         updateProfile,
+        refreshRider,
         isAuthenticated: Boolean(token),
       }}
     >

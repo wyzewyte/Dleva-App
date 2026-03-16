@@ -54,11 +54,24 @@ const riderSettings = {
     }
   },
 
+  // Resend phone OTP
+  resendPhoneOtp: async (phoneNumber) => {
+    try {
+      const response = await api.post(API_ENDPOINTS.RIDER.RESEND_PHONE_OTP || '/rider/resend-phone-otp/', {
+        phone_number: phoneNumber,
+      });
+      return response.data;
+    } catch (error) {
+      throw new Error(extractErrorMessage(error));
+    }
+  },
+
   // Verify phone with OTP
-  verifyPhone: async (otp) => {
+  verifyPhone: async (otp, phoneNumber) => {
     try {
       const response = await api.post(API_ENDPOINTS.RIDER.VERIFY_PHONE_OTP, {
-        otp,
+        otp_code: otp,
+        phone_number: phoneNumber,
       });
       return response.data;
     } catch (error) {

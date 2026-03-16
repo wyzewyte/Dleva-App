@@ -100,6 +100,7 @@ export const API_ENDPOINTS = {
     LOGIN: '/rider/login/',
     LOGOUT: '/rider/logout/',
     REQUEST_PHONE_OTP: '/rider/request-phone-otp/',
+    RESEND_PHONE_OTP: '/rider/resend-phone-otp/',
     VERIFY_PHONE_OTP: '/rider/verify-phone-otp/',
     
     // Profile
