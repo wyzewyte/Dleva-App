@@ -1,0 +1,237 @@
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+
+// Location Provider
+import { LocationProvider } from './context/LocationContext';
+
+// Phase 4: Tracking Provider
+import { TrackingProvider } from './context/TrackingContext';
+
+// Toast Notification Component
+import Toast from './modules/rider/components/Toast';
+
+// Protected Route Guard
+import ProtectedRoute from './components/ProtectedRoute';
+import SellerProtectedRoute from './modules/seller/ProtectedRoute';
+import RiderProtectedRoute from './modules/rider/ProtectedRoute';
+
+// Buyer Pages
+import BuyerHome from './modules/buyer/pages/Home';
+import Menu from './modules/buyer/pages/Menu';
+import Cart from './modules/buyer/pages/Cart';
+import Checkout from './modules/buyer/pages/Checkout';
+import PaymentCallback from './modules/buyer/pages/PaymentCallback'; // ✅ PAYSTACK
+import Tracking from './modules/buyer/pages/Tracking';
+import Login from './modules/buyer/pages/auth/BuyerLogin';
+import Signup from './modules/buyer/pages/auth/Signup';
+import Profile from './modules/buyer/pages/Profile';
+import OrderHistory from './modules/buyer/pages/OrderHistory';
+import HelpSupport from './modules/buyer/pages/HelpSupport';
+import RestaurantList from './modules/buyer/pages/RestaurantList';
+import LocationSetup from './modules/buyer/pages/auth/LocationSetup';
+import ChangePassword from './modules/buyer/pages/ChangePassword';
+
+// Seller Pages
+import SellerDashboard from './modules/seller/pages/Dashboard';
+import SellerMenu from './modules/seller/pages/Menu';
+import SellerOrders from './modules/seller/pages/Orders';
+import SellerHistory from './modules/seller/pages/History';  // ✅ ADD THIS
+import SellerSettings from './modules/seller/pages/Settings';
+import SellerNotificationsPage from './pages/seller/NotificationsPage';
+import SellerLogin from './modules/seller/pages/auth/Login';
+import SellerRegister from './modules/seller/pages/auth/Register';
+
+// Seller Context/Providers
+import { SellerNotificationsProvider } from './context/SellerNotificationsContext';
+
+// Rider Pages
+import RiderLogin from './modules/rider/pages/auth/Login';
+import RiderRegister from './modules/rider/pages/auth/Register';
+import VerificationSetup from './modules/rider/pages/VerificationSetup';
+import DocumentVerification from './modules/rider/pages/DocumentVerification';
+import BankDetailsVerification from './modules/rider/pages/BankDetailsVerification';
+import ServiceAreaVerification from './modules/rider/pages/ServiceAreaVerification';
+import RiderHome from './modules/rider/pages/Home';
+import RiderDashboard from './modules/rider/pages/Dashboard';
+import RiderDeliveries from './modules/rider/pages/Deliveries';
+import RiderDeliveryDetail from './modules/rider/pages/DeliveryDetail';
+import RiderWallet from './modules/rider/pages/Wallet';
+import RiderEarnings from './modules/rider/pages/Earnings';
+import RiderWithdrawal from './modules/rider/pages/Withdrawal';
+import RiderProfileSettings from './modules/rider/pages/Settings';
+import RiderDashboardProfileRedirect from './modules/rider/pages/Profile';
+import ActiveDelivery from './modules/rider/pages/ActiveDelivery';
+import AvailableOrders from './modules/rider/pages/AvailableOrders';
+import ActiveOrders from './modules/rider/pages/ActiveOrders';
+import OrderDetails from './modules/rider/pages/OrderDetails';
+import RiderOrderHistory from './modules/rider/pages/OrderHistory';
+import Performance from './modules/rider/pages/Performance';
+import Feedback from './modules/rider/pages/Feedback';
+import Promotion from './modules/rider/pages/Promotion';
+import Help from './modules/rider/pages/Help';
+import FAQ from './modules/rider/pages/FAQ';
+import Contact from './modules/rider/pages/Contact';
+
+// Component
+import CartDrawer from './modules/buyer/components/CartDrawer';
+
+// Layouts
+import BuyerLayout from './layouts/BuyerLayout';
+import SellerLayout from './layouts/SellerLayout';
+import RiderLayout from './modules/rider/layouts/RiderLayout';
+import RiderAuthLayout from './modules/rider/context/RiderAuthLayout';
+import RiderIndexRedirect from './modules/rider/components/RiderIndexRedirect';
+
+function App() {
+  return (
+    <LocationProvider>
+      <TrackingProvider>
+        <Router>
+            {/* Cart Drawer (Visible globally, controlled by state) */}
+            <CartDrawer />
+            
+            {/* Toast Notifications (Visible globally) */}
+            <Toast />
+          
+          <Routes>
+          
+          {/* ============================== */}
+          {/* 🟢 PUBLIC STANDALONE ROUTES    */}
+          {/* ============================== */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} /> 
+          
+          {/* Location Setup must be public for Guests */}
+          <Route path="/setup-location" element={<LocationSetup />} />
+
+
+          {/* ============================== */}
+          {/* 🟢 BUYER MAIN APP (Layout)     */}
+          {/* ============================== */}
+          {/* Wraps both Public and Protected pages so they share the Navbar */}
+          <Route element={<BuyerLayout />}>
+              
+              {/* --- Public Pages (Guests Allowed) --- */}
+              <Route path="/" element={<Navigate to="/home" replace />} />
+              <Route path="/home" element={<BuyerHome />} />
+              <Route path="/restaurants" element={<RestaurantList />} />
+              <Route path="/restaurant/:id" element={<Menu />} />
+              <Route path="/cart" element={<Cart />} />
+              <Route path="/support" element={<HelpSupport />} /> {/* Often public */}
+
+              {/* --- Protected Pages (Login Required) --- */}
+              {/* We nest the Guard HERE to protect only specific pages */}
+              <Route element={<ProtectedRoute />}>
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/history" element={<OrderHistory />} />
+                  <Route path="/tracking/:orderId" element={<Tracking />} />  
+                  <Route path="/change-password" element={<ChangePassword />} />
+              </Route>
+
+          </Route>
+
+
+          {/* ============================== */}
+          {/* 🔒 CHECKOUT (Protected)        */}
+          {/* ============================== */}
+          {/* Checkout is usually standalone (no sidebar) to reduce distractions */}
+          <Route element={<ProtectedRoute />}>
+              <Route path="/checkout/:vendorId" element={<Checkout />} />
+              <Route path="/payment/callback" element={<PaymentCallback />} /> {/* ✅ PAYSTACK CALLBACK */}
+          </Route>
+
+
+          {/* ============================== */}
+          {/* 🟣 SELLER ROUTES               */}
+          {/* ============================== */}
+          
+          {/* Public Seller Auth */}
+          <Route path="/seller/login" element={<SellerLogin />} />
+          <Route path="/seller/register" element={<SellerRegister />} />
+
+          {/* Protected Seller Pages */}
+          <Route 
+            path="/seller/*" 
+            element={
+              <SellerNotificationsProvider>
+                <SellerProtectedRoute>
+                  <SellerLayout />
+                </SellerProtectedRoute>
+              </SellerNotificationsProvider>
+            }
+          >
+            <Route path="dashboard" element={<SellerDashboard />} />
+            <Route path="menu" element={<SellerMenu />} />
+            <Route path="orders" element={<SellerOrders />} />
+            <Route path="history" element={<SellerHistory />} />  {/* ✅ ADD THIS */}
+            <Route path="settings" element={<SellerSettings />} />
+            <Route path="notifications" element={<SellerNotificationsPage />} />
+          </Route>
+
+
+          {/* ============================== */}
+          {/* 🔴 RIDER ROUTES                */}
+          {/* ============================== */}
+          {/* RiderAuthLayout is the "playpen" provider -  uses Outlet for children */}
+          <Route path="/rider" element={<RiderAuthLayout />}>
+            {/* Smart index route: checks auth state before redirecting */}
+            <Route index element={<RiderIndexRedirect />} />
+            
+            {/* Public Rider Auth Routes */}
+            <Route path="login" element={<RiderLogin />} />
+            <Route path="register" element={<RiderRegister />} />
+            <Route path="verification-setup" element={<VerificationSetup />} />
+
+            {/* Protected Rider Pages */}
+            <Route element={<RiderLayout />}>
+              {/* Core Pages */}
+              <Route path="dashboard" element={<RiderDashboard />} />
+              <Route path="home" element={<RiderHome />} />
+              <Route path="verification-documents" element={<DocumentVerification />} />
+              <Route path="verification-bank" element={<BankDetailsVerification />} />
+              <Route path="verification-location" element={<ServiceAreaVerification />} />
+              
+              {/* Order Pages - Phase 2 */}
+              <Route path="available-orders" element={<AvailableOrders />} />
+              <Route path="active-orders" element={<ActiveOrders />} />
+              <Route path="orders/:orderId" element={<OrderDetails />} />
+              <Route path="order-history" element={<RiderOrderHistory />} />
+              
+              {/* Legacy Delivery Pages */}
+              <Route path="deliveries" element={<RiderDeliveries />} />
+              <Route path="delivery/:id" element={<RiderDeliveryDetail />} />
+              <Route path="active-delivery/:orderId" element={<ActiveDelivery />} />
+              
+              {/* Wallet & Earnings */}
+              <Route path="wallet" element={<RiderWallet />} />
+              <Route path="earnings" element={<RiderEarnings />} />
+              <Route path="withdrawal" element={<RiderWithdrawal />} />
+              
+              {/* Profile & Account */}
+              <Route path="profile" element={<RiderProfileSettings />} />
+              <Route path="settings" element={<RiderProfileSettings />} />
+              
+              {/* Performance & Ratings */}
+              <Route path="performance" element={<Performance />} />
+              
+              {/* Promotions */}
+              <Route path="promotions" element={<Promotion />} />
+              
+              {/* Support Pages */}
+              <Route path="feedback" element={<Feedback />} />
+              <Route path="help" element={<Help />} />
+              <Route path="faq" element={<FAQ />} />
+              <Route path="contact" element={<Contact />} />
+            </Route>
+
+            {/* Catch-all: Redirect unknown paths to login */}
+            <Route path="*" element={<Navigate to="/rider/login" replace />} />
+          </Route>
+
+        </Routes>
+      </Router>
+      </TrackingProvider>
+    </LocationProvider>
+  );
+}
+
+export default App;

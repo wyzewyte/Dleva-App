@@ -1,0 +1,57 @@
+deliva-frontend/
+src/
+│
+├── assets/                 # Global static assets
+│   ├── images/             # Logos, backgrounds
+│   └── icons/              # Custom SVGs (if not using Lucide)
+│
+├── components/             # 🟢 SHARED UI (The "Building Blocks")
+│   │                       # These must be built Mobile-First + MD/LG breakpoints
+│   ├── ui/                 
+│   │   ├── Button.jsx      # Responsive variants (full-width mobile, auto desktop)
+│   │   ├── Input.jsx       
+│   │   ├── Card.jsx        
+│   │   ├── Modal.jsx       
+│   │   ├── Badge.jsx       
+│   │   └── Spinner.jsx     
+│   │
+│   └── navigation/         # Shared Nav Elements
+│       ├── Logo.jsx
+│       └── UserAvatar.jsx
+│
+├── layouts/                # 🟡 RESPONSIVE WRAPPERS (Crucial)
+│   ├── BuyerLayout.jsx     # Handles Bottom Nav (Mobile) vs Top Nav (Desktop)
+│   ├── SellerLayout.jsx    # Handles Sidebar (Desktop) vs Hamburger Menu (Mobile)
+│   └── AuthLayout.jsx      # Centered box for Login/Register pages
+│
+├── modules/                # 🔴 THE CORE FEATURES (Separated Logic)
+│   │
+│   ├── buyer/              # 🛒 The Buyer App
+│   │   ├── components/     # Specific to Buyer (e.g., CartItem, RestaurantCard)
+│   │   ├── pages/          # Home, Cart, Checkout, Profile
+│   │   ├── context/        # CartContext, BuyerAuthContext
+│   │   └── hooks/          # useCart, useRestaurantFilter
+│   │
+│   └── seller/             # 🏪 The Seller App
+│       ├── components/     # Specific to Seller (e.g., OrderTable, RevenueChart)
+│       ├── pages/          # Dashboard, OrderManager, MenuUpload
+│       ├── context/        # SellerAuthContext, StoreContext
+│       └── hooks/          # useOrders, useMenuActions
+│
+├── services/               # 🌐 API LAYER
+│   ├── api.js              # Base Axios instance (Interceptors)
+│   ├── auth.js             # Login/Register endpoints
+│   ├── buyerService.js     # Buyer specific endpoints
+│   └── sellerService.js    # Seller specific endpoints
+│
+├── hooks/                  # 🔵 GLOBAL HOOKS
+│   ├── useMediaQuery.js    # To detect Mobile/Tablet/Desktop in JS
+│   └── useScrollTop.js     # UX helper
+│
+├── utils/                  # 🛠 HELPER FUNCTIONS
+│   ├── currency.js         # Formats ₦1,000
+│   └── date.js             # Formats timestamps
+│
+├── App.jsx                 # Main Router
+├── main.jsx                # Entry Point
+└── index.css               # Tailwind Global Styles

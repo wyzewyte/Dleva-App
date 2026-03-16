@@ -1,0 +1,136 @@
+/**
+ * Toast Notification Styles
+ */
+
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 400px;
+  pointer-events: auto;
+}
+
+@media (max-width: 640px) {
+  .toast-container {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    max-width: none;
+  }
+}
+
+.toast {
+  min-width: 300px;
+  animation: slideInRight 0.3s ease-out forwards;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 640px) {
+  .toast {
+    min-width: auto;
+    max-width: 100%;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slideInRight 0.3s ease-out forwards;
+}
+
+/* Toast type-specific styles */
+.toast.bg-green-500 {
+  background-color: #10b981;
+}
+
+.toast.bg-red-500 {
+  background-color: #ef4444;
+}
+
+.toast.bg-yellow-500 {
+  background-color: #f59e0b;
+}
+
+.toast.bg-blue-500 {
+  background-color: #3b82f6;
+}
+
+.toast.bg-blue-400 {
+  background-color: #60a5fa;
+}
+
+.toast button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toast button:hover {
+  opacity: 0.8;
+}
+
+.toast.bg-green-500 button:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.toast.bg-red-500 button:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.toast.bg-yellow-500 button:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.toast.bg-blue-500 button:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.toast.bg-blue-400 button:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Exit animation */
+@keyframes slideOutRight {
+  to {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+}
