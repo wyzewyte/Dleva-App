@@ -9,7 +9,7 @@ const PAUSE_KEY = 'cartSyncPaused';
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
-  const { user } = useAuth(); // Get authenticated user
+  const { user, token } = useAuth(); // Get authenticated user and token
   const [cartItems, setCartItemsState] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
@@ -30,12 +30,15 @@ export const CartProvider = ({ children }) => {
 
   const addLocalItem = async (item) => {
     try {
-      // Sync to server first - use correct field name
-      await buyerCart.addItem(
-        item.vendorId, 
-        item.id,              // MenuItem ID
-        item.quantity || 1
-      );
+      // For authenticated users: sync to server first
+      if (token) {
+        await buyerCart.addItem(
+          item.vendorId, 
+          item.id,              // MenuItem ID
+          item.quantity || 1
+        );
+      }
+      // For guests: skip API call, just save locally
       
       // Then update local state
       setCartItemsState(prev => {

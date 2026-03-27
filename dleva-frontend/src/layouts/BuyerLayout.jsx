@@ -1,12 +1,12 @@
 import { Outlet, Link, NavLink } from 'react-router-dom';
-import { ShoppingBag, User } from 'lucide-react';
+import { ShoppingBag, User, Package } from 'lucide-react';
 import BuyerBottomNav from '../components/navigation/BuyerBottomNav';
 import LocationSelector from '../components/LocationSelector';
 import { useCart } from '../modules/buyer/context/CartContext';
 import { useAuth } from '../modules/auth/context/AuthContext'; // Corrected Auth Context path
 
 const BuyerLayout = () => {
-  const { toggleCart, cartItems } = useCart();
+  const { cartItems } = useCart();
   const { user, token } = useAuth(); // Get user and token from Auth Context
 
   return (
@@ -40,6 +40,21 @@ const BuyerLayout = () => {
           >
             Restaurants
           </NavLink>
+          <NavLink 
+            to="/orders" 
+            className={({isActive}) => `text-sm lg:text-base font-medium transition-colors flex items-center gap-1 ${isActive ? "text-primary font-bold" : "text-muted hover:text-dark"}`}
+          >
+            {({ isActive }) => (
+              <>
+                Orders
+                {cartItems.length > 0 && (
+                  <span className="bg-danger text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                    {cartItems.length}
+                  </span>
+                )}
+              </>
+            )}
+          </NavLink>
           {/* Conditionally render Profile link in the main nav */}
           {token && (
             <NavLink 
@@ -51,20 +66,8 @@ const BuyerLayout = () => {
           )}
         </nav>
 
-        {/* Desktop Right Actions (Cart & Profile) */}
+        {/* Desktop Right Actions (Profile) */}
         <div className="flex items-center gap-3 lg:gap-4">
-            
-            {/* 3. CART BUTTON (Triggers the Drawer) */}
-            <button 
-                onClick={toggleCart} 
-                className="p-2 hover:bg-gray-100 rounded-full relative transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-            >
-                <ShoppingBag size={20} />
-                {cartItems.length > 0 && (
-                    <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-danger rounded-full ring-2 ring-white"></span>
-                )}
-            </button>
-
             {/* Profile Link */}
             {/* ✅ Conditionally render profile link only if user is logged in */}
             {token && user ? (

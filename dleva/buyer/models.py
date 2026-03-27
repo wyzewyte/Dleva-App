@@ -300,3 +300,83 @@ class AddressCache(models.Model):
         self.access_count += 1
         self.last_accessed = timezone.now()
         self.save(update_fields=['access_count', 'last_accessed'])
+
+
+class Waitlist(models.Model):
+    """Waitlist for locations where vendors are not yet available"""
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    address = models.CharField(max_length=500)
+    email = models.EmailField(null=True, blank=True)
+    phone = models.CharField(max_length=20, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Waitlist Entry'
+        verbose_name_plural = 'Waitlist Entries'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['latitude', 'longitude']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"Waitlist: {self.address} ({self.created_at.date()})"
+
+
+class WaitlistEntry(models.Model):
+    """
+    Restaurant-specific waitlist for buyers waiting for a table.
+    Tracks buyer position, group size, and estimated wait time.
+    """
+    STATUS_CHOICES = [
+        ('waiting', 'Waiting'),
+        ('called', 'Called'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    buyer = models.ForeignKey(
+        BuyerProfile, 
+        on_delete=models.CASCADE, 
+        related_name='restaurant_waitlist_entries'
+    )
+    restaurant = models.ForeignKey(
+        Restaurant,
+        on_delete=models.CASCADE,
+        related_name='waitlist_entries'
+    )
+    position = models.PositiveIntegerField(
+        help_text='Position in the waitlist queue'
+    )
+    group_size = models.PositiveIntegerField(
+        default=1,
+        help_text='Number of people in the group'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='waiting',
+        db_index=True
+    )
+    estimated_wait_time = models.PositiveIntegerField(
+        default=15,
+        help_text='Estimated wait time in minutes'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Waitlist Entry'
+        verbose_name_plural = 'Waitlist Entries'
+        ordering = ['position']
+        unique_together = ('buyer', 'restaurant', 'status')
+        indexes = [
+            models.Index(fields=['restaurant', 'status']),
+            models.Index(fields=['buyer', 'status']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.buyer.user.username} - {self.restaurant.name} (Position: {self.position})"

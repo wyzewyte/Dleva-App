@@ -1,16 +1,19 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, Lock, User, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../../auth/context/AuthContext';
 import { logError } from '../../../../utils/errorHandler';
 
 const BuyerLogin = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   
+  const redirectUrl = searchParams.get('next');
+
   const [formData, setFormData] = useState({
     username: '',
     password: ''
@@ -29,7 +32,9 @@ const BuyerLogin = () => {
         // optional: show a toast / banner or small modal asking user to set location
         // navigate('/setup-location'); // <-- remove this forced navigation
       }
-      navigate('/home'); // or home
+      
+      // Redirect to the next URL if provided (e.g., /checkout/123), otherwise go to home
+      navigate(redirectUrl || '/home');
 
     } catch (err) {
       setIsLoading(false);

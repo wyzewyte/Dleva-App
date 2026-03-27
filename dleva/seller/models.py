@@ -1,5 +1,25 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
+
+class MenuItemCategory(models.Model):
+    """Platform-managed categories for menu items (Appetizers, Mains, Desserts, etc.)"""
+    name = models.CharField(max_length=100, unique=True, db_index=True)
+    description = models.TextField(blank=True, null=True)
+    order = models.PositiveIntegerField(default=0, help_text="Display order (lower = first)")
+    icon = models.CharField(max_length=50, blank=True, null=True, help_text="Icon name or emoji")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Menu Item Category'
+        verbose_name_plural = 'Menu Item Categories'
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return self.name
+
 
 class SellerProfile (models.Model):
     BUSINESS_CHOICES = (
@@ -37,7 +57,6 @@ class Restaurant(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
     address = models.CharField(max_length=255)
-    category = models.CharField(max_length=50, blank=True, null=True)
     image = models.ImageField(upload_to='restaurant_images/', blank=True, null=True)
     delivery_fee = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     delivery_time = models.CharField(max_length=50, default='30-45 mins', blank=True)
@@ -56,12 +75,17 @@ class Restaurant(models.Model):
 
 class MenuItem(models.Model):
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='menu_items')
+    category = models.ForeignKey(MenuItemCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='menu_items')
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
     price = models.DecimalField(max_digits=8, decimal_places=2)
     available = models.BooleanField(default=True)
     image = models.ImageField(upload_to='menu_image/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['category__order', 'name']
 
     def __str__(self):
         return f"{self.name} - {self.restaurant.name}"

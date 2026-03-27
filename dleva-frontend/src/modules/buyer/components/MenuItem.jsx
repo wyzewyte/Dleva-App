@@ -1,11 +1,10 @@
 import { ShoppingCart } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { formatCurrency } from '../../../utils/formatters';
-import { getMessage } from '../../../constants/messages';
 import { logError } from '../../../utils/errorHandler';
 
 const MenuItem = ({ id, name, description, price, image, restaurantId, restaurantName, deliveryFee }) => {
-  const { addLocalItem } = useCart(); 
+  const { addLocalItem } = useCart();
 
   const handleAdd = async () => {
     try {
@@ -19,7 +18,7 @@ const MenuItem = ({ id, name, description, price, image, restaurantId, restauran
         deliveryFee,
         quantity: 1
       });
-      logError(null, { context: 'MenuItem.handleAdd.success' });
+      // Success - item added (works for both guests and authenticated users)
     } catch (e) {
       logError(e, { context: 'MenuItem.handleAdd' });
       alert('Failed to add item to cart. Please try again.');
@@ -48,7 +47,7 @@ const getImageUrl = () => {
       <div className="relative w-24 h-24 flex-shrink-0">
         <img src={getImageUrl()} alt={name} className="w-full h-full object-cover rounded-xl" />
         
-        {/* UPDATED ADD BUTTON (Icon + Text) */}
+        {/* ADD BUTTON (Icon + Text) */}
         <button 
             onClick={handleAdd} 
             className="absolute -bottom-2 -right-2 bg-white text-primary px-3 py-1.5 rounded-full shadow-md border border-gray-100 active:scale-95 transition-transform cursor-pointer hover:bg-gray-50 flex items-center gap-1.5"

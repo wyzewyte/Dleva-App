@@ -1,6 +1,11 @@
 /**
  * Location Context - Global Location State Management
  * Provides location data and methods to entire app via React Context
+ * 
+ * Key features:
+ * - Centralized location state via locationManager
+ * - Location-triggered actions are cached in services
+ * - UI modes for modal vs page navigation
  */
 
 import React, { createContext, useState, useEffect, useCallback } from 'react';
@@ -23,9 +28,10 @@ export const LocationProvider = ({ children }) => {
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState(null);
 
-  // UI state
+  // UI state - for opening location setup modal/page
   const [locationSelectorOpen, setLocationSelectorOpen] = useState(false);
   const [locationSearchOpen, setLocationSearchOpen] = useState(false);
+  const [locationSetupOpen, setLocationSetupOpen] = useState(false); // For LocationSetupModal
 
   // Subscribe to location manager changes
   useEffect(() => {
@@ -54,7 +60,6 @@ export const LocationProvider = ({ children }) => {
           gpsLocation.longitude
         );
 
-        // addressData is the address object with display_name property
         const locationToSave = {
           address: addressData.display_name || addressData.address || 'Current Location',
           latitude: gpsLocation.latitude,
@@ -64,18 +69,22 @@ export const LocationProvider = ({ children }) => {
           accuracy: gpsLocation.accuracy,
         };
 
-        await locationManager.setLocation(locationToSave, locationType);
+        const token = localStorage.getItem('buyer_access_token');
+
+        if (token) {
+          // Logged-in user: save to backend
+          await locationManager.setLocation(locationToSave, locationType);
+        } else {
+          // Guest user: save only to localStorage
+          localStorage.setItem('dleva_guest_delivery_location', JSON.stringify(locationToSave));
+        }
         
-        // Explicitly update currentLocation state to ensure UI updates immediately
         setCurrentLocation(locationToSave);
         setRecentLocations(locationManager.getRecentLocations());
         
         setGpsLoading(false);
         return locationToSave;
       } catch (reverseGeoError) {
-        // Reverse geocode failed, but we have GPS coords
-        // Don't store coordinates as address - require manual entry instead
-        // User should select an address from search results for a valid delivery location
         const error = new Error('Unable to determine address from GPS. Please search and select an address.');
         error.code = 'REVERSE_GEOCODE_FAILED';
         error.hasCoordinates = true;
@@ -125,8 +134,18 @@ export const LocationProvider = ({ children }) => {
           area,
         };
 
-        await locationManager.setLocation(location, locationType);
+        const token = localStorage.getItem('buyer_access_token');
+
+        if (token) {
+          // Logged-in user: save to backend
+          await locationManager.setLocation(location, locationType);
+        } else {
+          // Guest user: save only to localStorage
+          localStorage.setItem('dleva_guest_delivery_location', JSON.stringify(location));
+        }
+
         setLocationSearchOpen(false);
+        setLocationSetupOpen(false);
         return location;
       } catch (error) {
         logError(error, { context: 'setLocationFromAddress' });
@@ -141,8 +160,18 @@ export const LocationProvider = ({ children }) => {
    */
   const setLocationFromRecent = useCallback(async (location) => {
     try {
-      await locationManager.setLocation(location, 'buyer_delivery');
+      const token = localStorage.getItem('buyer_access_token');
+
+      if (token) {
+        // Logged-in user: save to backend
+        await locationManager.setLocation(location, 'buyer_delivery');
+      } else {
+        // Guest user: save only to localStorage
+        localStorage.setItem('dleva_guest_delivery_location', JSON.stringify(location));
+      }
+
       setLocationSelectorOpen(false);
+      setLocationSetupOpen(false);
       return location;
     } catch (error) {
       logError(error, { context: 'setLocationFromRecent' });
@@ -151,7 +180,7 @@ export const LocationProvider = ({ children }) => {
   }, []);
 
   /**
-   * Get nearby restaurants
+   * Get nearby restaurants (with caching in useLocationServices)
    */
   const getNearbyRestaurants = useCallback(
     async (options = {}) => {
@@ -165,7 +194,7 @@ export const LocationProvider = ({ children }) => {
   );
 
   /**
-   * Estimate delivery fee
+   * Estimate delivery fee (with caching in useLocationServices)
    */
   const estimateDeliveryFee = useCallback(
     async (deliveryLocation) => {
@@ -197,6 +226,20 @@ export const LocationProvider = ({ children }) => {
     setCurrentLocation(null);
   }, []);
 
+  /**
+   * Open location setup (modal or page)
+   */
+  const openLocationSetup = useCallback(() => {
+    setLocationSetupOpen(true);
+  }, []);
+
+  /**
+   * Close location setup modal
+   */
+  const closeLocationSetup = useCallback(() => {
+    setLocationSetupOpen(false);
+  }, []);
+
   const value = {
     // Location state
     currentLocation,
@@ -221,6 +264,10 @@ export const LocationProvider = ({ children }) => {
     setLocationSelectorOpen,
     locationSearchOpen,
     setLocationSearchOpen,
+    locationSetupOpen,
+    setLocationSetupOpen,
+    openLocationSetup,
+    closeLocationSetup,
   };
 
   return (

@@ -61,9 +61,12 @@ const Profile = () => {
       setProfile(updatedProfile);
       setUser(updatedProfile); // ✅ THIS IS THE KEY CHANGE
       setFormData({
-        ...formData, // Keep existing form data
-        image: null, // Clear the file object
-        imagePreview: updatedProfile.image || formData.imagePreview, // Use new image URL
+        name: updatedProfile.name || '',
+        email: updatedProfile.email || '',
+        phone: updatedProfile.phone || '',
+        address: updatedProfile.address || '',
+        image: null,
+        imagePreview: updatedProfile.image || null,
       });
       
       setIsEditing(false);

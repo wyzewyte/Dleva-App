@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
     BuyerProfile, Cart, CartItem, 
-    Order, OrderItem, Payment, Rating
+    Order, OrderItem, Payment, Rating, Waitlist
 )
 from seller.models import Restaurant, MenuItem
 
@@ -36,7 +36,7 @@ class RestaurantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Restaurant
-        fields = ['id', 'name', 'description', 'address', 'category', 'image', 'delivery_fee', 'delivery_time', 'latitude', 'longitude', 'rating', 'is_active']
+        fields = ['id', 'name', 'description', 'address', 'image', 'delivery_fee', 'delivery_time', 'latitude', 'longitude', 'rating', 'is_active']
 
     def get_image(self, obj):
         request = self.context.get('request')
@@ -60,10 +60,11 @@ class RestaurantSerializer(serializers.ModelSerializer):
 
 class MenuItemSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
+    category_name = serializers.CharField(source='category.name', read_only=True)
 
     class Meta:
         model = MenuItem
-        fields = ['id', 'restaurant', 'name', 'description', 'price', 'available', 'image']
+        fields = ['id', 'restaurant', 'name', 'description', 'price', 'available', 'category', 'category_name', 'image']
 
     def get_image(self, obj):
         request = self.context.get('request')
@@ -118,13 +119,15 @@ class OrderItemSerializer(serializers.ModelSerializer):
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     restaurant_name = serializers.CharField(source='restaurant.name', read_only=True)
+    restaurant_obj = RestaurantSerializer(source='restaurant', read_only=True)
     buyer_name = serializers.CharField(source='buyer.user.get_full_name', read_only=True)
     subtotal = serializers.SerializerMethodField()
+    
     
     class Meta:
         model = Order
         fields = [
-            'id', 'restaurant', 'restaurant_name', 'buyer_name', 
+            'id', 'restaurant', 'restaurant_obj', 'restaurant_name', 'buyer_name', 
             'total_price', 'delivery_fee', 'delivery_address', 
             'delivery_latitude', 'delivery_longitude',
             'status', 'payment_method', 'is_rated', 'items', 
@@ -155,3 +158,10 @@ class RatingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rating
         fields = ['id', 'order', 'buyer_name', 'restaurant_name', 'rating', 'comment', 'created_at']
+
+
+class WaitlistSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Waitlist
+        fields = ['id', 'latitude', 'longitude', 'address', 'email', 'phone', 'created_at']
+        read_only_fields = ['id', 'created_at']

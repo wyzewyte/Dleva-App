@@ -41,12 +41,20 @@ export class LocationManager {
 
   /**
    * Initialize location from local storage
+   * Checks for both authenticated user location and guest location
    */
   initFromStorage() {
     try {
+      // First try to load authenticated user location
       const stored = localStorage.getItem(STORAGE_KEYS.CURRENT_LOCATION);
       if (stored) {
         this.currentLocation = JSON.parse(stored);
+      } else {
+        // If no authenticated location, try to load guest location
+        const guestLocation = localStorage.getItem('dleva_guest_delivery_location');
+        if (guestLocation) {
+          this.currentLocation = JSON.parse(guestLocation);
+        }
       }
 
       const recent = localStorage.getItem(STORAGE_KEYS.RECENT_LOCATIONS);

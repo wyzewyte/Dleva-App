@@ -1,12 +1,12 @@
 from django.contrib import admin
 from django import forms
-from .models import SellerProfile, Restaurant, MenuItem
+from .models import SellerProfile, Restaurant, MenuItem, MenuItemCategory
 from django.utils.html import format_html
 
 class RestaurantAdminForm(forms.ModelForm):
     class Meta:
         model = Restaurant
-        fields = ['seller', 'name', 'description', 'category', 'address', 'latitude', 'longitude', 'image', 'delivery_fee', 'delivery_time', 'is_active']
+        fields = ['seller', 'name', 'description', 'address', 'latitude', 'longitude', 'image', 'delivery_fee', 'delivery_time', 'is_active']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -53,10 +53,10 @@ class SellerProfileAdmin(admin.ModelAdmin):
 @admin.register(Restaurant)
 class RestaurantAdmin(admin.ModelAdmin):
     form = RestaurantAdminForm
-    list_display = ['name', 'seller', 'category', 'delivery_time', 'is_active']
-    fields = ['seller', 'name', 'description', 'category', 'address', 'latitude', 'longitude', 'image', 'delivery_fee', 'delivery_time', 'is_active']
-    search_fields = ['name', 'category']
-    list_filter = ['is_active', 'category']
+    list_display = ['name', 'seller', 'delivery_time', 'is_active']
+    fields = ['seller', 'name', 'description', 'address', 'latitude', 'longitude', 'image', 'delivery_fee', 'delivery_time', 'is_active']
+    search_fields = ['name']
+    list_filter = ['is_active']
 
     class Media:
         js = ('admin/js/restaurant_admin.js',)
@@ -67,11 +67,19 @@ class RestaurantAdmin(admin.ModelAdmin):
             obj.seller = request.user.seller_profile
         super().save_model(request, obj, form, change)
 
+@admin.register(MenuItemCategory)
+class MenuItemCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'order', 'is_active')
+    list_filter = ('is_active',)
+    search_fields = ('name',)
+    ordering = ('order', 'name')
+
 @admin.register(MenuItem)
 class MenuItemAdmin(admin.ModelAdmin):
-    list_display = ('name', 'restaurant', 'price', 'available', 'image_preview')
-    list_filter = ('restaurant', 'available')
-    search_fields = ('name',)
+    list_display = ('name', 'restaurant', 'category', 'price', 'available', 'image_preview')
+    list_filter = ('restaurant', 'category', 'available')
+    search_fields = ('name', 'restaurant__name')
+    readonly_fields = ('created_at', 'updated_at')
 
     def image_preview(self, obj):
         if obj.image:

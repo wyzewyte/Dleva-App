@@ -7,27 +7,33 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Dleva Brand Colors
+        // ── Dleva Brand Colors ──────────────────────────────
         primary: {
-          DEFAULT: '#000346', // The main Dleva blue
-          hover: '#00079b',   // Darker blue for hover states
-          light: '#000ae0',   // Light blue for backgrounds/badges
+          DEFAULT: '#1a4731',  // Deep Forest Green
+          hover: '#153b28',    // Darker green for hover
+          light: '#e8f0eb',    // Light green tint for backgrounds/badges
         },
-        // Backgrounds
-        bg: '#f3f4f6',      // Light Grey for app background
-        surface: '#ffffff', // Pure white for cards
-        
-        // Text
-        dark: '#111827',    // Almost black (for headings)
-        muted: '#6b7280',   // Grey (for subtext)
-        
-        // Status Indicators
+        accent: {
+          DEFAULT: '#f47b00',  // Orange
+          hover: '#d96e00',    // Darker orange for hover
+          light: '#fff3e0',    // Light orange tint
+        },
+
+        // ── Backgrounds ─────────────────────────────────────
+        bg: '#e8e8e6',         // Off White — app background
+        surface: '#ffffff',    // Pure white — cards & panels
+
+        // ── Text ────────────────────────────────────────────
+        dark: '#141414',       // Dark neutral — headings
+        muted: '#6b7280',      // Grey — subtext
+
+        // ── Status ──────────────────────────────────────────
         danger: '#ef4444',
         warning: '#f59e0b',
         success: '#10b981',
       },
       fontFamily: {
-        sans: ['Segoe UI', 'system-ui', 'sans-serif'],
+        sans: ['Manrope', 'system-ui', 'sans-serif'],
       },
     },
   },

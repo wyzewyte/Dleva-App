@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { User, Mail, Lock, Phone, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import api from '../../../../services/axios'; // Use the central api instance
 import { useAuth } from '../../../auth/context/AuthContext'; // Import useAuth
 
 const Signup = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const { login } = useAuth(); // Get the login function from context
+
+  const redirectUrl = searchParams.get('next');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -29,7 +32,8 @@ const Signup = () => {
       const { access, user } = response.data;
       login(access, user);
 
-      navigate('/setup-location');
+      // Redirect to the next URL if provided (e.g., /checkout/123), otherwise go to setup-location
+      navigate(redirectUrl || '/setup-location');
     } catch (err) {
       setError(err.response?.data?.error || 'Signup failed');
     } finally {

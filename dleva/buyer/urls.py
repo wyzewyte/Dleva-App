@@ -18,6 +18,7 @@ urlpatterns = [
     
     # ==================== MENU ====================
     path('menu/', views.MenuItemListView.as_view(), name='menu-items'),
+    path('menu/categories/', views.list_menu_item_categories, name='menu-categories'),
     
     # ==================== CART ====================
     path('cart/', views.CartListView.as_view(), name='cart-list'),
@@ -31,6 +32,10 @@ urlpatterns = [
     
     # ==================== RATINGS ====================
     path('rate/', views.RateOrderView.as_view(), name='rate-order'),
+
+
+    # ==================== WAITLIST ====================
+    path('waitlist/', views.join_platform_waitlist, name='platform-waitlist'),
     
     # ==================== LOCATION ====================
     path('location/', views.save_location, name='buyer-save-location'),

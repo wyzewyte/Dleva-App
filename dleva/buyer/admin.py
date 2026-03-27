@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import BuyerProfile, Cart, CartItem, Order, OrderItem, Payment, Rating, LocationHistory, AddressCache
+from .models import BuyerProfile, Cart, CartItem, Order, OrderItem, Payment, Rating, LocationHistory, AddressCache, WaitlistEntry
 
 @admin.register(BuyerProfile)
 class BuyerProfileAdmin(admin.ModelAdmin):
@@ -144,3 +144,12 @@ class AddressCacheAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+@admin.register(WaitlistEntry)
+class WaitlistEntryAdmin(admin.ModelAdmin):
+    list_display = ['id', 'buyer', 'restaurant', 'position', 'group_size', 'status', 'estimated_wait_time', 'created_at']
+    list_filter = ['restaurant', 'status', 'created_at']
+    search_fields = ['buyer__user__username', 'restaurant__name']
+    readonly_fields = ['created_at', 'updated_at']
+    ordering = ['restaurant', 'position']

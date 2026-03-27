@@ -1,10 +1,18 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import SellerProfile, MenuItem, Restaurant, Payout, PayoutDetails
+from .models import SellerProfile, MenuItem, Restaurant, Payout, PayoutDetails, MenuItemCategory
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         fields = ['id', 'username', 'email']
+
+
+class MenuItemCategorySerializer(serializers.ModelSerializer):
+    """Serializer for menu item categories"""
+    class Meta:
+        model = MenuItemCategory
+        fields = ['id', 'name', 'description', 'order', 'icon', 'is_active']
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class SellerRegistrationSerializer(serializers.Serializer):
@@ -58,7 +66,6 @@ class SellerRegistrationSerializer(serializers.Serializer):
             seller=seller_profile,
             name=restaurant_name,
             description='',
-            category='General' if business_type == 'restaurant' else 'Student Vendor',
             is_active=True,
             address=address
         )
@@ -79,24 +86,23 @@ class SellerProfileSerializer(serializers.ModelSerializer):
                   'image', 'created_at']
         
 class SellerMenuItemSerializer(serializers.ModelSerializer):
-    # seller_name = serializers.CharField(source='seller.restaurant_name', read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
     image = serializers.ImageField(required=False)
 
     class Meta:
         model = MenuItem
-        fields = ['id', 'name', 'description', 'price', 'available', 'image', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'name', 'description', 'price', 'available', 'category', 'category_name', 'image', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 class RestaurantSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Restaurant
-        fields = ['name', 'description', 'category', 'is_active', 'image', 'address', 'latitude', 'longitude']
+        fields = ['name', 'description', 'is_active', 'image', 'address', 'latitude', 'longitude']
         
     def update(self, instance, validated_data):
         # ✅ Ensure is_active is handled properly
         instance.name = validated_data.get('name', instance.name)
         instance.description = validated_data.get('description', instance.description)
-        instance.category = validated_data.get('category', instance.category)
         instance.is_active = validated_data.get('is_active', instance.is_active)  # ✅ Important
         instance.address = validated_data.get('address', instance.address)
         instance.latitude = validated_data.get('latitude', instance.latitude)

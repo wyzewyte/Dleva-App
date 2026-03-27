@@ -9,6 +9,9 @@ import { TrackingProvider } from './context/TrackingContext';
 // Toast Notification Component
 import Toast from './modules/rider/components/Toast';
 
+// Location Setup Wrapper (provides location modal globally)
+import LocationSetupWrapper from './components/LocationSetupWrapper';
+
 // Protected Route Guard
 import ProtectedRoute from './components/ProtectedRoute';
 import SellerProtectedRoute from './modules/seller/ProtectedRoute';
@@ -18,6 +21,8 @@ import RiderProtectedRoute from './modules/rider/ProtectedRoute';
 import BuyerHome from './modules/buyer/pages/Home';
 import Menu from './modules/buyer/pages/Menu';
 import Cart from './modules/buyer/pages/Cart';
+import Orders from './modules/buyer/pages/Orders';
+import Search from './modules/buyer/pages/Search';
 import Checkout from './modules/buyer/pages/Checkout';
 import PaymentCallback from './modules/buyer/pages/PaymentCallback'; // ✅ PAYSTACK
 import Tracking from './modules/buyer/pages/Tracking';
@@ -86,12 +91,13 @@ function App() {
   return (
     <LocationProvider>
       <TrackingProvider>
-        <Router>
-            {/* Cart Drawer (Visible globally, controlled by state) */}
-            <CartDrawer />
-            
-            {/* Toast Notifications (Visible globally) */}
-            <Toast />
+        <LocationSetupWrapper>
+          <Router>
+              {/* Cart Drawer (Visible globally, controlled by state) */}
+              <CartDrawer />
+              
+              {/* Toast Notifications (Visible globally) */}
+              <Toast />
           
           <Routes>
           
@@ -114,9 +120,11 @@ function App() {
               {/* --- Public Pages (Guests Allowed) --- */}
               <Route path="/" element={<Navigate to="/home" replace />} />
               <Route path="/home" element={<BuyerHome />} />
+              <Route path="/search" element={<Search />} />
               <Route path="/restaurants" element={<RestaurantList />} />
               <Route path="/restaurant/:id" element={<Menu />} />
               <Route path="/cart" element={<Cart />} />
+              <Route path="/orders" element={<Orders />} />
               <Route path="/support" element={<HelpSupport />} /> {/* Often public */}
 
               {/* --- Protected Pages (Login Required) --- */}
@@ -231,6 +239,7 @@ function App() {
 
         </Routes>
       </Router>
+        </LocationSetupWrapper>
       </TrackingProvider>
     </LocationProvider>
   );

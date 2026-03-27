@@ -184,6 +184,7 @@ export const API_ENDPOINTS = {
   // Menu endpoints
   MENU: {
     LIST: '/buyer/menu/',
+    CATEGORIES: 'buyer/menu/categories/',
   },
 
   // Cart endpoints
@@ -256,6 +257,12 @@ export const API_ENDPOINTS = {
     GET_LOCATION: (riderId) => `/rider/location/current/${riderId}/`,
     START_TRACKING: '/rider/location/start-tracking/',
     REGISTER_FCM_TOKEN: '/rider/fcm-token/register/',
+  },
+
+  // Waitlist endpoints
+  WAITLIST: {
+    LIST: '/buyer/waitlist/', // GET all waitlist entries for buyer
+    DETAIL: (restaurantId) => `/buyer/waitlist/${restaurantId}/`, // GET/POST/DELETE for a specific restaurant
   },
 };
 

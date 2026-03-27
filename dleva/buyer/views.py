@@ -11,13 +11,14 @@ from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 from .models import (
     BuyerProfile, Cart, CartItem, 
-    Order, OrderItem, Rating, Payment
+    Order, OrderItem, Rating, Payment, WaitlistEntry
 )
 from .serializers import (
     BuyerProfileSerializer, RestaurantSerializer, MenuItemSerializer,
     CartSerializer, CartItemSerializer, OrderSerializer, RatingSerializer
 )
-from seller.models import Restaurant, MenuItem
+from seller.models import Restaurant, MenuItem, MenuItemCategory
+from seller.serializers import MenuItemCategorySerializer
 
 # ✅ PAYSTACK INTEGRATION
 from utils.paystack_service import PaystackService, convert_to_kobo
@@ -166,26 +167,46 @@ def haversine_distance(lat1, lon1, lat2, lon2):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def list_restaurants(request):
-    """Get all restaurants with optional location filtering"""
+    """Get all restaurants with optional location filtering (within 5km)"""
     try:
         lat = request.GET.get('lat')
         lon = request.GET.get('lon')
         
         restaurants = Restaurant.objects.filter(is_active=True).order_by('name')
         
-        # Search by name or category
+        # Search by name or description (not by category anymore - restaurants no longer have categories)
         search = request.GET.get('q')
         if search:
             restaurants = restaurants.filter(name__icontains=search)
+        
+        # Filter by distance (5km radius) if location provided
+        MAX_DISTANCE_KM = 5
+        if lat and lon:
+            try:
+                user_lat = float(lat)
+                user_lon = float(lon)
+                
+                # Calculate distance for each restaurant and filter by 5km radius
+                nearby_restaurants = []
+                for restaurant in restaurants:
+                    if restaurant.latitude and restaurant.longitude:
+                        distance = haversine_distance(user_lat, user_lon, restaurant.latitude, restaurant.longitude)
+                        if distance <= MAX_DISTANCE_KM:
+                            nearby_restaurants.append(restaurant)
+                
+                restaurants = nearby_restaurants
+            except (ValueError, TypeError):
+                # If invalid coordinates, return all active restaurants
+                pass
         
         # Pagination
         limit = int(request.GET.get('limit', 20))
         offset = int(request.GET.get('offset', 0))
         
-        total_count = restaurants.count()
-        restaurants = restaurants[offset:offset + limit]
+        total_count = len(restaurants) if isinstance(restaurants, list) else restaurants.count()
+        paginated_restaurants = restaurants[offset:offset + limit]
         
-        serializer = RestaurantSerializer(restaurants, many=True, context={'request': request})
+        serializer = RestaurantSerializer(paginated_restaurants, many=True, context={'request': request})
         
         return Response({
             'count': total_count,
@@ -218,28 +239,32 @@ def get_restaurant(request, restaurant_id):
 # ==================== MENU VIEWS ====================
 
 class MenuItemListView(APIView):
-    """Get menu items for a restaurant"""
+    """Get menu items for a restaurant or search globally"""
     permission_classes = [AllowAny]
 
     def get(self, request):
         try:
             restaurant_id = request.GET.get('restaurant')
             
-            if not restaurant_id:
-                return Response(
-                    {'error': 'Restaurant ID is required'}, 
-                    status=status.HTTP_400_BAD_REQUEST
+            # Filter by restaurant if provided, otherwise get all available items
+            if restaurant_id:
+                menu_items = MenuItem.objects.filter(
+                    restaurant_id=restaurant_id,
+                    available=True
                 )
+            else:
+                # Global search - get all available items
+                menu_items = MenuItem.objects.filter(available=True)
             
-            menu_items = MenuItem.objects.filter(
-                restaurant_id=restaurant_id,
-                available=True
-            ).order_by('name')
+            menu_items = menu_items.order_by('name')
             
-            # Search
+            # Search by name or description
             search = request.GET.get('q')
             if search:
-                menu_items = menu_items.filter(name__icontains=search)
+                from django.db.models import Q
+                menu_items = menu_items.filter(
+                    Q(name__icontains=search) | Q(description__icontains=search)
+                )
             
             # Pagination
             limit = int(request.GET.get('limit', 20))
@@ -1446,3 +1471,61 @@ class ValidateAddressView(APIView):
                 {'error': 'Address validation failed'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+# ==================== MENU ITEM CATEGORIES ====================
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def list_menu_item_categories(request):
+    """Get all active menu item categories for sellers and buyers to use"""
+    try:
+        categories = MenuItemCategory.objects.filter(is_active=True).order_by('order', 'name')
+        serializer = MenuItemCategorySerializer(categories, many=True)
+        return Response({
+            'count': categories.count(),
+            'results': serializer.data
+        })
+    except Exception as e:
+        logger.error(f"Error fetching menu item categories: {str(e)}")
+        return Response(
+            {'error': 'Failed to fetch categories'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+
+# Platform/location waitlist endpoint (no restaurant required)
+from rest_framework.decorators import api_view, permission_classes
+from .models import Waitlist
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def join_platform_waitlist(request):
+    """
+    POST /api/buyer/waitlist/
+    Add user to platform/location waitlist (no vendors in area)
+    """
+    try:
+        latitude = request.data.get('latitude')
+        longitude = request.data.get('longitude')
+        address = request.data.get('address', '')
+        email = request.data.get('email', None)
+        phone = request.data.get('phone', None)
+
+        if not latitude or not longitude or not address:
+            return Response(
+                {'error': 'latitude, longitude, and address are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        entry = Waitlist.objects.create(
+            latitude=latitude,
+            longitude=longitude,
+            address=address,
+            email=email,
+            phone=phone
+        )
+        return Response({'message': 'Successfully joined waitlist', 'id': entry.id}, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
