@@ -166,9 +166,11 @@ const LocationSetupModal = ({ message = null, isModal = true, onClose = null }) 
         error.code === 'PERMISSION_DENIED'
           ? 'Location permission denied. Please enable in settings.'
           : error.code === 'TIMEOUT'
-            ? 'Location request timed out. Please try again.'
+            ? 'Location request timed out. Please move to an open area and try again.'
             : error.code === 'GEO_NOT_SUPPORTED'
               ? 'Geolocation not supported on this device.'
+              : error.code === 'INSECURE_CONTEXT'
+                ? 'Location access requires a secure HTTPS connection in production.'
               : error.message || 'Failed to get location';
 
       setGpsError(errorMessage);

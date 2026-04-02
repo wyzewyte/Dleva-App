@@ -23,8 +23,10 @@ const STORAGE_KEYS = {
 };
 
 const GPS_CONFIG = {
-  TIMEOUT: 10000, // 10 seconds
+  QUICK_TIMEOUT: 8000,
+  FALLBACK_TIMEOUT: 20000,
   ENABLE_HIGH_ACCURACY: true,
+  QUICK_HIGH_ACCURACY: false,
   MAX_AGE: 300000, // 5 minutes
   CACHE_DURATION: 300000, // 5 minutes
 };
@@ -120,42 +122,64 @@ export class LocationManager {
    * @returns {Promise} { latitude, longitude, accuracy, timestamp } or error
    */
   async requestGPSLocation() {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject({
-          error: 'Geolocation not supported',
-          code: 'GEO_NOT_SUPPORTED',
-        });
-        return;
+    if (!navigator.geolocation) {
+      throw {
+        error: 'Geolocation not supported',
+        code: 'GEO_NOT_SUPPORTED',
+      };
+    }
+
+    if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+      throw {
+        error: 'Location access requires HTTPS in production',
+        code: 'INSECURE_CONTEXT',
+      };
+    }
+
+    const getPosition = (options) =>
+      new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude, accuracy } = position.coords;
+            resolve({
+              latitude: parseFloat(latitude.toFixed(8)),
+              longitude: parseFloat(longitude.toFixed(8)),
+              accuracy: Math.round(accuracy),
+              timestamp: Date.now(),
+              source: 'gps',
+            });
+          },
+          (error) => {
+            const errorMap = {
+              1: { code: 'PERMISSION_DENIED', message: 'Location permission denied' },
+              2: { code: 'POSITION_UNAVAILABLE', message: 'Position unavailable' },
+              3: { code: 'TIMEOUT', message: 'Location request timed out' },
+            };
+            reject(errorMap[error.code] || { code: 'UNKNOWN_ERROR', message: error.message });
+          },
+          options
+        );
+      });
+
+    try {
+      // Try a faster coarse lookup first so mobile browsers can return a cached fix quickly.
+      return await getPosition({
+        timeout: GPS_CONFIG.QUICK_TIMEOUT,
+        enableHighAccuracy: GPS_CONFIG.QUICK_HIGH_ACCURACY,
+        maximumAge: GPS_CONFIG.MAX_AGE,
+      });
+    } catch (error) {
+      if (error.code === 'PERMISSION_DENIED') {
+        throw error;
       }
 
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude, accuracy } = position.coords;
-          const location = {
-            latitude: parseFloat(latitude.toFixed(8)),
-            longitude: parseFloat(longitude.toFixed(8)),
-            accuracy: Math.round(accuracy),
-            timestamp: Date.now(),
-            source: 'gps',
-          };
-          resolve(location);
-        },
-        (error) => {
-          const errorMap = {
-            1: { code: 'PERMISSION_DENIED', message: 'Location permission denied' },
-            2: { code: 'POSITION_UNAVAILABLE', message: 'Position unavailable' },
-            3: { code: 'TIMEOUT', message: 'Location request timed out' },
-          };
-          reject(errorMap[error.code] || { code: 'UNKNOWN_ERROR', message: error.message });
-        },
-        {
-          timeout: GPS_CONFIG.TIMEOUT,
-          enableHighAccuracy: GPS_CONFIG.ENABLE_HIGH_ACCURACY,
-          maximumAge: GPS_CONFIG.MAX_AGE,
-        }
-      );
-    });
+      // Fall back to a slower precise lookup for devices that need more time to lock GPS.
+      return getPosition({
+        timeout: GPS_CONFIG.FALLBACK_TIMEOUT,
+        enableHighAccuracy: GPS_CONFIG.ENABLE_HIGH_ACCURACY,
+        maximumAge: 0,
+      });
+    }
   }
 
   /**
