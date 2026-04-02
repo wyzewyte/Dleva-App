@@ -29,7 +29,7 @@ const HomeLoadingSkeleton = ({ user }) => {
       <section className="space-y-4 border-b border-gray-100 py-5">
         <div>
           <h1 className="max-w-[16ch] text-[1.5rem] font-bold leading-tight tracking-tight text-dark sm:text-[1.65rem]">
-            {user ? `Hello, ${user.name?.split(' ')[0] || user.username}` : 'Find something to eat'}
+            {user ? `Hello, ${user.name?.split(' ')[0] || user.username}` : 'Are you hungry?'}
           </h1>
           <p className="mt-1 text-sm text-muted">What are you ordering today?</p>
         </div>
