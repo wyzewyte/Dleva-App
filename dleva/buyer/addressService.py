@@ -1,7 +1,7 @@
 """
 Address Service
 Manages address operations with intelligent caching
-Combines Nominatim API with local cache to reduce external API calls
+Combines Mapbox API with local cache to reduce external API calls
 """
 
 import logging
@@ -9,7 +9,7 @@ from typing import Optional, List, Dict, Tuple
 from decimal import Decimal
 from django.utils import timezone
 from .models import AddressCache
-from .nominatimGeocoder import NominatimGeocoder
+from .mapboxGeocoder import MapboxGeocoder
 
 logger = logging.getLogger(__name__)
 
@@ -48,9 +48,9 @@ class AddressService:
                     logger.info(f"✅ Address cache hit for: {query}")
                     return [cached]
             
-            # Query Nominatim
-            logger.info(f"🌐 Querying Nominatim for: {query}")
-            results = NominatimGeocoder.search_address(query, limit=5)
+            # Query Mapbox
+            logger.info(f"🌐 Querying Mapbox for: {query}")
+            results = MapboxGeocoder.search_address(query, limit=5)
             
             if results:
                 # Cache the primary result
@@ -92,9 +92,9 @@ class AddressService:
                     logger.info(f"✅ Reverse geocode cache hit for: {latitude}, {longitude}")
                     return cached
             
-            # Query Nominatim
+            # Query Mapbox
             logger.info(f"🌐 Reverse geocoding: {latitude}, {longitude}")
-            result = NominatimGeocoder.reverse_geocode(latitude, longitude)
+            result = MapboxGeocoder.reverse_geocode(latitude, longitude)
             
             if result:
                 # Cache the result
@@ -124,7 +124,7 @@ class AddressService:
             Tuple of (is_valid, address_details)
         """
         try:
-            is_valid, details = NominatimGeocoder.validate_address(address)
+            is_valid, details = MapboxGeocoder.validate_address(address)
             
             if is_valid and details:
                 # Cache validated address

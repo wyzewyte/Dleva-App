@@ -1,28 +1,52 @@
 import { useState } from 'react';
-import { Star, X, ThumbsUp } from 'lucide-react';
+import { Bike, Star, Store, X, ThumbsUp } from 'lucide-react';
+import { BuyerPrimaryButton, BuyerTextInput } from './ui/BuyerPrimitives';
 
 const RateOrderModal = ({ isOpen, onClose, order, onSubmit }) => {
-  const [rating, setRating] = useState(0);
+  const [restaurantRating, setRestaurantRating] = useState(0);
+  const [riderRating, setRiderRating] = useState(0);
   const [comment, setComment] = useState("");
-  const [hoveredStar, setHoveredStar] = useState(0);
+  const [hoveredRestaurantStar, setHoveredRestaurantStar] = useState(0);
+  const [hoveredRiderStar, setHoveredRiderStar] = useState(0);
 
   if (!isOpen || !order) return null;
 
+  const hasRider = Boolean(order.rider_id);
+
   const handleSubmit = () => {
-    // Prepare data for your Django API
-    const ratingData = {
-        order_id: order.id,
-        vendor_id: order.vendorId,
-        stars: rating,
-        review: comment
-    };
-    
-    onSubmit(ratingData);
-    
-    // Reset form
-    setRating(0);
-    setComment("");
+    onSubmit({
+      orderId: order.id,
+      restaurantRating,
+      riderRating,
+      comment,
+    });
   };
+
+  const renderStars = ({ value, hoveredValue, setValue, setHoveredValue, label }) => (
+    <div>
+      <p className="mb-3 text-sm font-semibold text-dark">{label}</p>
+      <div className="flex justify-center gap-2">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={`${label}-${star}`}
+            onMouseEnter={() => setHoveredValue(star)}
+            onMouseLeave={() => setHoveredValue(0)}
+            onClick={() => setValue(star)}
+            className="transition-transform hover:scale-110 focus:outline-none"
+          >
+            <Star
+              size={30}
+              className={`${
+                star <= (hoveredValue || value)
+                  ? "fill-warning text-warning"
+                  : "text-gray-300"
+              } transition-colors duration-200`}
+            />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
@@ -34,7 +58,7 @@ const RateOrderModal = ({ isOpen, onClose, order, onSubmit }) => {
       ></div>
 
       {/* Modal Content */}
-      <div className="bg-white w-full max-w-md p-6 rounded-t-3xl sm:rounded-2xl shadow-2xl relative pointer-events-auto animate-in slide-in-from-bottom duration-300">
+      <div className="bg-white w-full max-w-md p-6 rounded-t-2xl sm:rounded-2xl shadow-2xl relative pointer-events-auto animate-in slide-in-from-bottom duration-300">
         
         {/* Close Button */}
         <button 
@@ -48,49 +72,58 @@ const RateOrderModal = ({ isOpen, onClose, order, onSubmit }) => {
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-3 text-primary">
                 <ThumbsUp size={32} />
             </div>
-            <h3 className="text-xl font-bold text-dark">Rate your meal</h3>
-            <p className="text-sm text-muted">How was the food from <span className="font-semibold text-primary">{order.vendorName}</span>?</p>
+            <h3 className="text-xl font-bold text-dark">Rate your order</h3>
+            <p className="text-sm text-muted">
+              Share feedback for <span className="font-semibold text-primary">{order.restaurant_name || order.vendorName || 'the restaurant'}</span>
+              {hasRider ? ' and your delivery experience.' : '.'}
+            </p>
         </div>
 
-        {/* Star Rating */}
-        <div className="flex justify-center gap-2 mb-6">
-            {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                    key={star}
-                    onMouseEnter={() => setHoveredStar(star)}
-                    onMouseLeave={() => setHoveredStar(0)}
-                    onClick={() => setRating(star)}
-                    className="transition-transform hover:scale-110 focus:outline-none"
-                >
-                    <Star 
-                        size={32} 
-                        weight="fill"
-                        className={`${
-                            star <= (hoveredStar || rating) 
-                                ? "text-warning fill-warning" 
-                                : "text-gray-300"
-                        } transition-colors duration-200`} 
-                    />
-                </button>
-            ))}
+        <div className="space-y-5 mb-6">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <div className="mb-3 flex items-center gap-2 text-dark">
+              <Store size={16} className="text-primary" />
+              <p className="text-sm font-semibold">Restaurant</p>
+            </div>
+            {renderStars({
+              value: restaurantRating,
+              hoveredValue: hoveredRestaurantStar,
+              setValue: setRestaurantRating,
+              setHoveredValue: setHoveredRestaurantStar,
+              label: 'How was the food?'
+            })}
+          </div>
+
+          {hasRider ? (
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+              <div className="mb-3 flex items-center gap-2 text-dark">
+                <Bike size={16} className="text-primary" />
+                <p className="text-sm font-semibold">Rider</p>
+              </div>
+              {renderStars({
+                value: riderRating,
+                hoveredValue: hoveredRiderStar,
+                setValue: setRiderRating,
+                setHoveredValue: setHoveredRiderStar,
+                label: order.rider_name ? `How was delivery with ${order.rider_name}?` : 'How was the delivery experience?'
+              })}
+            </div>
+          ) : null}
         </div>
 
         {/* Comment Box */}
-        <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            placeholder="Tell us what you liked (or didn't like)..."
-            className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-primary outline-none resize-none h-24 mb-4"
-        ></textarea>
+        <BuyerTextInput
+          multiline
+          rows={4}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Tell us what you liked (or didn't like)..."
+          className="mb-4"
+        />
 
-        {/* Submit Button */}
-        <button
-            onClick={handleSubmit}
-            disabled={rating === 0}
-            className="w-full bg-primary text-white font-bold py-3.5 rounded-xl shadow-lg hover:bg-primary-hover disabled:bg-gray-300 disabled:cursor-not-allowed transition-all active:scale-95"
-        >
-            Submit Review
-        </button>
+        <BuyerPrimaryButton onClick={handleSubmit} disabled={restaurantRating === 0}>
+          Submit Rating
+        </BuyerPrimaryButton>
 
       </div>
     </div>

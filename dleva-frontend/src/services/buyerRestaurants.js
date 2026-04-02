@@ -2,6 +2,56 @@ import api from './axios';
 import { API_ENDPOINTS } from '../constants/apiConfig';
 import { logError } from '../utils/errorHandler';
 
+const MAX_DISTANCE_KM = 5;
+
+const normalizeRestaurant = (restaurant) => {
+  if (!restaurant || typeof restaurant !== 'object') return restaurant;
+
+  return {
+    ...restaurant,
+    is_open: restaurant.is_open ?? restaurant.is_active ?? true,
+  };
+};
+
+const toNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const haversineDistanceKm = (lat1, lon1, lat2, lon2) => {
+  const toRadians = (degrees) => (degrees * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+  const deltaLat = toRadians(lat2 - lat1);
+  const deltaLon = toRadians(lon2 - lon1);
+  const a =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(deltaLon / 2) ** 2;
+
+  return 2 * earthRadiusKm * Math.asin(Math.sqrt(a));
+};
+
+const filterRestaurantsWithinRange = (restaurants, latitude, longitude) => {
+  const userLat = toNumber(latitude);
+  const userLon = toNumber(longitude);
+
+  if (!Array.isArray(restaurants) || userLat == null || userLon == null) {
+    return restaurants;
+  }
+
+  return restaurants.filter((restaurant) => {
+    const restaurantLat = toNumber(restaurant?.latitude);
+    const restaurantLon = toNumber(restaurant?.longitude);
+
+    if (restaurantLat == null || restaurantLon == null) {
+      return true;
+    }
+
+    return haversineDistanceKm(userLat, userLon, restaurantLat, restaurantLon) <= MAX_DISTANCE_KM;
+  });
+};
+
 const buyerRestaurants = {
   // Get all restaurants with location filtering
   listRestaurants: async (latitude, longitude) => {
@@ -12,7 +62,18 @@ const buyerRestaurants = {
           lon: longitude,
         },
       });
-      return response.data;
+      if (Array.isArray(response.data)) {
+        return filterRestaurantsWithinRange(response.data.map(normalizeRestaurant), latitude, longitude);
+      }
+
+      const normalizedResults = Array.isArray(response.data?.results)
+        ? response.data.results.map(normalizeRestaurant)
+        : response.data?.results;
+
+      return {
+        ...response.data,
+        results: filterRestaurantsWithinRange(normalizedResults, latitude, longitude),
+      };
     } catch (error) {
       logError(error, { context: 'buyerRestaurants.listRestaurants', latitude, longitude });
       throw error.response?.data || { error: 'Failed to fetch restaurants' };
@@ -23,7 +84,7 @@ const buyerRestaurants = {
   getRestaurant: async (restaurantId) => {
     try {
       const response = await api.get(API_ENDPOINTS.RESTAURANTS.DETAIL(restaurantId));
-      return response.data;
+      return normalizeRestaurant(response.data);
     } catch (error) {
       logError(error, { context: 'buyerRestaurants.getRestaurant', restaurantId });
       throw error.response?.data || { error: 'Failed to fetch restaurant' };
@@ -36,7 +97,16 @@ const buyerRestaurants = {
       const response = await api.get(API_ENDPOINTS.RESTAURANTS.LIST, {
         params: { q: query },
       });
-      return response.data;
+      if (Array.isArray(response.data)) {
+        return response.data.map(normalizeRestaurant);
+      }
+
+      return {
+        ...response.data,
+        results: Array.isArray(response.data?.results)
+          ? response.data.results.map(normalizeRestaurant)
+          : response.data?.results,
+      };
     } catch (error) {
       logError(error, { context: 'buyerRestaurants.searchRestaurants', query });
       throw error.response?.data || { error: 'Search failed' };

@@ -3,7 +3,7 @@ import { API_ENDPOINTS } from '../constants/apiConfig';
 import { logError } from '../utils/errorHandler';
 
 const buyerRatings = {
-  // Submit rating for order
+  // Submit rating for restaurant/seller
   rateOrder: async (orderId, rating, comment = '') => {
     try {
       const response = await api.post(API_ENDPOINTS.RATINGS.SUBMIT, {
@@ -18,50 +18,41 @@ const buyerRatings = {
     }
   },
 
-  // Get rating for specific order
-  getOrderRating: async (orderId) => {
+  // Submit rating for rider
+  rateRider: async (orderId, rating, comment = '') => {
     try {
-      const response = await api.get(API_ENDPOINTS.RATINGS.GET_ORDER_RATING(orderId));
-      return response.data;
-    } catch (error) {
-      logError(error, { context: 'buyerRatings.getOrderRating', orderId });
-      throw error.response?.data || { error: 'Failed to fetch rating' };
-    }
-  },
-
-  // Update rating
-  updateRating: async (orderId, rating, comment = '') => {
-    try {
-      const response = await api.put(API_ENDPOINTS.RATINGS.UPDATE_RATING(orderId), {
-        rating: rating,
-        comment: comment,
+      const response = await api.post(API_ENDPOINTS.RATINGS.SUBMIT_RIDER(orderId), {
+        rating,
+        comment,
       });
       return response.data;
     } catch (error) {
-      logError(error, { context: 'buyerRatings.updateRating', orderId });
-      throw error.response?.data || { error: 'Failed to update rating' };
+      logError(error, { context: 'buyerRatings.rateRider', orderId });
+      throw error.response?.data || { error: 'Failed to submit rider rating' };
     }
   },
 
-  // Delete rating
-  deleteRating: async (orderId) => {
+  // Submit both ratings from a single buyer flow when available
+  submitOrderFeedback: async ({ orderId, restaurantRating = 0, riderRating = 0, comment = '' }) => {
     try {
-      await api.delete(API_ENDPOINTS.RATINGS.DELETE_RATING(orderId));
-      return { message: 'Rating deleted' };
-    } catch (error) {
-      logError(error, { context: 'buyerRatings.deleteRating', orderId });
-      throw error.response?.data || { error: 'Failed to delete rating' };
-    }
-  },
+      if (!restaurantRating && !riderRating) {
+        throw { error: 'Please select at least one rating before submitting.' };
+      }
 
-  // Get all ratings by current user
-  getMyRatings: async () => {
-    try {
-      const response = await api.get(API_ENDPOINTS.RATINGS.GET_MY_RATINGS);
-      return response.data;
+      const results = {};
+
+      if (restaurantRating) {
+        results.restaurant = await buyerRatings.rateOrder(orderId, restaurantRating, comment);
+      }
+
+      if (riderRating) {
+        results.rider = await buyerRatings.rateRider(orderId, riderRating, comment);
+      }
+
+      return results;
     } catch (error) {
-      logError(error, { context: 'buyerRatings.getMyRatings' });
-      throw error.response?.data || { error: 'Failed to fetch ratings' };
+      logError(error, { context: 'buyerRatings.submitOrderFeedback', orderId });
+      throw error.response?.data || error || { error: 'Failed to submit feedback' };
     }
   },
 };

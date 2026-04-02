@@ -24,7 +24,7 @@ const LocationSetup = () => {
   }, [user, navigate]);
 
   const handleLocationSaved = () => {
-    navigate('/buyer/home');
+    navigate('/home');
   };
 
   return (

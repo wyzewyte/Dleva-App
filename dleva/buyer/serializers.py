@@ -33,10 +33,24 @@ class BuyerProfileSerializer(serializers.ModelSerializer):
 class RestaurantSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
+    is_open = serializers.BooleanField(source='is_active', read_only=True)
 
     class Meta:
         model = Restaurant
-        fields = ['id', 'name', 'description', 'address', 'image', 'delivery_fee', 'delivery_time', 'latitude', 'longitude', 'rating', 'is_active']
+        fields = [
+            'id',
+            'name',
+            'description',
+            'address',
+            'image',
+            'delivery_fee',
+            'delivery_time',
+            'latitude',
+            'longitude',
+            'rating',
+            'is_active',
+            'is_open',
+        ]
 
     def get_image(self, obj):
         request = self.context.get('request')
@@ -121,6 +135,8 @@ class OrderSerializer(serializers.ModelSerializer):
     restaurant_name = serializers.CharField(source='restaurant.name', read_only=True)
     restaurant_obj = RestaurantSerializer(source='restaurant', read_only=True)
     buyer_name = serializers.CharField(source='buyer.user.get_full_name', read_only=True)
+    rider_id = serializers.IntegerField(source='rider.id', read_only=True)
+    rider_name = serializers.CharField(source='rider.user.get_full_name', read_only=True)
     subtotal = serializers.SerializerMethodField()
     
     
@@ -130,7 +146,8 @@ class OrderSerializer(serializers.ModelSerializer):
             'id', 'restaurant', 'restaurant_obj', 'restaurant_name', 'buyer_name', 
             'total_price', 'delivery_fee', 'delivery_address', 
             'delivery_latitude', 'delivery_longitude',
-            'status', 'payment_method', 'is_rated', 'items', 
+            'status', 'payment_method', 'is_rated', 'items',
+            'rider_id', 'rider_name',
             'subtotal', 'confirmation_code', 'created_at', 'updated_at'
         ]
     

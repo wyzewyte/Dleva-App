@@ -38,10 +38,16 @@ def submit_rider_rating(request, order_id):
         )
     
     # Check buyer owns this order
-    if order.user.id != request.user.id:
+    if not order.buyer or order.buyer.user.id != request.user.id:
         return Response(
             {'error': 'Not authorized to rate this order'},
             status=status.HTTP_403_FORBIDDEN
+        )
+
+    if not order.rider:
+        return Response(
+            {'error': 'This order does not have a rider assigned yet'},
+            status=status.HTTP_400_BAD_REQUEST
         )
     
     # Check order is delivered

@@ -108,7 +108,7 @@ api.interceptors.response.use(
         } else {
           localStorage.removeItem('buyer_access_token');
           localStorage.removeItem('buyer_refresh_token');
-          window.location.href = '/login';
+          window.location.href = '/home';
         }
         return Promise.reject(refreshError);
       }

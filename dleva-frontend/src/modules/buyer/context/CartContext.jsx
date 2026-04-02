@@ -5,11 +5,12 @@ import { useAuth } from '../../auth/context/AuthContext';
 
 const STORAGE_KEY = 'dleva_cart';
 const PAUSE_KEY = 'cartSyncPaused';
+const LAST_ADDED_AT_KEY = 'dleva_cart_last_added_at';
 
 const CartContext = createContext();
 
 export const CartProvider = ({ children }) => {
-  const { user, token } = useAuth(); // Get authenticated user and token
+  const { token } = useAuth(); // Get authenticated user token
   const [cartItems, setCartItemsState] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
@@ -17,6 +18,7 @@ export const CartProvider = ({ children }) => {
       return [];
     }
   });
+  const [lastAddedAt, setLastAddedAt] = useState(() => localStorage.getItem(LAST_ADDED_AT_KEY));
 
   // NEW: drawer state
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -26,6 +28,12 @@ export const CartProvider = ({ children }) => {
   const setCartItems = (items) => {
     setCartItemsState(items || []);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items || []));
+  };
+
+  const markCartUpdated = () => {
+    const timestamp = new Date().toISOString();
+    setLastAddedAt(timestamp);
+    localStorage.setItem(LAST_ADDED_AT_KEY, timestamp);
   };
 
   const addLocalItem = async (item) => {
@@ -66,6 +74,7 @@ export const CartProvider = ({ children }) => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         return next;
       });
+      markCartUpdated();
       
       return true; // success
     } catch (e) {
@@ -89,6 +98,10 @@ export const CartProvider = ({ children }) => {
         !(String(i.id) === String(itemId) && String(i.vendorId) === String(vendorId))
       );
       localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+      if (filtered.length === 0) {
+        localStorage.removeItem(LAST_ADDED_AT_KEY);
+        setLastAddedAt(null);
+      }
       return filtered;
     });
   };
@@ -133,7 +146,7 @@ export const CartProvider = ({ children }) => {
             await buyerCart.addItem(it.vendorId, menuId, it.quantity || 1).catch(() => {});
           }
         }
-      } catch (e) {
+      } catch {
         // ignore
       }
     };
@@ -150,6 +163,7 @@ export const CartProvider = ({ children }) => {
       clearVendor,
       removeFromCart,
       updateQuantity,
+      lastAddedAt,
       isCartOpen,
       setIsCartOpen,
       toggleCart
@@ -159,4 +173,5 @@ export const CartProvider = ({ children }) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useCart = () => useContext(CartContext);

@@ -142,6 +142,9 @@ export const LocationProvider = ({ children }) => {
         } else {
           // Guest user: save only to localStorage
           localStorage.setItem('dleva_guest_delivery_location', JSON.stringify(location));
+          // Update context state for guest users
+          setCurrentLocation(location);
+          setRecentLocations(locationManager.getRecentLocations());
         }
 
         setLocationSearchOpen(false);
@@ -168,6 +171,9 @@ export const LocationProvider = ({ children }) => {
       } else {
         // Guest user: save only to localStorage
         localStorage.setItem('dleva_guest_delivery_location', JSON.stringify(location));
+        // Update context state for guest users
+        setCurrentLocation(location);
+        setRecentLocations(locationManager.getRecentLocations());
       }
 
       setLocationSelectorOpen(false);

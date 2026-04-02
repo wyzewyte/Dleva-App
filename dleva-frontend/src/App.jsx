@@ -18,22 +18,24 @@ import SellerProtectedRoute from './modules/seller/ProtectedRoute';
 import RiderProtectedRoute from './modules/rider/ProtectedRoute';
 
 // Buyer Pages
-import BuyerHome from './modules/buyer/pages/Home';
-import Menu from './modules/buyer/pages/Menu';
-import Cart from './modules/buyer/pages/Cart';
-import Orders from './modules/buyer/pages/Orders';
-import Search from './modules/buyer/pages/Search';
+import BuyerHome from './modules/buyer/pages/HomeModern';
+import Menu from './modules/buyer/pages/MenuModern';
+import OrdersHub from './modules/buyer/pages/OrdersHub';
+import Search from './modules/buyer/pages/SearchModern';
 import Checkout from './modules/buyer/pages/Checkout';
-import PaymentCallback from './modules/buyer/pages/PaymentCallback'; // ✅ PAYSTACK
-import Tracking from './modules/buyer/pages/Tracking';
-import Login from './modules/buyer/pages/auth/BuyerLogin';
-import Signup from './modules/buyer/pages/auth/Signup';
-import Profile from './modules/buyer/pages/Profile';
-import OrderHistory from './modules/buyer/pages/OrderHistory';
-import HelpSupport from './modules/buyer/pages/HelpSupport';
-import RestaurantList from './modules/buyer/pages/RestaurantList';
+import PaymentCallbackModern from './modules/buyer/pages/PaymentCallbackModern';
+import Tracking from './modules/buyer/pages/TrackingModern';
+import Login from './modules/buyer/pages/auth/BuyerLoginModern';
+import Signup from './modules/buyer/pages/auth/SignupModern';
+import ForgotPassword from './modules/buyer/pages/auth/ForgotPasswordModern';
+import VerifyCode from './modules/buyer/pages/auth/VerifyCodeModern';
+import ResetPassword from './modules/buyer/pages/auth/ResetPasswordModern';
+import Profile from './modules/buyer/pages/ProfileModern';
+import OrderHistoryModern from './modules/buyer/pages/OrderHistoryModern';
+import HelpSupport from './modules/buyer/pages/HelpSupportModern';
+import RestaurantList from './modules/buyer/pages/RestaurantListModern';
 import LocationSetup from './modules/buyer/pages/auth/LocationSetup';
-import ChangePassword from './modules/buyer/pages/ChangePassword';
+import ChangePassword from './modules/buyer/pages/ChangePasswordModern';
 
 // Seller Pages
 import SellerDashboard from './modules/seller/pages/Dashboard';
@@ -106,6 +108,9 @@ function App() {
           {/* ============================== */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} /> 
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/verify-code" element={<VerifyCode />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           
           {/* Location Setup must be public for Guests */}
           <Route path="/setup-location" element={<LocationSetup />} />
@@ -123,15 +128,15 @@ function App() {
               <Route path="/search" element={<Search />} />
               <Route path="/restaurants" element={<RestaurantList />} />
               <Route path="/restaurant/:id" element={<Menu />} />
-              <Route path="/cart" element={<Cart />} />
-              <Route path="/orders" element={<Orders />} />
+              <Route path="/cart" element={<Navigate to="/orders?tab=cart" replace />} />
+              <Route path="/orders" element={<OrdersHub />} />
               <Route path="/support" element={<HelpSupport />} /> {/* Often public */}
 
               {/* --- Protected Pages (Login Required) --- */}
               {/* We nest the Guard HERE to protect only specific pages */}
               <Route element={<ProtectedRoute />}>
                   <Route path="/profile" element={<Profile />} />
-                  <Route path="/history" element={<OrderHistory />} />
+                  <Route path="/history" element={<OrderHistoryModern />} />
                   <Route path="/tracking/:orderId" element={<Tracking />} />  
                   <Route path="/change-password" element={<ChangePassword />} />
               </Route>
@@ -145,7 +150,7 @@ function App() {
           {/* Checkout is usually standalone (no sidebar) to reduce distractions */}
           <Route element={<ProtectedRoute />}>
               <Route path="/checkout/:vendorId" element={<Checkout />} />
-              <Route path="/payment/callback" element={<PaymentCallback />} /> {/* ✅ PAYSTACK CALLBACK */}
+              <Route path="/payment/callback" element={<PaymentCallbackModern />} /> {/* ✅ PAYSTACK CALLBACK */}
           </Route>
 
 
@@ -246,3 +251,5 @@ function App() {
 }
 
 export default App;
+
+

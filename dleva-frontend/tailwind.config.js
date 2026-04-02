@@ -20,7 +20,7 @@ export default {
         },
 
         // ── Backgrounds ─────────────────────────────────────
-        bg: '#e8e8e6',         // Off White — app background
+        bg: '#ffffff',         // White buyer background
         surface: '#ffffff',    // Pure white — cards & panels
 
         // ── Text ────────────────────────────────────────────

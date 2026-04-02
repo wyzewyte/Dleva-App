@@ -8,7 +8,6 @@ import useLocationServices from '../../../hooks/useLocationServices';
 import CartItem from '../components/CartItem';
 import LoginPromptModal from '../components/LoginPromptModal';
 import { formatCurrency } from '../../../utils/formatters';
-import { getMessage } from '../../../constants/messages';
 
 // ─── Empty Cart Illustration ─────────────────────────────────────────────────
 
@@ -36,23 +35,27 @@ const VendorCartCard = ({ group, deliveryFeeLoading, deliveryFeeError, deliveryF
   const total = group.subtotal + deliveryFee;
 
   return (
-    <div className="bg-surface rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div className="overflow-hidden rounded-[18px] border border-gray-200 bg-surface shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
 
       {/* Vendor Header */}
-      <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-100">
-        <div className="w-9 h-9 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
-          <Store size={17} className="text-primary" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-sm text-dark truncate">{group.vendorName}</h3>
-          <div className="flex items-center gap-1 text-xs text-muted mt-0.5">
-            <MapPin size={11} />
-            <span>Delivering to your location</span>
+      <div className="border-b border-gray-100 px-4 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <Store size={17} className="text-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate text-sm font-bold text-dark">{group.vendorName}</h3>
+              <div className="mt-0.5 flex items-center gap-1 text-xs text-muted">
+                <MapPin size={11} />
+                <span className="truncate">Delivering to your location</span>
+              </div>
+            </div>
           </div>
+          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-muted">
+            {group.items.length} {group.items.length === 1 ? 'item' : 'items'}
+          </span>
         </div>
-        <span className="text-xs text-muted font-medium flex-shrink-0">
-          {group.items.length} {group.items.length === 1 ? 'item' : 'items'}
-        </span>
       </div>
 
       {/* Cart Items */}
@@ -63,7 +66,7 @@ const VendorCartCard = ({ group, deliveryFeeLoading, deliveryFeeError, deliveryF
       </div>
 
       {/* Totals */}
-      <div className="px-4 py-3 bg-gray-50/50 border-t border-gray-100 space-y-2">
+      <div className="space-y-2 border-t border-gray-100 bg-gray-50/60 px-4 py-3">
         <div className="flex justify-between text-sm">
           <span className="text-muted">Subtotal</span>
           <span className="font-medium text-dark">{formatCurrency(group.subtotal)}</span>
@@ -79,7 +82,7 @@ const VendorCartCard = ({ group, deliveryFeeLoading, deliveryFeeError, deliveryF
             }
           </span>
         </div>
-        <div className="flex justify-between font-bold text-base pt-2 border-t border-gray-200">
+        <div className="flex justify-between border-t border-gray-200 pt-2 text-base font-bold">
           <span className="text-dark">Total</span>
           <span className="text-primary">{formatCurrency(total)}</span>
         </div>
@@ -89,12 +92,12 @@ const VendorCartCard = ({ group, deliveryFeeLoading, deliveryFeeError, deliveryF
       <div className="px-4 pb-4 pt-3">
         <button
           onClick={() => onCheckout(group.vendorId)}
-          className="w-full flex items-center justify-between px-5 py-4 bg-primary text-white font-bold rounded-2xl hover:opacity-90 active:scale-[0.98] transition-all text-sm"
+          className="flex h-11 w-full items-center justify-between rounded-xl bg-primary px-4 text-left text-sm font-bold text-white transition-all hover:opacity-90 active:scale-[0.98] sm:h-12 sm:px-5"
         >
           <span>Checkout</span>
           <div className="flex items-center gap-2">
             <span className="text-white/80 font-normal">{formatCurrency(total)}</span>
-            <ChevronRight size={18} />
+            <ChevronRight size={16} />
           </div>
         </button>
       </div>
@@ -157,7 +160,7 @@ const Cart = () => {
   if (!currentLocation) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-        <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center mb-4">
+        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-xl bg-orange-50">
           <MapPin size={28} className="text-orange-500" />
         </div>
         <h3 className="text-lg font-bold text-dark mb-2">Location Required</h3>
@@ -166,7 +169,7 @@ const Cart = () => {
         </p>
         <button
           onClick={() => openLocationSetup()}
-          className="w-full max-w-xs py-4 bg-dark text-white font-bold rounded-2xl hover:opacity-90 transition-opacity text-sm"
+          className="w-full max-w-xs rounded-xl bg-dark py-4 text-sm font-bold text-white transition-opacity hover:opacity-90"
         >
           Set Delivery Location
         </button>
@@ -177,12 +180,12 @@ const Cart = () => {
   // ── Empty cart ──
   if (vendorIds.length === 0) {
     return (
-      <div className="flex flex-col items-center px-6 pt-6 pb-10 text-center">
+      <div className="flex flex-col items-center px-4 pt-6 pb-10 text-center sm:px-6">
         <EmptyCartIllustration />
         <p className="text-base text-muted mt-4 mb-8">Your cart is empty</p>
         <Link
           to="/restaurants"
-          className="w-full max-w-xs py-4 bg-primary text-white font-bold rounded-2xl hover:opacity-90 transition-opacity text-sm flex items-center justify-center gap-2"
+          className="flex w-full max-w-xs items-center justify-center gap-2 rounded-xl bg-primary py-4 text-sm font-bold text-white transition-opacity hover:opacity-90"
         >
           <ShoppingBag size={18} />
           Add items to cart
@@ -197,9 +200,9 @@ const Cart = () => {
 
       {/* Multiple vendor notice */}
       {vendorIds.length > 1 && (
-        <div className="flex items-start gap-3 p-3.5 bg-accent/10 rounded-2xl border border-accent/20">
+        <div className="flex items-start gap-3 rounded-[18px] border border-accent/20 bg-accent/10 p-3.5">
           <Store size={16} className="text-accent flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-dark font-medium leading-snug">
+          <p className="text-xs text-dark font-medium leading-snug sm:text-sm">
             You have items from <span className="font-bold">{vendorIds.length} restaurants</span>. Each will be checked out separately.
           </p>
         </div>

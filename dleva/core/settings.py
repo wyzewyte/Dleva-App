@@ -148,6 +148,10 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
+# ✅ Mapbox Configuration (for geocoding and location services)
+MAPBOX_API_KEY = config('MAPBOX_API_KEY', default=None)
+
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 

@@ -172,7 +172,7 @@ def list_restaurants(request):
         lat = request.GET.get('lat')
         lon = request.GET.get('lon')
         
-        restaurants = Restaurant.objects.filter(is_active=True).order_by('name')
+        restaurants = Restaurant.objects.all().order_by('name')
         
         # Search by name or description (not by category anymore - restaurants no longer have categories)
         search = request.GET.get('q')
@@ -196,7 +196,7 @@ def list_restaurants(request):
                 
                 restaurants = nearby_restaurants
             except (ValueError, TypeError):
-                # If invalid coordinates, return all active restaurants
+                # If invalid coordinates, return all restaurants
                 pass
         
         # Pagination
@@ -226,7 +226,7 @@ def list_restaurants(request):
 def get_restaurant(request, restaurant_id):
     """Get a single restaurant by ID"""
     try:
-        restaurant = Restaurant.objects.get(id=restaurant_id, is_active=True)
+        restaurant = Restaurant.objects.get(id=restaurant_id)
         serializer = RestaurantSerializer(restaurant, context={'request': request})
         return Response(serializer.data)
     except Restaurant.DoesNotExist:
@@ -1301,7 +1301,7 @@ class GpsLocationRetrieveView(APIView):
 
 class AddressSearchView(APIView):
     """
-    Search for addresses using Nominatim with caching
+    Search for addresses using Mapbox with caching
     Reduces API calls while providing fast address suggestions
     """
     permission_classes = [AllowAny]  # Public endpoint
@@ -1351,7 +1351,7 @@ class AddressSearchView(APIView):
 class ReverseGeocodeView(APIView):
     """
     Convert coordinates to address
-    Uses Nominatim reverse geocoding with caching
+    Uses Mapbox reverse geocoding with caching
     """
     permission_classes = [AllowAny]
     parser_classes = [parsers.JSONParser]

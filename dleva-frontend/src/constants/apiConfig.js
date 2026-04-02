@@ -231,9 +231,7 @@ export const API_ENDPOINTS = {
   // Rating endpoints
   RATINGS: {
     SUBMIT: '/buyer/rate/',
-    GET_ORDER_RATING: (orderId) => `/buyer/rate/${orderId}/`,
-    UPDATE_RATING: (orderId) => `/buyer/rate/${orderId}/`,
-    DELETE_RATING: (orderId) => `/buyer/rate/${orderId}/`,
+    SUBMIT_RIDER: (orderId) => `/rider/order/${orderId}/rate-rider/`,
   },
 
   // Dispute endpoints
@@ -312,7 +310,7 @@ export const getEndpoint = (path) => {
  * Environment-specific configuration
  */
 export const getEnvironmentConfig = () => {
-  const env = import.meta.env.VITE_ENV || process.env.NODE_ENV || 'development';
+  const env = import.meta.env.VITE_ENV || globalThis?.process?.env?.NODE_ENV || 'development';
   
   const configs = {
     development: {
@@ -322,13 +320,13 @@ export const getEnvironmentConfig = () => {
       LOG_RESPONSES: true,
     },
     production: {
-      API_BASE_URL: process.env.VITE_API_URL || 'https://api.deliva.com/api',
+      API_BASE_URL: import.meta.env.VITE_API_URL || 'https://api.deliva.com/api',
       DEBUG: false,
       LOG_REQUESTS: false,
       LOG_RESPONSES: false,
     },
     staging: {
-      API_BASE_URL: process.env.VITE_API_URL || 'https://staging-api.deliva.com/api',
+      API_BASE_URL: import.meta.env.VITE_API_URL || 'https://staging-api.deliva.com/api',
       DEBUG: true,
       LOG_REQUESTS: true,
       LOG_RESPONSES: false,

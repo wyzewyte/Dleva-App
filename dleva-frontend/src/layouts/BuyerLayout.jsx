@@ -1,24 +1,29 @@
-import { Outlet, Link, NavLink } from 'react-router-dom';
-import { ShoppingBag, User, Package } from 'lucide-react';
+import { Outlet, Link, NavLink, useLocation } from 'react-router-dom';
+import { User } from 'lucide-react';
 import BuyerBottomNav from '../components/navigation/BuyerBottomNav';
 import LocationSelector from '../components/LocationSelector';
 import { useCart } from '../modules/buyer/context/CartContext';
 import { useAuth } from '../modules/auth/context/AuthContext'; // Corrected Auth Context path
+import CartSummaryBar from '../modules/buyer/components/CartSummaryBar';
+import { shouldShowCartSummaryBar } from '../modules/buyer/utils/cartSummaryBarVisibility';
+import brandLogo from '../assets/images/logo.svg';
 
 const BuyerLayout = () => {
-  const { cartItems } = useCart();
+  const { cartItems, lastAddedAt } = useCart();
   const { user, token } = useAuth(); // Get user and token from Auth Context
+  const location = useLocation();
+  const showCartSummaryBar = shouldShowCartSummaryBar(location.pathname, cartItems, lastAddedAt);
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex min-h-screen flex-col bg-bg">
       
       {/* --- DESKTOP HEADER (Top Nav) --- */}
       {/* Hidden on Mobile, Visible on Desktop (md and up) */}
-      <header className="hidden md:flex h-14 lg:h-16 bg-surface border-b border-gray-200 sticky top-0 z-50 px-4 sm:px-6 md:px-8 items-center justify-between shadow-sm">
+      <header className="sticky top-0 z-50 hidden h-14 items-center justify-between border-b border-gray-200 bg-surface px-4 shadow-sm md:flex lg:h-16 sm:px-6 md:px-8">
         
         {/* Logo */}
-        <Link to="/home" className="text-xl md:text-2xl font-bold text-primary tracking-tighter hover:opacity-80 transition-opacity">
-          Dleva
+        <Link to="/home" className="inline-flex items-center hover:opacity-80 transition-opacity" aria-label="Dleva home">
+          <img src={brandLogo} alt="Dleva" className="h-10 w-10 lg:h-11 lg:w-11" />
         </Link>
 
         {/* Location Selector (Phase 3) */}
@@ -44,7 +49,7 @@ const BuyerLayout = () => {
             to="/orders" 
             className={({isActive}) => `text-sm lg:text-base font-medium transition-colors flex items-center gap-1 ${isActive ? "text-primary font-bold" : "text-muted hover:text-dark"}`}
           >
-            {({ isActive }) => (
+            {() => (
               <>
                 Orders
                 {cartItems.length > 0 && (
@@ -89,10 +94,10 @@ const BuyerLayout = () => {
 
       {/* --- MOBILE HEADER (Location Selector) --- */}
       {/* Visible on Mobile, Hidden on Desktop (md and up) */}
-      <header className="md:hidden h-14 bg-surface border-b border-gray-200 sticky top-0 z-40 px-4 flex items-center justify-between shadow-sm">
+      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-gray-200 bg-surface px-4 md:hidden">
         {/* Logo */}
-        <Link to="/home" className="text-xl font-bold text-primary tracking-tighter">
-          Dleva
+        <Link to="/home" className="inline-flex items-center" aria-label="Dleva home">
+          <img src={brandLogo} alt="Dleva" className="h-9 w-9 sm:h-10 sm:w-10" />
         </Link>
 
         {/* Location Selector - Mobile Version */}
@@ -100,10 +105,16 @@ const BuyerLayout = () => {
       </header>
 
       {/* --- MAIN CONTENT AREA --- */}
-      <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-6 pb-24 md:pb-6">
+      <main
+        className={`mx-auto flex-1 w-full max-w-7xl px-4 pt-0 md:px-6 ${
+          showCartSummaryBar ? 'pb-44 md:pb-32' : 'pb-24 md:pb-6'
+        }`}
+      >
         {/* This renders the child pages (Home, Menu, etc.) */}
         <Outlet />
       </main>
+
+      <CartSummaryBar />
 
       {/* --- MOBILE NAV (Bottom Nav) --- */}
       {/* This component now handles the Mobile Cart Drawer logic internally */}

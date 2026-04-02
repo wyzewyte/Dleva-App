@@ -6,13 +6,33 @@
  * 2. Modal overlay (when location is required during flow)
  */
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MapPin, Search, Loader2, Navigation, AlertCircle, Clock, ChevronRight, X, PlusCircle } from 'lucide-react';
 import useLocation from '../../../hooks/useLocation';
 import addressSearchService from '../../../services/addressSearchService';
 import { saveUserLocation, getRecentLocations } from '../../../services/location';
 import locationManager from '../../../services/locationManager';
 import { logError } from '../../../utils/errorHandler';
+
+const normalizeLocationOption = (location) => {
+  if (!location || typeof location !== 'object') {
+    return null;
+  }
+
+  const addressValue =
+    typeof location.address === 'string'
+      ? location.address
+      : location.address?.display_name || location.address?.address || location.display_name || '';
+
+  return {
+    ...location,
+    address: addressValue || 'Selected location',
+    area:
+      typeof location.area === 'string'
+        ? location.area
+        : location.area?.name || location.city || '',
+  };
+};
 
 const LocationSetupModal = ({ message = null, isModal = true, onClose = null }) => {
   // Search state
@@ -21,7 +41,7 @@ const LocationSetupModal = ({ message = null, isModal = true, onClose = null }) 
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState(null);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [searchInputRef, setSearchInputRef] = useState(null);
+  const searchInputRef = useRef(null);
 
   // Location state
   const [recentLocations, setRecentLocations] = useState([]);
@@ -35,7 +55,7 @@ const LocationSetupModal = ({ message = null, isModal = true, onClose = null }) 
   // Save state
   const [saveLoading, setSaveLoading] = useState(false);
 
-  const { currentLocation, setLocationFromAddress, closeLocationSetup } = useLocation();
+  const { setLocationFromAddress, closeLocationSetup } = useLocation();
 
   // Load recent locations on mount
   useEffect(() => {
@@ -49,7 +69,7 @@ const LocationSetupModal = ({ message = null, isModal = true, onClose = null }) 
     const guestLocation = localStorage.getItem('dleva_guest_delivery_location');
     if (guestLocation) {
       try {
-        setRecentLocations([JSON.parse(guestLocation)]);
+        setRecentLocations([normalizeLocationOption(JSON.parse(guestLocation))].filter(Boolean));
         setRecentLoading(false);
         return; // Don't fetch from API for guests
       } catch (error) {
@@ -66,7 +86,7 @@ const LocationSetupModal = ({ message = null, isModal = true, onClose = null }) 
     try {
       setRecentLoading(true);
       const response = await getRecentLocations('buyer_delivery', 5);
-      setRecentLocations(response.locations || []);
+      setRecentLocations((response.locations || []).map(normalizeLocationOption).filter(Boolean));
     } catch (error) {
       logError(error, { context: 'LocationSetupModal.loadRecentLocations' });
       setRecentLocations([]);
@@ -74,6 +94,25 @@ const LocationSetupModal = ({ message = null, isModal = true, onClose = null }) 
       setRecentLoading(false);
     }
   };
+
+  const performSearch = useCallback(async () => {
+    if (searchQuery.trim().length < 2) return;
+
+    setSearchLoading(true);
+    setSearchError(null);
+
+    try {
+      const results = await addressSearchService.searchAddresses(searchQuery);
+      setSearchResults((results || []).map(normalizeLocationOption).filter(Boolean));
+      setShowSearchResults(true);
+    } catch (error) {
+      logError(error, { context: 'LocationSetupModal.performSearch' });
+      setSearchError('Failed to search addresses');
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [searchQuery]);
 
   // Debounced search
   useEffect(() => {
@@ -88,29 +127,10 @@ const LocationSetupModal = ({ message = null, isModal = true, onClose = null }) 
     }, 300);
 
     return () => clearTimeout(searchTimeout);
-  }, [searchQuery]);
-
-  const performSearch = async () => {
-    if (searchQuery.trim().length < 2) return;
-
-    setSearchLoading(true);
-    setSearchError(null);
-
-    try {
-      const results = await addressSearchService.searchAddresses(searchQuery);
-      setSearchResults(results || []);
-      setShowSearchResults(true);
-    } catch (error) {
-      logError(error, { context: 'LocationSetupModal.performSearch' });
-      setSearchError('Failed to search addresses');
-      setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  };
+  }, [performSearch, searchQuery]);
 
   const handleSelectLocation = (location) => {
-    setSelectedLocation(location);
+    setSelectedLocation(normalizeLocationOption(location));
     setSearchQuery('');
     setShowSearchResults(false);
   };
@@ -136,7 +156,7 @@ const LocationSetupModal = ({ message = null, isModal = true, onClose = null }) 
           area: addressData.area,
         };
 
-        setSelectedLocation(location);
+        setSelectedLocation(normalizeLocationOption(location));
       } catch (reverseGeoError) {
         setGpsError('Could not find address for this location. Please search for your address instead.');
         logError(reverseGeoError, { context: 'LocationSetupModal.reverseGeocode' });
@@ -341,7 +361,7 @@ const LocationSetupModal = ({ message = null, isModal = true, onClose = null }) 
               setSearchQuery('');
               setShowSearchResults(false);
               setSelectedLocation(null);
-              searchInputRef?.focus();
+              searchInputRef.current?.focus();
             }}
             className="w-full flex items-center gap-4 px-1 py-3.5 hover:bg-gray-50 rounded-xl transition-colors"
           >

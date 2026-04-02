@@ -247,7 +247,7 @@ class LocationHistory(models.Model):
 
 class AddressCache(models.Model):
     """
-    Caches address lookups to reduce Nominatim API calls
+    Caches address lookups to reduce Mapbox API calls
     Stores both forward geocoding (address→coordinates) 
     and reverse geocoding (coordinates→address) results
     """
@@ -270,7 +270,7 @@ class AddressCache(models.Model):
     cache_type = models.CharField(max_length=20, choices=ADDRESS_TYPE_CHOICES, default='search')
     address_type = models.CharField(max_length=50, default='unknown')
     importance = models.FloatField(default=0)
-    raw_data = models.JSONField(default=dict, help_text='Full response from Nominatim')
+    raw_data = models.JSONField(default=dict, help_text='Full response from Mapbox')
     
     # Cache management
     created_at = models.DateTimeField(auto_now_add=True)

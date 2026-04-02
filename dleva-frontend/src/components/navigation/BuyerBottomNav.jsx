@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, UtensilsCrossed, Package, User } from 'lucide-react';
+import { CircleHelp, Home, Package, Search, User } from 'lucide-react';
 import { useState } from 'react';
 import { useCart } from '../../modules/buyer/context/CartContext';
 import { useAuth } from '../../modules/auth/context/AuthContext';
@@ -7,8 +7,9 @@ import LoginPromptModal from '../../modules/buyer/components/LoginPromptModal';
 
 const navItems = [
   { name: 'Home', href: '/home', icon: Home },
-  { name: 'Menu', href: '/restaurants', icon: UtensilsCrossed },
+  { name: 'Search', href: '/search', icon: Search },
   { name: 'Orders', href: '/orders', icon: Package },
+  { name: 'Support', href: '/support', icon: CircleHelp },
 ];
 
 const BuyerBottomNav = () => {
@@ -29,10 +30,10 @@ const BuyerBottomNav = () => {
 
   return (
     <>
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-surface border-t border-gray-200 z-50 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]"
+      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-surface md:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <div className="flex items-stretch h-16">
+        <div className="flex h-16 items-stretch">
 
           {/* Nav Items */}
           {navItems.map((item) => (
@@ -47,9 +48,8 @@ const BuyerBottomNav = () => {
             >
               {({ isActive }) => (
                 <>
-                  {/* Active indicator bar at top */}
                   {isActive && (
-                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full" />
+                    <span className="absolute top-0 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary" />
                   )}
                   <div className="relative">
                     <item.icon
@@ -62,7 +62,7 @@ const BuyerBottomNav = () => {
                       </span>
                     )}
                   </div>
-                  <span className={`text-[10px] tracking-wide font-medium truncate ${isActive ? 'font-bold' : ''}`}>
+                  <span className={`truncate text-[10px] tracking-wide font-medium ${isActive ? 'font-bold' : ''}`}>
                     {item.name}
                   </span>
                 </>
@@ -74,7 +74,7 @@ const BuyerBottomNav = () => {
           <div className="flex-1 relative flex flex-col items-center justify-center min-w-0">
             <button
               onClick={handleProfileClick}
-              className="flex flex-col items-center justify-center gap-1 w-full h-full transition-colors text-muted hover:text-primary"
+              className="flex h-full w-full flex-col items-center justify-center gap-1 text-muted transition-colors hover:text-primary"
             >
               <User size={22} strokeWidth={2} />
               <span className="text-[10px] tracking-wide font-medium">

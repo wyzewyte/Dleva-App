@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, LogIn, UserPlus, ShieldCheck } from 'lucide-react';
+import { BuyerPrimaryButton, BuyerSecondaryButton } from './ui/BuyerPrimitives';
 
 const LoginPromptModal = ({ isOpen, onClose, title, message, redirectAfterLogin = null }) => {
   const navigate = useNavigate();
@@ -113,22 +114,18 @@ const LoginPromptModal = ({ isOpen, onClose, title, message, redirectAfterLogin 
           {/* Action Buttons */}
           <div className="px-5 pb-3 space-y-3">
             {/* Login — primary */}
-            <button
-              onClick={handleLogin}
-              className="w-full bg-primary text-white font-bold py-4 rounded-2xl hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm"
-            >
-              <LogIn size={18} />
+            <BuyerPrimaryButton onClick={handleLogin} icon={<LogIn size={18} />}>
               Login to your account
-            </button>
+            </BuyerPrimaryButton>
 
             {/* Register — outlined */}
-            <button
+            <BuyerSecondaryButton
               onClick={handleRegister}
-              className="w-full border-2 border-primary text-primary font-bold py-4 rounded-2xl hover:bg-primary/5 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm"
+              className="border-primary text-primary hover:bg-primary/5"
+              icon={<UserPlus size={18} />}
             >
-              <UserPlus size={18} />
               Create an account
-            </button>
+            </BuyerSecondaryButton>
           </div>
 
           {/* Continue as Guest */}

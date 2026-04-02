@@ -8,6 +8,7 @@ from django.db.models import Q
 from django.utils import timezone
 from datetime import timedelta
 import requests
+from django.conf import settings
 from .models import Location, LocationHistory, LocationValidator
 from seller.models import Restaurant
 from buyer.models import BuyerProfile
@@ -20,9 +21,8 @@ class LocationService:
     Handles: location updates, distance calculations, fee estimation, restaurant filtering.
     """
     
-    # Nominatim API (free, OpenStreetMap)
-    GEOCODE_API_URL = "https://nominatim.openstreetmap.org/search"
-    REVERSE_GEOCODE_API_URL = "https://nominatim.openstreetmap.org/reverse"
+    # Mapbox API
+    MAPBOX_BASE_URL = "https://api.mapbox.com/geocoding/v5"
     
     # Fee calculation constants
     BASE_DELIVERY_FEE = Decimal('500.00')  # Base fee in NGN
@@ -34,7 +34,7 @@ class LocationService:
     @staticmethod
     def geocode_address(address):
         """
-        Convert address to latitude/longitude using Nominatim API.
+        Convert address to latitude/longitude using Mapbox API.
         
         Args:
             address (str): Human-readable address
@@ -53,31 +53,55 @@ class LocationService:
             return {'error': 'Address cannot be empty'}
         
         try:
+            api_key = getattr(settings, 'MAPBOX_API_KEY', None)
+            if not api_key:
+                return {'error': 'Mapbox API key not configured'}
+            
+            # Mapbox geocoding endpoint
+            url = f"{LocationService.MAPBOX_BASE_URL}/mapbox.places/{address}.json"
+            
             response = requests.get(
-                LocationService.GEOCODE_API_URL,
+                url,
                 params={
-                    'q': address,
-                    'format': 'json',
+                    'access_token': api_key,
                     'limit': 1,
-                    'addressdetails': 1
+                    'country': 'ng',
                 },
                 timeout=LocationService.API_TIMEOUT,
             )
             response.raise_for_status()
             
-            results = response.json()
-            if not results:
+            result = response.json()
+            
+            if result.get('message'):
+                return {'error': f"Mapbox error: {result.get('message')}"}
+            
+            features = result.get('features', [])
+            if not features:
                 return {'error': 'Address not found'}
             
-            result = results[0]
-            address_parts = result.get('address', {})
+            feature = features[0]
+            geometry = feature.get('geometry', {})
+            coords = geometry.get('coordinates', [0, 0])
+            
+            # Parse context for city/area
+            context = feature.get('context', [])
+            city = None
+            area = None
+            
+            for ctx in context:
+                ctx_type = ctx.get('id', '').split('.')[0]
+                if ctx_type == 'place' and not city:
+                    city = ctx.get('text', '')
+                elif ctx_type == 'region' and not area:
+                    area = ctx.get('text', '')
             
             return {
-                'latitude': Decimal(result['lat']),
-                'longitude': Decimal(result['lon']),
-                'address': result.get('display_name', address),
-                'city': address_parts.get('city') or address_parts.get('town'),
-                'area': address_parts.get('suburb') or address_parts.get('village'),
+                'latitude': Decimal(str(coords[1])) if len(coords) > 1 else Decimal('0'),
+                'longitude': Decimal(str(coords[0])),
+                'address': feature.get('place_name', address),
+                'city': city,
+                'area': area,
             }
         except requests.exceptions.Timeout:
             return {'error': 'Geocoding service timeout. Please try again.'}
@@ -89,7 +113,7 @@ class LocationService:
     @staticmethod
     def reverse_geocode(latitude, longitude):
         """
-        Convert latitude/longitude to address using Nominatim API.
+        Convert latitude/longitude to address using Mapbox API.
         
         Args:
             latitude (Decimal or float): Latitude
@@ -107,30 +131,56 @@ class LocationService:
             ValueError: If reverse geocoding fails, to prevent storing coordinates as address
         """
         try:
+            api_key = getattr(settings, 'MAPBOX_API_KEY', None)
+            if not api_key:
+                raise ValueError('Mapbox API key not configured')
+            
+            # Mapbox reverse geocoding: coordinates format is [longitude, latitude]
+            url = f"{LocationService.MAPBOX_BASE_URL}/mapbox.places/{float(longitude)},{float(latitude)}.json"
+            
             response = requests.get(
-                LocationService.REVERSE_GEOCODE_API_URL,
+                url,
                 params={
-                    'lat': float(latitude),
-                    'lon': float(longitude),
-                    'format': 'json',
-                    'addressdetails': 1
+                    'access_token': api_key,
+                    'limit': 1,
+                    'types': 'place,address,neighborhood,region',
                 },
                 timeout=LocationService.API_TIMEOUT,
             )
             response.raise_for_status()
             
             result = response.json()
-            address_parts = result.get('address', {})
-            display_name = result.get('display_name', '')
+            
+            if result.get('message'):
+                raise ValueError(f"Mapbox error: {result.get('message')}")
+            
+            features = result.get('features', [])
+            if not features:
+                raise ValueError('No address found for these coordinates')
+            
+            feature = features[0]
+            display_name = feature.get('place_name', '')
             
             # Ensure we have a valid address, not coordinates
             if not display_name or display_name.strip() == '':
                 raise ValueError('No address found for these coordinates')
             
+            # Parse context for city/area
+            context = feature.get('context', [])
+            city = None
+            area = None
+            
+            for ctx in context:
+                ctx_type = ctx.get('id', '').split('.')[0]
+                if ctx_type == 'place' and not city:
+                    city = ctx.get('text', '')
+                elif ctx_type == 'region' and not area:
+                    area = ctx.get('text', '')
+            
             return {
                 'address': display_name,
-                'city': address_parts.get('city') or address_parts.get('town'),
-                'area': address_parts.get('suburb') or address_parts.get('village'),
+                'city': city,
+                'area': area,
             }
         except requests.exceptions.Timeout:
             raise ValueError('Reverse geocoding service timed out. Please enter address manually.')
