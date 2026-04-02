@@ -66,6 +66,23 @@ def login_buyer(request):
 
     user = authenticate(username=username, password=password)
     if user is not None:
+        try:
+            buyer_profile = BuyerProfile.objects.get(user=user)
+        except BuyerProfile.DoesNotExist:
+            if hasattr(user, 'seller_profile'):
+                return Response({
+                    'error': 'This account is registered as a seller. Please use the seller login page.'
+                }, status=status.HTTP_403_FORBIDDEN)
+
+            if hasattr(user, 'rider_profile'):
+                return Response({
+                    'error': 'This account is registered as a rider. Please use the rider login page.'
+                }, status=status.HTTP_403_FORBIDDEN)
+
+            return Response({
+                'error': 'This account is not registered as a buyer.'
+            }, status=status.HTTP_403_FORBIDDEN)
+
         refresh = RefreshToken.for_user(user)
         return Response({
             'message': 'Login Successful',
@@ -74,6 +91,8 @@ def login_buyer(request):
                 'username': user.username,
                 'email': user.email,
                 'name': user.get_full_name() or user.username,
+                'phone': buyer_profile.phone,
+                'address': buyer_profile.address,
             },
             'refresh': str(refresh), 
             'access': str(refresh.access_token),
