@@ -124,7 +124,7 @@ export const CartProvider = ({ children }) => {
   // Auto-sync local -> server but respect pause flag
   useEffect(() => {
     // Only sync if user is authenticated (check for access token)
-    const token = localStorage.getItem('access_token');
+    const token = localStorage.getItem('buyer_access_token');
     if (!token) return;
     
     if (localStorage.getItem(PAUSE_KEY)) return;
@@ -133,7 +133,16 @@ export const CartProvider = ({ children }) => {
     const sync = async () => {
       try {
         const server = await buyerCart.getCart().catch(() => null);
-        const serverItems = server?.items || [];
+        const serverItems = Array.isArray(server)
+          ? server.flatMap((cart) =>
+              (cart?.items || []).map((item) => ({
+                ...item,
+                restaurant_id: cart?.restaurant,
+                vendorId: cart?.restaurant,
+                menu_item_id: item?.menu_item?.id,
+              }))
+            )
+          : server?.items || [];
 
         for (const it of cartItems) {
           if (cancelled) break;

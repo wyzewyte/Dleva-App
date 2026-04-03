@@ -316,18 +316,38 @@ class AddToCartView(APIView):
     def post(self, request):
         try:
             menu_item_id = request.data.get('menu_item_id')
-            quantity = int(request.data.get('quantity', 1))
-            
+            vendor_id = request.data.get('vendor_id')
+
+            try:
+                quantity = int(request.data.get('quantity', 1))
+            except (TypeError, ValueError):
+                return Response(
+                    {'error': 'Quantity must be a valid number'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             if not menu_item_id:
                 return Response(
                     {'error': 'Menu item ID is required'}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
+
+            if quantity < 1:
+                return Response(
+                    {'error': 'Quantity must be at least 1'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             menu_item = MenuItem.objects.get(id=menu_item_id)
-            
+
+            if vendor_id and str(menu_item.restaurant_id) != str(vendor_id):
+                return Response(
+                    {'error': 'Menu item does not belong to the selected restaurant'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             buyer_profile, created = BuyerProfile.objects.get_or_create(user=request.user)
-            
+
             cart, created = Cart.objects.get_or_create(
                 buyer=buyer_profile,
                 restaurant=menu_item.restaurant

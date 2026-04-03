@@ -44,7 +44,7 @@ class BuyerProfile(models.Model):
 
 
 class Cart(models.Model):
-    buyer = models.OneToOneField(BuyerProfile, on_delete=models.CASCADE, related_name='cart')
+    buyer = models.ForeignKey(BuyerProfile, on_delete=models.CASCADE, related_name='carts')
     restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
