@@ -9,6 +9,7 @@ from rest_framework.views import APIView
 from rest_framework import parsers
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
+from django.db.models import Q
 from .models import (
     BuyerProfile, Cart, CartItem, 
     Order, OrderItem, Rating, Payment, WaitlistEntry
@@ -177,7 +178,9 @@ def list_restaurants(request):
         # Search by name or description (not by category anymore - restaurants no longer have categories)
         search = request.GET.get('q')
         if search:
-            restaurants = restaurants.filter(name__icontains=search)
+            restaurants = restaurants.filter(
+                Q(name__icontains=search) | Q(description__icontains=search)
+            )
         
         # Filter by distance (5km radius) if location provided
         MAX_DISTANCE_KM = 5
@@ -245,6 +248,7 @@ class MenuItemListView(APIView):
     def get(self, request):
         try:
             restaurant_id = request.GET.get('restaurant')
+            category_id = request.GET.get('category')
             
             # Filter by restaurant if provided, otherwise get all available items
             if restaurant_id:
@@ -255,13 +259,15 @@ class MenuItemListView(APIView):
             else:
                 # Global search - get all available items
                 menu_items = MenuItem.objects.filter(available=True)
+
+            if category_id:
+                menu_items = menu_items.filter(category_id=category_id)
             
             menu_items = menu_items.order_by('name')
             
             # Search by name or description
             search = request.GET.get('q')
             if search:
-                from django.db.models import Q
                 menu_items = menu_items.filter(
                     Q(name__icontains=search) | Q(description__icontains=search)
                 )

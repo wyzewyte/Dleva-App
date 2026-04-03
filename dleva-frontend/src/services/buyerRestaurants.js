@@ -54,12 +54,15 @@ const filterRestaurantsWithinRange = (restaurants, latitude, longitude) => {
 
 const buyerRestaurants = {
   // Get all restaurants with location filtering
-  listRestaurants: async (latitude, longitude) => {
+  listRestaurants: async (latitude, longitude, options = {}) => {
     try {
       const response = await api.get(API_ENDPOINTS.RESTAURANTS.LIST, {
         params: {
           lat: latitude,
           lon: longitude,
+          ...(options.q ? { q: options.q } : {}),
+          ...(options.limit ? { limit: options.limit } : {}),
+          ...(options.offset ? { offset: options.offset } : {}),
         },
       });
       if (Array.isArray(response.data)) {
@@ -75,7 +78,7 @@ const buyerRestaurants = {
         results: filterRestaurantsWithinRange(normalizedResults, latitude, longitude),
       };
     } catch (error) {
-      logError(error, { context: 'buyerRestaurants.listRestaurants', latitude, longitude });
+      logError(error, { context: 'buyerRestaurants.listRestaurants', latitude, longitude, options });
       throw error.response?.data || { error: 'Failed to fetch restaurants' };
     }
   },
@@ -110,6 +113,20 @@ const buyerRestaurants = {
     } catch (error) {
       logError(error, { context: 'buyerRestaurants.searchRestaurants', query });
       throw error.response?.data || { error: 'Search failed' };
+    }
+  },
+
+  // Search nearby restaurants for the buyer's current location
+  searchNearbyRestaurants: async (query, latitude, longitude, options = {}) => {
+    try {
+      return await buyerRestaurants.listRestaurants(latitude, longitude, {
+        q: query,
+        limit: options.limit,
+        offset: options.offset,
+      });
+    } catch (error) {
+      logError(error, { context: 'buyerRestaurants.searchNearbyRestaurants', query, latitude, longitude, options });
+      throw error;
     }
   },
 

@@ -1,8 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Clock3, Dot, MapPin, Search, Star, Store, Truck } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Clock3, Dot, MapPin, Search, Star, Store, Trash2, Truck, X, ChevronRight } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import RestaurantCard from '../components/RestaurantCard';
-import RestaurantWithItemsCard from '../components/RestaurantWithItemsCard';
 import useLocation from '../../../hooks/useLocation';
 import buyerRestaurants from '../../../services/buyerRestaurants';
 import buyerMenu from '../../../services/buyerMenu';
@@ -21,6 +19,19 @@ import {
 } from '../components/ui/BuyerPrimitives';
 
 const STARTING_DELIVERY_FEE = 500;
+const SEARCH_DEBOUNCE_MS = 350;
+const MIN_SEARCH_LENGTH = 2;
+const NEARBY_RESTAURANTS_LIMIT = 100;
+const RESTAURANT_RESULTS_LIMIT = 12;
+const MENU_RESULTS_LIMIT = 40;
+const PREVIEW_RESTAURANTS_LIMIT = 6;
+const ITEM_RESULTS_LIMIT = 10;
+const RESTAURANT_PREVIEW_LIMIT = 5;
+
+const toResultList = (data) => {
+  if (Array.isArray(data)) return data;
+  return Array.isArray(data?.results) ? data.results : [];
+};
 
 const SearchRestaurantRow = ({ restaurant, onClick }) => {
   const imageUrl =
@@ -37,9 +48,9 @@ const SearchRestaurantRow = ({ restaurant, onClick }) => {
       className="flex w-full items-center gap-4 border-b border-gray-100 px-1 py-4 text-left last:border-0"
     >
       {imageUrl ? (
-        <img src={imageUrl} alt={restaurant.name} className="h-20 w-20 flex-shrink-0 rounded-[16px] object-cover" />
+        <img src={imageUrl} alt={restaurant.name} className="h-20 w-20 flex-shrink-0 rounded-2xl object-cover" />
       ) : (
-        <div className="h-20 w-20 flex-shrink-0 rounded-[16px] bg-gray-100" />
+        <div className="h-20 w-20 flex-shrink-0 rounded-2xl bg-gray-100" />
       )}
 
       <div className="min-w-0 flex-1">
@@ -53,24 +64,102 @@ const SearchRestaurantRow = ({ restaurant, onClick }) => {
           </BuyerStatusBadge>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-          {deliveryFee != null ? (
-            <span className="inline-flex items-center gap-1.5 text-muted">
-              <Truck size={14} className="text-primary" />
-              <span>{`From ${formatCurrency(deliveryFee)}`}</span>
-            </span>
-          ) : null}
-          {deliveryFee != null && restaurant.delivery_time ? <Dot size={14} className="text-gray-300" /> : null}
-          {restaurant.delivery_time ? (
-            <span className="text-muted">{restaurant.delivery_time} min</span>
-          ) : null}
-          {restaurant.rating ? <Dot size={14} className="text-gray-300" /> : null}
-          {restaurant.rating ? (
+          <span className="inline-flex items-center gap-1.5 text-muted">
+            <Truck size={14} className="text-primary" />
+            <span>{`From ${formatCurrency(deliveryFee)}`}</span>
+          </span>
+          {restaurant.delivery_time ? <Dot size={14} className="text-gray-300" /> : null}
+          {restaurant.delivery_time ? <span className="text-muted">{restaurant.delivery_time} min</span> : null}
+          <Dot size={14} className="text-gray-300" />
+          <span className="inline-flex items-center gap-1 text-dark">
+            <Star size={14} fill="currentColor" className="text-amber-400" />
+            {restaurant.rating || 'New'}
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+};
+
+const SearchRowSkeleton = () => (
+  <div className="flex animate-pulse items-center gap-4 border-b border-gray-100 px-1 py-4 last:border-0">
+    <div className="h-20 w-20 flex-shrink-0 rounded-2xl bg-gray-100" />
+    <div className="min-w-0 flex-1 space-y-3">
+      <div className="h-4 w-2/3 rounded bg-gray-100" />
+      <div className="h-3 w-full rounded bg-gray-100" />
+      <div className="h-3 w-3/4 rounded bg-gray-100" />
+    </div>
+  </div>
+);
+
+const SearchResultsSkeleton = () => (
+  <div className="space-y-5 pb-6">
+    <BuyerCard className="p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="h-5 w-32 animate-pulse rounded bg-gray-100" />
+        <div className="h-4 w-20 animate-pulse rounded bg-gray-100" />
+      </div>
+      <div className="space-y-3">
+        <div className="h-16 animate-pulse rounded-2xl bg-gray-100" />
+        <div className="h-16 animate-pulse rounded-2xl bg-gray-100" />
+      </div>
+    </BuyerCard>
+
+    <div className="space-y-3">
+      <div className="h-5 w-28 animate-pulse rounded bg-gray-100" />
+      <div className="h-52 animate-pulse rounded-[28px] border border-gray-100 bg-white" />
+    </div>
+  </div>
+);
+
+const SearchMenuItemRow = ({ item, onClick }) => {
+  const imagePath = item.image?.url || item.image;
+  const imageUrl = imagePath
+    ? imagePath.startsWith('http')
+      ? imagePath
+      : `${import.meta.env.VITE_BASE_URL}${imagePath}`
+    : null;
+  const restaurant = item.restaurantData;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-4 border-b border-gray-100 px-1 py-4 text-left last:border-0"
+    >
+      {imageUrl ? (
+        <img src={imageUrl} alt={item.name} className="h-20 w-20 flex-shrink-0 rounded-2xl object-cover" />
+      ) : (
+        <div className="h-20 w-20 flex-shrink-0 rounded-2xl bg-gray-100" />
+      )}
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-lg font-semibold text-dark">{item.name}</h3>
+            {restaurant?.name ? (
+              <p className="mt-1 truncate text-sm text-muted">{restaurant.name}</p>
+            ) : null}
+          </div>
+          <ChevronRight size={16} className="mt-1 shrink-0 text-muted" />
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-semibold text-dark">{formatCurrency(item.price)}</span>
+          {restaurant?.delivery_time ? <Dot size={14} className="text-gray-300" /> : null}
+          {restaurant?.delivery_time ? <span className="text-muted">{restaurant.delivery_time} min</span> : null}
+          {restaurant?.rating ? <Dot size={14} className="text-gray-300" /> : null}
+          {restaurant?.rating ? (
             <span className="inline-flex items-center gap-1 text-dark">
               <Star size={14} fill="currentColor" className="text-amber-400" />
               {restaurant.rating}
             </span>
           ) : null}
         </div>
+
+        {item.description ? (
+          <p className="mt-2 line-clamp-2 text-sm text-muted">{item.description}</p>
+        ) : null}
       </div>
     </button>
   );
@@ -80,278 +169,507 @@ const SearchModern = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currentLocation, openLocationSetup } = useLocation();
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
-  const [restaurants, setRestaurants] = useState([]);
+  const initialQuery = searchParams.get('q') || '';
+
+  const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery.trim());
+  const [nearbyRestaurants, setNearbyRestaurants] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [recentSearches, setRecentSearches] = useState([]);
   const [restaurantResults, setRestaurantResults] = useState([]);
-  const [restaurantsWithItems, setRestaurantsWithItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [menuItemResults, setMenuItemResults] = useState([]);
+  const [loadingRestaurants, setLoadingRestaurants] = useState(true);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [baseError, setBaseError] = useState(null);
   const [searching, setSearching] = useState(false);
-  const [error, setError] = useState(null);
+  const [searchError, setSearchError] = useState(null);
+
+  const searchRequestRef = useRef(0);
+  const lastSavedQueryRef = useRef('');
+  const hasLocation = Boolean(currentLocation?.latitude && currentLocation?.longitude);
+  const trimmedQuery = searchQuery.trim();
 
   useEffect(() => {
     setRecentSearches(searchHistory.getHistory());
   }, []);
 
   useEffect(() => {
-    const fetchRestaurants = async () => {
+    let cancelled = false;
+
+    const fetchCategories = async () => {
       try {
-        setLoading(true);
-        if (!currentLocation?.latitude || !currentLocation?.longitude) {
-          setRestaurants([]);
-          setError(null);
-          return;
+        setLoadingCategories(true);
+        const data = await buyerMenu.getCategories();
+        if (!cancelled) {
+          setCategories(toResultList(data));
         }
-        const data = await buyerRestaurants.listRestaurants(currentLocation.latitude, currentLocation.longitude);
-        const list = Array.isArray(data) ? data : data.results || [];
-        setRestaurants(list);
-        setCategories(Array.from(new Set(list.map((restaurant) => (restaurant.category || '').trim()).filter(Boolean))));
-        setError(null);
       } catch (err) {
-        logError(err, { context: 'SearchModern.fetchRestaurants' });
-        setError(err.error || 'Failed to load restaurants');
+        logError(err, { context: 'SearchModern.fetchCategories' });
+        if (!cancelled) {
+          setCategories([]);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoadingCategories(false);
+        }
       }
     };
 
-    fetchRestaurants();
-  }, [currentLocation]);
+    fetchCategories();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    let cancelled = false;
+
+    const fetchNearbyRestaurants = async () => {
+      if (!hasLocation) {
+        setNearbyRestaurants([]);
+        setBaseError(null);
+        setLoadingRestaurants(false);
+        return;
+      }
+
+      try {
+        setLoadingRestaurants(true);
+        const data = await buyerRestaurants.listRestaurants(currentLocation.latitude, currentLocation.longitude, {
+          limit: NEARBY_RESTAURANTS_LIMIT,
+        });
+        if (!cancelled) {
+          setNearbyRestaurants(toResultList(data));
+          setBaseError(null);
+        }
+      } catch (err) {
+        logError(err, { context: 'SearchModern.fetchNearbyRestaurants' });
+        if (!cancelled) {
+          setNearbyRestaurants([]);
+          setBaseError(err.error || 'Failed to load nearby restaurants');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingRestaurants(false);
+        }
+      }
+    };
+
+    fetchNearbyRestaurants();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentLocation, hasLocation]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedQuery(searchQuery.trim());
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => clearTimeout(timeout);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (!trimmedQuery) {
+      lastSavedQueryRef.current = '';
+    }
+  }, [trimmedQuery]);
+
+  const nearbyRestaurantMap = useMemo(
+    () => new Map(nearbyRestaurants.map((restaurant) => [String(restaurant.id), restaurant])),
+    [nearbyRestaurants]
+  );
+
+  useEffect(() => {
+    const activeQuery = debouncedQuery.trim();
+
+    if (!activeQuery) {
       setRestaurantResults([]);
-      setRestaurantsWithItems([]);
+      setMenuItemResults([]);
+      setSearchError(null);
+      setSearching(false);
       return;
     }
 
-    const query = searchQuery.trim().toLowerCase();
-    const restaurantMatches = restaurants.filter((restaurant) => {
-      const matchesCategory = selectedCategory === 'All' || (restaurant.category || '').trim() === selectedCategory;
-      return matchesCategory && `${restaurant.name || ''} ${restaurant.description || ''}`.toLowerCase().includes(query);
-    });
+    if (activeQuery.length < MIN_SEARCH_LENGTH) {
+      setRestaurantResults([]);
+      setMenuItemResults([]);
+      setSearchError(null);
+      setSearching(false);
+      return;
+    }
 
-    const fetchMatchingItems = async () => {
+    if (!hasLocation || loadingRestaurants) {
+      return;
+    }
+
+    const requestId = ++searchRequestRef.current;
+    const nearbyRestaurantIds = new Set(Array.from(nearbyRestaurantMap.keys()));
+
+    const fetchSearchResults = async () => {
       try {
         setSearching(true);
-        const data = await buyerMenu.getAllMenuItems();
-        let allMenuItems = Array.isArray(data) ? data : data.results || [];
-        allMenuItems = allMenuItems.filter((item) => {
-          const matchesCategory = selectedCategory === 'All' || (item.category || '').trim() === selectedCategory;
-          return matchesCategory && `${item.name || ''} ${item.description || ''}`.toLowerCase().includes(query);
-        });
+        setSearchError(null);
 
-        const groupedByRestaurant = {};
-        allMenuItems.forEach((item) => {
-          const restaurantId = item.restaurant?.id || item.restaurantId;
-          if (!groupedByRestaurant[restaurantId]) {
-            groupedByRestaurant[restaurantId] = {
-              restaurantId,
-              restaurantName: item.restaurant?.name || item.restaurantName,
-              restaurantImage: item.restaurant?.image || item.restaurantImage,
-              items: [],
+        const categoryId = selectedCategory === 'all' ? null : selectedCategory;
+        const [menuResult, restaurantResult] = await Promise.allSettled([
+          buyerMenu.searchMenu(activeQuery, {
+            categoryId,
+            limit: MENU_RESULTS_LIMIT,
+          }),
+          buyerRestaurants.searchNearbyRestaurants(
+            activeQuery,
+            currentLocation.latitude,
+            currentLocation.longitude,
+            { limit: RESTAURANT_RESULTS_LIMIT }
+          ),
+        ]);
+
+        if (requestId !== searchRequestRef.current) {
+          return;
+        }
+
+        const nextRestaurantResults =
+          restaurantResult.status === 'fulfilled' ? toResultList(restaurantResult.value) : [];
+
+        const nextMenuItems =
+          menuResult.status === 'fulfilled'
+            ? toResultList(menuResult.value).filter((item) => {
+                const restaurantId = String(item.restaurant?.id || item.restaurantId || item.restaurant);
+                return nearbyRestaurantIds.has(restaurantId);
+              })
+            : [];
+
+        const rankedMenuItems = nextMenuItems
+          .map((item) => {
+            const restaurantId = String(item.restaurant?.id || item.restaurantId || item.restaurant);
+            return {
+              ...item,
+              restaurantData: nearbyRestaurantMap.get(restaurantId) || null,
             };
-          }
-          groupedByRestaurant[restaurantId].items.push(item);
-        });
+          })
+          .filter((item) => item.restaurantData)
+          .sort((left, right) => {
+            const leftExact = left.name?.toLowerCase() === activeQuery.toLowerCase() ? 1 : 0;
+            const rightExact = right.name?.toLowerCase() === activeQuery.toLowerCase() ? 1 : 0;
+            if (rightExact !== leftExact) return rightExact - leftExact;
 
-        setRestaurantsWithItems(
-          Object.values(groupedByRestaurant).map((group) => ({ ...group, items: group.items.slice(0, 2) }))
-        );
-        setRestaurantResults(restaurantMatches);
+            const leftStarts = left.name?.toLowerCase().startsWith(activeQuery.toLowerCase()) ? 1 : 0;
+            const rightStarts = right.name?.toLowerCase().startsWith(activeQuery.toLowerCase()) ? 1 : 0;
+            if (rightStarts !== leftStarts) return rightStarts - leftStarts;
+
+            return left.name.localeCompare(right.name);
+          })
+          .slice(0, ITEM_RESULTS_LIMIT);
+
+        setRestaurantResults(nextRestaurantResults.slice(0, RESTAURANT_PREVIEW_LIMIT));
+        setMenuItemResults(rankedMenuItems);
+
+        if (menuResult.status === 'rejected' && restaurantResult.status === 'rejected') {
+          setSearchError(menuResult.reason?.error || restaurantResult.reason?.error || 'Search failed');
+        } else {
+          setSearchError(null);
+          if (
+            activeQuery.length >= MIN_SEARCH_LENGTH &&
+            lastSavedQueryRef.current !== activeQuery.toLowerCase()
+          ) {
+            searchHistory.addSearch(activeQuery);
+            setRecentSearches(searchHistory.getHistory());
+            lastSavedQueryRef.current = activeQuery.toLowerCase();
+          }
+        }
       } catch (err) {
-        logError(err, { context: 'SearchModern.fetchMatchingItems' });
-        setRestaurantsWithItems([]);
-        setRestaurantResults(restaurantMatches);
+        if (requestId !== searchRequestRef.current) {
+          return;
+        }
+
+        logError(err, { context: 'SearchModern.fetchSearchResults', query: activeQuery });
+        setMenuItemResults([]);
+        setRestaurantResults([]);
+        setSearchError(err.error || 'Search failed');
       } finally {
-        setSearching(false);
+        if (requestId === searchRequestRef.current) {
+          setSearching(false);
+        }
       }
     };
 
-    fetchMatchingItems();
-  }, [restaurants, searchQuery, selectedCategory]);
+    fetchSearchResults();
+  }, [
+    currentLocation,
+    debouncedQuery,
+    hasLocation,
+    loadingRestaurants,
+    nearbyRestaurantMap,
+    selectedCategory,
+  ]);
 
-  const allCategories = useMemo(() => ['All', ...categories], [categories]);
+  const allCategories = useMemo(
+    () => [
+      { id: 'all', label: 'All', badge: 0 },
+      ...categories.map((category) => ({
+        id: String(category.id),
+        label: category.name,
+        badge: 0,
+      })),
+    ],
+    [categories]
+  );
 
-  const handleSearch = (query) => {
-    if (!query.trim()) return;
-    searchHistory.addSearch(query);
+  const totalItemMatches = menuItemResults.length;
+
+  const saveRecentSearch = (query) => {
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery) return;
+
+    searchHistory.addSearch(normalizedQuery);
+    setRecentSearches(searchHistory.getHistory());
+    lastSavedQueryRef.current = normalizedQuery.toLowerCase();
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setRestaurantResults([]);
+    setMenuItemResults([]);
+    setSearchError(null);
+  };
+
+  const handleRecentSearchClick = (query) => {
+    saveRecentSearch(query);
+    setSearchQuery(query);
+  };
+
+  const handleRemoveRecentSearch = (query) => {
+    searchHistory.removeSearch(query);
     setRecentSearches(searchHistory.getHistory());
   };
 
-  if (!currentLocation && !loading) {
-    return (
-      <BuyerEmptyState
-        icon={<MapPin size={28} />}
-        title="Set your location"
-        description="Set your delivery location to search for restaurants and items nearby."
-        action={<BuyerPrimaryButton onClick={openLocationSetup}>Set Location</BuyerPrimaryButton>}
-      />
-    );
-  }
+  const handleClearRecentSearches = () => {
+    searchHistory.clearHistory();
+    setRecentSearches([]);
+  };
 
-  if (loading) {
-    return (
-      <BuyerFeedbackState
-        type="loading"
-        title="Preparing search"
-        message="Loading nearby restaurants and menu items."
-      />
-    );
-  }
+  const handleRestaurantNavigation = (restaurantId) => {
+    const activeQuery = searchQuery.trim() || debouncedQuery;
+    if (activeQuery) {
+      saveRecentSearch(activeQuery);
+    }
+
+    navigate(`/restaurant/${restaurantId}`);
+  };
+
+  const showLandingState = !trimmedQuery;
+  const showNoLocationState = !hasLocation && !loadingRestaurants;
+  const showShortQueryState = trimmedQuery.length > 0 && trimmedQuery.length < MIN_SEARCH_LENGTH;
+  const showEmptyResults =
+    !!debouncedQuery &&
+    !searching &&
+    !searchError &&
+    restaurantResults.length === 0 &&
+    menuItemResults.length === 0;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <BuyerPageHeader
-        title="Search"
-      />
+    <div className="mx-auto max-w-5xl space-y-5 pb-6">
+      <BuyerPageHeader title="Search" />
 
       <BuyerSearchField
         value={searchQuery}
-        onChange={(event) => {
-          const nextValue = event.target.value;
-          setSearchQuery(nextValue);
-          if (!nextValue.trim()) {
-            setRestaurantResults([]);
-            setRestaurantsWithItems([]);
-          }
-        }}
-        onClear={() => {
-          setSearchQuery('');
-          setRestaurantResults([]);
-          setRestaurantsWithItems([]);
-        }}
-        placeholder="Food, drinks, groceries etc"
-        className="border-gray-200"
+        onChange={(event) => setSearchQuery(event.target.value)}
+        onClear={clearSearch}
+        placeholder={hasLocation ? 'Search for meals and restaurants' : 'Set location to start searching'}
+        readOnly={!hasLocation}
+        onClick={!hasLocation ? openLocationSetup : undefined}
+        className={!hasLocation ? 'cursor-pointer' : 'border-gray-200'}
       />
 
-      <div className="overflow-x-auto pb-1">
-        <div className="min-w-max pr-2">
-          <BuyerSegmentedTabs
-            tabs={allCategories.map((category) => ({ id: category, label: category, badge: 0 }))}
-            value={selectedCategory}
-            onChange={setSelectedCategory}
-            className="min-w-max"
-          />
+      {loadingCategories ? (
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {[1, 2, 3, 4].map((item) => (
+            <div key={item} className="h-11 w-24 flex-shrink-0 animate-pulse rounded-2xl bg-gray-100" />
+          ))}
         </div>
-      </div>
+      ) : (
+        <div className="overflow-x-auto pb-1">
+          <div className="min-w-max pr-2">
+            <BuyerSegmentedTabs
+              tabs={allCategories}
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              className="min-w-max"
+            />
+          </div>
+        </div>
+      )}
 
-      {!searchQuery ? (
-        <div className="space-y-5 pb-6">
+      {showNoLocationState ? (
+        <BuyerEmptyState
+          icon={<MapPin size={28} />}
+          title="Set your location"
+          description="Set your delivery location to search for restaurants and menu items within 5km."
+          action={<BuyerPrimaryButton onClick={openLocationSetup}>Set Location</BuyerPrimaryButton>}
+        />
+      ) : baseError && !trimmedQuery ? (
+        <BuyerFeedbackState
+          type="error"
+          title="Could not load nearby restaurants"
+          message={baseError}
+          action={<BuyerPrimaryButton onClick={openLocationSetup}>Update Location</BuyerPrimaryButton>}
+        />
+      ) : showLandingState ? (
+        <div className="space-y-5">
           <BuyerCard className="p-5">
-            <div className="mb-4 flex items-center gap-2">
-              <Clock3 size={16} className="text-primary" />
-              <h2 className="text-sm font-bold uppercase tracking-wide text-dark">Recent Searches</h2>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Clock3 size={16} className="text-primary" />
+                <h2 className="text-sm font-bold uppercase tracking-wide text-dark">Recent Searches</h2>
+              </div>
+              {recentSearches.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={handleClearRecentSearches}
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-primary"
+                >
+                  <Trash2 size={14} />
+                  Clear all
+                </button>
+              ) : null}
             </div>
 
             {recentSearches.length === 0 ? (
-              <p className="text-sm text-muted">Your recent searches will appear here.</p>
+              <p className="text-sm text-muted">Your recent searches will appear here after you search.</p>
             ) : (
               <div className="space-y-2">
                 {recentSearches.map((query) => (
-                  <button
+                  <div
                     key={query}
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery(query);
-                      handleSearch(query);
-                    }}
-                    className="flex w-full items-center justify-between rounded-[16px] border border-gray-100 bg-gray-50 px-4 py-3 text-left text-sm text-dark transition-colors hover:bg-gray-100"
+                    className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2.5"
                   >
-                    <span>{query}</span>
-                    <Search size={14} className="text-muted" />
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRecentSearchClick(query)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
+                      <Search size={14} className="shrink-0 text-muted" />
+                      <span className="truncate text-sm text-dark">{query}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRecentSearch(query)}
+                      aria-label={`Remove ${query} from recent searches`}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-white hover:text-dark"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
           </BuyerCard>
 
           <BuyerCard className="p-5">
-            <div className="mb-4 flex items-center justify-between gap-2">
+            <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Store size={16} className="text-primary" />
-                <h2 className="text-sm font-bold uppercase tracking-wide text-dark">Browse Restaurants</h2>
+                <h2 className="text-sm font-bold uppercase tracking-wide text-dark">Nearby Restaurants</h2>
               </div>
               {currentLocation?.address ? (
-                <span className="truncate text-xs text-muted">{currentLocation.address}</span>
-              ) : null}
-            </div>
-            <div className="divide-y divide-gray-100">
-              {restaurants.slice(0, 5).map((restaurant) => (
-                <SearchRestaurantRow
-                  key={restaurant.id}
-                  restaurant={restaurant}
-                  onClick={() => navigate(`/restaurant/${restaurant.id}`)}
-                />
-              ))}
-            </div>
-          </BuyerCard>
-        </div>
-      ) : searching ? (
-        <BuyerFeedbackState
-          type="loading"
-          title="Searching"
-          message={`Looking for restaurants and menu items matching "${searchQuery}".`}
-        />
-      ) : error ? (
-        <BuyerFeedbackState type="error" title="Search failed" message={error} />
-      ) : restaurantResults.length === 0 && restaurantsWithItems.length === 0 ? (
-        <BuyerEmptyState
-          icon={<Search size={28} />}
-          title={`No results for "${searchQuery}"`}
-          description="Try another search term or switch the category filter."
-          action={<BuyerPrimaryButton onClick={() => setSearchQuery('')}>Clear Search</BuyerPrimaryButton>}
-        />
-      ) : (
-        <div className="space-y-6 pb-6">
-          {restaurantResults.length > 0 ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-lg font-bold text-dark">
-                  {restaurantResults.length} result{restaurantResults.length === 1 ? '' : 's'} for <span className="text-primary">"{searchQuery}"</span>
-                </h2>
                 <button
                   type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="text-sm font-semibold text-primary"
+                  onClick={openLocationSetup}
+                  className="max-w-[55%] truncate text-xs text-muted"
+                  title={currentLocation.address}
                 >
-                  Clear search
+                  {currentLocation.address}
                 </button>
+              ) : null}
+            </div>
+
+            {loadingRestaurants ? (
+              <div className="divide-y divide-gray-100">
+                {Array.from({ length: 3 }).map((_, index) => (
+                  <SearchRowSkeleton key={index} />
+                ))}
               </div>
-              <BuyerCard className="px-5 py-1">
-                {restaurantResults.map((restaurant) => (
+            ) : nearbyRestaurants.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-6 text-center">
+                <p className="text-sm text-dark">No restaurants found within 5km of your current location.</p>
+                <p className="mt-1 text-sm text-muted">Try updating your location to see more places nearby.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {nearbyRestaurants.slice(0, PREVIEW_RESTAURANTS_LIMIT).map((restaurant) => (
                   <SearchRestaurantRow
                     key={restaurant.id}
                     restaurant={restaurant}
-                    onClick={() => navigate(`/restaurant/${restaurant.id}`)}
+                    onClick={() => handleRestaurantNavigation(restaurant.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </BuyerCard>
+        </div>
+      ) : showShortQueryState ? (
+        <BuyerCard className="p-5">
+          <p className="text-sm text-muted">Type at least {MIN_SEARCH_LENGTH} characters to start searching nearby restaurants and menu items.</p>
+        </BuyerCard>
+      ) : searching || loadingRestaurants ? (
+        <SearchResultsSkeleton />
+      ) : searchError ? (
+        <BuyerFeedbackState type="error" title="Search failed" message={searchError} />
+      ) : showEmptyResults ? (
+        <BuyerEmptyState
+          icon={<Search size={28} />}
+          title={`No results for "${debouncedQuery}"`}
+          description="Try another search term, change your category, or clear the search to browse nearby restaurants."
+          action={<BuyerPrimaryButton onClick={clearSearch}>Clear Search</BuyerPrimaryButton>}
+        />
+      ) : (
+        <div className="space-y-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-dark">Search results</h2>
+              <p className="mt-1 text-sm text-muted">
+                {totalItemMatches > 0 ? `${totalItemMatches} item match${totalItemMatches === 1 ? '' : 'es'}` : 'No item matches'}
+                {' • '}
+                {restaurantResults.length} restaurant{restaurantResults.length === 1 ? '' : 's'}
+                {' • '}
+                within 5km for <span className="font-semibold text-primary">"{debouncedQuery}"</span>
+              </p>
+            </div>
+            <button type="button" onClick={clearSearch} className="text-sm font-semibold text-primary">
+              Clear
+            </button>
+          </div>
+
+          {menuItemResults.length > 0 ? (
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-dark">Matching Items</h3>
+              <BuyerCard className="px-5 py-1">
+                {menuItemResults.map((item) => (
+                  <SearchMenuItemRow
+                    key={`${item.id}-${item.restaurantData?.id || item.restaurant}`}
+                    item={item}
+                    onClick={() => handleRestaurantNavigation(item.restaurantData?.id || item.restaurant)}
                   />
                 ))}
               </BuyerCard>
             </div>
           ) : null}
 
-          {restaurantsWithItems.length > 0 ? (
+          {restaurantResults.length > 0 ? (
             <div className="space-y-3">
-              <h2 className="text-lg font-bold text-dark">Matching Items</h2>
-              <div className="space-y-5">
-                {restaurantsWithItems.map((group, index) => {
-                  const restaurantData = restaurants.find((restaurant) => restaurant.id === group.restaurantId) || {
-                    id: group.restaurantId,
-                    name: group.restaurantName,
-                    image: group.restaurantImage,
-                  };
-
-                  return (
-                    <RestaurantWithItemsCard
-                      key={`${group.restaurantId}-${index}`}
-                      restaurant={restaurantData}
-                      topItems={group.items}
-                    />
-                  );
-                })}
-              </div>
+              <h3 className="text-lg font-semibold text-dark">Matching Restaurants</h3>
+              <BuyerCard className="px-5 py-1">
+                {restaurantResults.map((restaurant) => (
+                  <SearchRestaurantRow
+                    key={restaurant.id}
+                    restaurant={restaurant}
+                    onClick={() => handleRestaurantNavigation(restaurant.id)}
+                  />
+                ))}
+              </BuyerCard>
             </div>
           ) : null}
         </div>

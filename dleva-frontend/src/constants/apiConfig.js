@@ -184,7 +184,7 @@ export const API_ENDPOINTS = {
   // Menu endpoints
   MENU: {
     LIST: '/buyer/menu/',
-    CATEGORIES: 'buyer/menu/categories/',
+    CATEGORIES: '/buyer/menu/categories/',
   },
 
   // Cart endpoints
@@ -201,6 +201,7 @@ export const API_ENDPOINTS = {
     ALL_ITEMS: '/buyer/menu/',
     GET_ITEMS: (restaurantId) => `/buyer/menu/?restaurant=${restaurantId}`,
     SEARCH: '/buyer/menu/',
+    CATEGORIES: '/buyer/menu/categories/',
   },
 
   // Buyer Location endpoints

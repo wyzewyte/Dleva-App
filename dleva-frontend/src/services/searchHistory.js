@@ -2,12 +2,22 @@
 
 const STORAGE_KEY = 'dleva_search_history';
 
+const normalizeHistory = (history) => {
+  if (!Array.isArray(history)) return [];
+
+  return history
+    .filter((item) => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 10);
+};
+
 const searchHistory = {
   // Get all recent searches
   getHistory: () => {
     try {
       const data = localStorage.getItem(STORAGE_KEY);
-      return data ? JSON.parse(data) : [];
+      return data ? normalizeHistory(JSON.parse(data)) : [];
     } catch {
       return [];
     }
@@ -25,7 +35,7 @@ const searchHistory = {
       const filtered = history.filter(q => q.toLowerCase() !== trimmed.toLowerCase());
       
       // Add to front
-      const updated = [trimmed, ...filtered].slice(0, 10); // Keep last 10
+      const updated = normalizeHistory([trimmed, ...filtered]); // Keep last 10
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
     } catch (err) {
       console.error('Error saving search history:', err);
