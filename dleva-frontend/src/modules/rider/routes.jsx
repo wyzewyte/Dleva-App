@@ -3,16 +3,14 @@
  * Handles all rider module routing including all pages and sub-routes
  */
 
-import Home from '../pages/Home';
 import Dashboard from '../pages/Dashboard';
 import Deliveries from '../pages/Deliveries';
-import DeliveryDetail from '../pages/DeliveryDetail';
-import Wallet from '../pages/Wallet';
-import Withdrawal from '../pages/Withdrawal';
-import Profile from '../pages/Profile';
+import OrderDetails from '../pages/OrderDetails';
+import Earnings from '../pages/Earnings';
+import OrderHistory from '../pages/OrderHistory';
+import Settings from '../pages/Settings';
 import Performance from '../pages/Performance';
 import Feedback from '../pages/Feedback';
-import Settings from '../pages/Settings';
 import Promotion from '../pages/Promotion';
 import Help from '../pages/Help';
 import FAQ from '../pages/FAQ';
@@ -26,14 +24,14 @@ import VerificationSetup from '../pages/VerificationSetup';
 export const riderRoutes = [
   {
     path: '/rider',
-    element: <Home />,
-  },
-  {
-    path: '/rider/home',
-    element: <Home />,
+    element: <Dashboard />,
   },
   {
     path: '/rider/dashboard',
+    element: <Dashboard />,
+  },
+  {
+    path: '/rider/home',
     element: <Dashboard />,
   },
   {
@@ -57,24 +55,32 @@ export const riderRoutes = [
     element: <ServiceAreaVerification />,
   },
   {
-    path: '/rider/orders',
+    path: '/rider/deliveries',
     element: <Deliveries />,
   },
   {
-    path: '/rider/delivery/:id',
-    element: <DeliveryDetail />,
+    path: '/rider/orders/:orderId',
+    element: <OrderDetails />,
+  },
+  {
+    path: '/rider/order-history',
+    element: <OrderHistory />,
   },
   {
     path: '/rider/wallet',
-    element: <Wallet />,
+    element: <Earnings />,
+  },
+  {
+    path: '/rider/earnings',
+    element: <Earnings />,
   },
   {
     path: '/rider/withdrawal',
-    element: <Withdrawal />,
+    element: <Earnings />,
   },
   {
     path: '/rider/profile',
-    element: <Profile />,
+    element: <Settings />,
   },
   {
     path: '/rider/performance',

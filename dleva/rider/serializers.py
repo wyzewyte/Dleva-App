@@ -143,24 +143,41 @@ class RiderBankDetailsSerializer(serializers.ModelSerializer):
     """Serializer for bank details"""
     class Meta:
         model = RiderBankDetails
-        fields = ('bank_name', 'account_number', 'account_name')
-        
+        fields = ('bank_code', 'bank_name', 'account_number', 'account_name')
+
+    def validate_bank_code(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Bank code is required.")
+        return value.strip()
+
+    def validate_bank_name(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Bank name is required.")
+        return value.strip()
+
+    def validate_account_name(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Account name is required.")
+        return value.strip()
+
     def validate_account_number(self, value):
         """Basic validation for account number"""
         if not value.isdigit():
             raise serializers.ValidationError("Account number must contain only digits.")
         
-        if len(value) < 10:
-            raise serializers.ValidationError("Account number must be at least 10 digits.")
+        if len(value) != 10:
+            raise serializers.ValidationError("Account number must be exactly 10 digits.")
         
         return value
 
 
 class RiderProfileUpdateSerializer(serializers.ModelSerializer):
     """Serializer for rider profile updates"""
+    username = serializers.CharField(required=False, max_length=150)
+
     class Meta:
         model = RiderProfile
-        fields = ('full_name', 'phone_number', 'profile_photo', 'vehicle_type', 'vehicle_plate_number')
+        fields = ('username', 'full_name', 'phone_number', 'profile_photo', 'vehicle_type', 'vehicle_plate_number')
         
     def validate_phone_number(self, value):
         """Validate phone number format"""
@@ -169,16 +186,53 @@ class RiderProfileUpdateSerializer(serializers.ModelSerializer):
         
         return value
 
+    def validate_username(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Username cannot be empty.")
+
+        rider = self.instance
+        username_taken = User.objects.filter(username__iexact=value).exclude(id=rider.user_id).exists()
+        rider_username_taken = RiderProfile.objects.filter(username__iexact=value).exclude(id=rider.id).exists()
+
+        if username_taken or rider_username_taken:
+            raise serializers.ValidationError("Username already exists.")
+
+        return value
+
+    def update(self, instance, validated_data):
+        username = validated_data.pop('username', None)
+        full_name = validated_data.get('full_name')
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        if username is not None:
+            instance.username = username
+            instance.user.username = username
+            instance.user.save(update_fields=['username'])
+
+        if full_name is not None:
+            name_parts = full_name.strip().split()
+            instance.user.first_name = name_parts[0] if name_parts else ''
+            instance.user.last_name = ' '.join(name_parts[1:]) if len(name_parts) > 1 else ''
+            instance.user.save(update_fields=['first_name', 'last_name'])
+
+        instance.save()
+        return instance
+
+
 
 class RiderProfileSerializer(serializers.ModelSerializer):
     """Complete rider profile serializer"""
     user = UserSerializer(read_only=True)
     email = serializers.SerializerMethodField()
+    username = serializers.SerializerMethodField()
     
     class Meta:
         model = RiderProfile
         fields = (
-            'id', 'user', 'full_name', 'email', 'phone_number', 'profile_photo',
+            'id', 'user', 'username', 'full_name', 'email', 'phone_number', 'profile_photo',
             'vehicle_type', 'vehicle_plate_number', 'phone_verified',
             'account_status', 'verification_status', 'is_verified',
             'profile_completion_percent', 'is_online', 'average_rating',
@@ -200,6 +254,13 @@ class RiderProfileSerializer(serializers.ModelSerializer):
             return obj.user.email
         return None
 
+    def get_username(self, obj):
+        if obj.username and obj.username.strip():
+            return obj.username
+        if obj.user and obj.user.username:
+            return obj.user.username
+        return None
+
 
 class RiderVerificationStatusSerializer(serializers.Serializer):
     """Serializer for rider verification status"""
@@ -208,5 +269,9 @@ class RiderVerificationStatusSerializer(serializers.Serializer):
     phone_verified = serializers.BooleanField()
     documents_approved = serializers.BooleanField()
     bank_details_added = serializers.BooleanField()
+    bank_details_verified = serializers.BooleanField()
     profile_completion_percent = serializers.IntegerField()
     is_online = serializers.BooleanField()
+
+
+

@@ -1,3 +1,1 @@
-import FAQ from './FAQ.jsx';
-
-export default FAQ;
+export { default } from './FAQ';

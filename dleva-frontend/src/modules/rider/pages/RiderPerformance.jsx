@@ -1,3 +1,1 @@
-import Performance from './Performance.jsx';
-
-export default Performance;
+export { default } from './Performance';

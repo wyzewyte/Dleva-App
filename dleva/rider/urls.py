@@ -25,6 +25,8 @@ urlpatterns = [
     # ==================== BANK DETAILS ====================
     path('bank/add/', views.add_bank_details, name='add-bank-details'),
     path('bank/details/', views.get_bank_details, name='get-bank-details'),
+    path('bank/banks/', views.list_banks, name='list-banks'),
+    path('bank/resolve/', views.resolve_bank_account, name='resolve-bank-account'),
     
     # ==================== ORDERS ====================
     path('orders/', views.list_rider_orders, name='rider-orders'),

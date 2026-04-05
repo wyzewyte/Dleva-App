@@ -11,9 +11,82 @@ from .models import Location, LocationHistory
 from .location_service import LocationService
 from seller.models import Restaurant
 from buyer.models import BuyerProfile
+from utils.paystack_service import PaystackService
 
 
 # ==================== GEOCODING ENDPOINTS ====================
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def list_paystack_banks(request):
+    """Shared Paystack bank list endpoint for buyer, seller, and rider flows."""
+    result = PaystackService.list_banks()
+
+    if not result.get('success'):
+        return Response(
+            {'error': result.get('error', 'Unable to fetch banks right now.')},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+
+    banks = [
+        {
+            'name': bank.get('name'),
+            'code': str(bank.get('code')),
+        }
+        for bank in result.get('banks', [])
+        if bank.get('name') and bank.get('code') is not None
+    ]
+
+    return Response({'banks': banks})
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def resolve_paystack_account(request):
+    """Shared Paystack account resolution endpoint for bank-account verification flows."""
+    bank_code = str(request.data.get('bank_code', '')).strip()
+    account_number = str(request.data.get('account_number', '')).strip()
+
+    if not bank_code:
+        return Response({'bank_code': ['Bank code is required.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not account_number:
+        return Response({'account_number': ['Account number is required.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not account_number.isdigit() or len(account_number) != 10:
+        return Response(
+            {'account_number': ['Account number must be exactly 10 digits.']},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    banks_result = PaystackService.list_banks()
+    if not banks_result.get('success'):
+        return Response(
+            {'error': banks_result.get('error', 'Unable to fetch banks right now.')},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE
+        )
+
+    matched_bank = next(
+        (bank for bank in banks_result.get('banks', []) if str(bank.get('code')) == bank_code),
+        None
+    )
+    if not matched_bank:
+        return Response({'bank_code': ['Invalid bank code.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    resolve_result = PaystackService.resolve_account(account_number, bank_code)
+    if not resolve_result.get('success'):
+        return Response(
+            {'error': resolve_result.get('error', 'Unable to resolve account.')},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    return Response({
+        'bank_code': bank_code,
+        'bank_name': matched_bank.get('name'),
+        'account_number': resolve_result.get('account_number', account_number),
+        'account_name': resolve_result.get('account_name'),
+        'verified': True,
+    })
 
 @api_view(['POST'])
 @permission_classes([AllowAny])

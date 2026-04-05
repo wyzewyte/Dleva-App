@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth.models import User
 from buyer.models import Order
 from core.models import Location
@@ -86,7 +87,7 @@ class RiderProfile(models.Model):
             completion += 25
         if self.vehicle_type and self.vehicle_plate_number:
             completion += 25
-        if hasattr(self, 'bank_details'):
+        if hasattr(self, 'bank_details') and self.bank_details.verified:
             completion += 25
         self.profile_completion_percent = completion
         return completion
@@ -295,6 +296,7 @@ class RiderOrder(models.Model):
 class RiderBankDetails(models.Model):
     """Secure bank details storage for rider payouts"""
     rider = models.OneToOneField(RiderProfile, on_delete=models.CASCADE, related_name='bank_details')
+    bank_code = models.CharField(max_length=20, blank=True, default='')
     bank_name = models.CharField(max_length=100)
     account_number = models.CharField(max_length=50)
     account_name = models.CharField(max_length=150)
@@ -308,6 +310,13 @@ class RiderBankDetails(models.Model):
     class Meta:
         verbose_name = 'Rider Bank Details'
         verbose_name_plural = 'Rider Bank Details'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['bank_code', 'account_number'],
+                condition=~Q(bank_code=''),
+                name='unique_rider_bank_account_per_bank',
+            ),
+        ]
 
 
 class RiderServiceArea(models.Model):

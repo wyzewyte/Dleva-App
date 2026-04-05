@@ -6,6 +6,8 @@ from . import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/paystack/banks/', views.list_paystack_banks, name='list_paystack_banks'),
+    path('api/paystack/resolve-account/', views.resolve_paystack_account, name='resolve_paystack_account'),
     # Location API Endpoints (Phase 2)
     path('api/geocode/', views.geocode_address, name='geocode_address'),
     path('api/reverse-geocode/', views.reverse_geocode_location, name='reverse_geocode'),

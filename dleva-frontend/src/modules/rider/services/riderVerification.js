@@ -4,6 +4,7 @@
  */
 
 import api from '../../../services/axios';
+import paystackBanking from '../../../services/paystackBanking';
 import { API_ENDPOINTS } from '../../../constants/apiConfig';
 
 /**
@@ -57,11 +58,12 @@ const riderVerification = {
   // Add or update bank details
   async addBankDetails(bankData) {
     try {
-      if (!bankData.bank_name || !bankData.account_number || !bankData.account_name) {
+      if (!bankData.bank_code || !bankData.bank_name || !bankData.account_number || !bankData.account_name) {
         throw { error: 'All bank details are required', status: 400 };
       }
       
       const response = await api.post(API_ENDPOINTS.RIDER.VERIFICATION.BANK_DETAILS, {
+        bank_code: bankData.bank_code,
         bank_name: bankData.bank_name,
         account_number: bankData.account_number,
         account_name: bankData.account_name,
@@ -84,8 +86,9 @@ const riderVerification = {
       }
       
       const response = await api.post(API_ENDPOINTS.RIDER.VERIFICATION.BANK_DETAILS, {
+        bank_name: bankCode?.name || '',
         account_number: accountNumber,
-        bank_code: bankCode,
+        bank_code: typeof bankCode === 'string' ? bankCode : bankCode?.code,
         account_name: accountName,
       });
 
@@ -109,6 +112,14 @@ const riderVerification = {
         status: error.response?.status || error.status,
       };
     }
+  },
+
+  async listBanks() {
+    return paystackBanking.listBanks();
+  },
+
+  async resolveBankAccount(bankCode, accountNumber) {
+    return paystackBanking.resolveAccount(bankCode, accountNumber);
   },
 
   // Get verification status
@@ -143,8 +154,6 @@ const riderVerification = {
     // Check file type
     if (allowedFormats && allowedFormats.length > 0) {
       const fileType = file.type;
-      const fileName = file.name;
-      const fileExt = fileName.split('.').pop().toLowerCase();
 
       // Check MIME type
       const isAllowedByType = allowedFormats.some(

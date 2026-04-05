@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * Rider Authentication Context
  * Manages rider authentication state and operations
@@ -6,6 +7,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../../../services/axios';
 import riderAuth from '../services/riderAuth';
+import { API_ENDPOINTS } from '../../../constants/apiConfig';
 import MESSAGES from '../../../constants/messages';
 
 /**
@@ -46,6 +48,16 @@ export const RiderAuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState(null);
 
+  const fetchVerificationSnapshot = async () => {
+    try {
+      const response = await api.get(API_ENDPOINTS.RIDER.VERIFICATION_STATUS);
+      return response.data;
+    } catch (err) {
+      console.warn('[RiderAuth] verification snapshot failed:', err);
+      return null;
+    }
+  };
+
   // Initialize: if token exists, fetch rider profile
   useEffect(() => {
     let mounted = true;
@@ -70,12 +82,22 @@ export const RiderAuthProvider = ({ children }) => {
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
         // Fetch profile
-        const profile = await riderAuth.getProfile();
+        const [profile, verification] = await Promise.all([
+          riderAuth.getProfile(),
+          fetchVerificationSnapshot(),
+        ]);
         
         if (!mounted) return;
         
         // Profile fetch succeeded, normalize and update state
-        const normalized = normalizeProfile(profile);
+        const normalized = normalizeProfile({
+          ...profile,
+          can_go_online: verification?.can_go_online ?? profile?.can_go_online ?? false,
+          phone_verified: verification?.phone_verified ?? profile?.phone_verified,
+          verification_status: verification?.verification_status ?? profile?.verification_status,
+          account_status: verification?.account_status ?? profile?.account_status,
+          is_online: verification?.is_online ?? profile?.is_online,
+        });
         setRider(normalized);
         localStorage.setItem('rider_profile', JSON.stringify(normalized));
         setError(null);
@@ -124,7 +146,10 @@ export const RiderAuthProvider = ({ children }) => {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       
       // Step 3: Fetch profile 
-      const profile = await riderAuth.getProfile();
+      const [profile, verification] = await Promise.all([
+        riderAuth.getProfile(),
+        fetchVerificationSnapshot(),
+      ]);
       console.debug('[RiderAuth] login fetched profile:', profile);
       
       // Step 4: Normalize and update state (profile first, then token)
@@ -135,7 +160,14 @@ export const RiderAuthProvider = ({ children }) => {
         if (copy.can_go_online !== undefined) copy.can_go_online = Boolean(copy.can_go_online);
         return copy;
       };
-      const normalized = normalize(profile);
+      const normalized = normalize({
+        ...profile,
+        can_go_online: verification?.can_go_online ?? profile?.can_go_online ?? false,
+        phone_verified: verification?.phone_verified ?? profile?.phone_verified,
+        verification_status: verification?.verification_status ?? profile?.verification_status,
+        account_status: verification?.account_status ?? profile?.account_status,
+        is_online: verification?.is_online ?? profile?.is_online,
+      });
       setRider(normalized);
       localStorage.setItem('rider_profile', JSON.stringify(normalized));
       
@@ -236,7 +268,10 @@ export const RiderAuthProvider = ({ children }) => {
   const refreshRider = async () => {
     if (!token) return null;
     try {
-      const profile = await riderAuth.getProfile();
+      const [profile, verification] = await Promise.all([
+        riderAuth.getProfile(),
+        fetchVerificationSnapshot(),
+      ]);
       const normalize = (p) => {
         if (!p) return p;
         const copy = { ...p };
@@ -244,7 +279,14 @@ export const RiderAuthProvider = ({ children }) => {
         if (copy.can_go_online !== undefined) copy.can_go_online = Boolean(copy.can_go_online);
         return copy;
       };
-      const normalized = normalize(profile);
+      const normalized = normalize({
+        ...profile,
+        can_go_online: verification?.can_go_online ?? profile?.can_go_online ?? false,
+        phone_verified: verification?.phone_verified ?? profile?.phone_verified,
+        verification_status: verification?.verification_status ?? profile?.verification_status,
+        account_status: verification?.account_status ?? profile?.account_status,
+        is_online: verification?.is_online ?? profile?.is_online,
+      });
       setRider(normalized);
       localStorage.setItem('rider_profile', JSON.stringify(normalized));
       return normalized;

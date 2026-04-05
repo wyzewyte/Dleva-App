@@ -9,7 +9,7 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => { 
   // List of public endpoints that don't need authentication
-  const publicEndpoints = ['/seller/register/', '/seller/login/', '/buyer/register/', '/buyer/login/', '/rider/register/', '/rider/login/'];
+  const publicEndpoints = ['/seller/register/', '/seller/login/', '/buyer/register/', '/buyer/login/', '/rider/register/', '/rider/login/', '/paystack/banks/', '/paystack/resolve-account/'];
   const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.includes(endpoint));
   
   // Only add auth header for non-public endpoints
@@ -44,7 +44,7 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     
     // List of public endpoints that don't need token refresh
-    const publicEndpoints = ['/seller/register/', '/seller/login/', '/buyer/register/', '/buyer/login/', '/rider/register/', '/rider/login/'];
+    const publicEndpoints = ['/seller/register/', '/seller/login/', '/buyer/register/', '/buyer/login/', '/rider/register/', '/rider/login/', '/paystack/banks/', '/paystack/resolve-account/'];
     const isPublicEndpoint = publicEndpoints.some(endpoint => originalRequest.url?.includes(endpoint));
     
     const isSellerRequest = originalRequest.url?.includes('/seller/');

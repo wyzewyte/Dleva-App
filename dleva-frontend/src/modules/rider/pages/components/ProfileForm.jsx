@@ -1,182 +1,134 @@
-import React, { useState } from 'react';
-import { Edit2, Save, X } from 'lucide-react';
-import { SETTINGS_VALIDATION, SETTINGS_ERRORS, SETTINGS_SUCCESS, SETTINGS_LABELS } from '../../constants/settingsConstants';
+import { useState } from 'react';
+import { Mail, Phone } from 'lucide-react';
+import PhoneVerification from './PhoneVerification';
 
-const ProfileForm = ({ profile, onSave, loading }) => {
-  const [isEditing, setIsEditing] = useState(false);
+const digits = (value) => String(value || '').replace(/\D/g, '');
+
+const ProfileForm = ({ profile, onSave, onPhoneVerified, loading }) => {
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
+    username: profile?.username || profile?.user?.username || '',
     phone_number: profile?.phone_number || '',
     email: profile?.email || '',
   });
   const [errors, setErrors] = useState({});
+  const [verifiedPhone, setVerifiedPhone] = useState(profile?.phone_verified ? profile?.phone_number || '' : '');
+
+  const isPhoneVerified = Boolean(profile?.phone_verified) && digits(formData.phone_number) === digits(verifiedPhone);
 
   const validateForm = () => {
-    const newErrors = {};
+    const nextErrors = {};
 
-    // Validate name
-    if (!formData.full_name.trim()) {
-      newErrors.full_name = SETTINGS_ERRORS.NAME_REQUIRED;
-    } else if (
-      formData.full_name.length < SETTINGS_VALIDATION.NAME_MIN ||
-      formData.full_name.length > SETTINGS_VALIDATION.NAME_MAX
-    ) {
-      newErrors.full_name = SETTINGS_ERRORS.INVALID_NAME;
-    }
+    if (!formData.full_name.trim()) nextErrors.full_name = 'Full name is required.';
+    if (!formData.username.trim()) nextErrors.username = 'Username is required.';
+    if (!formData.phone_number.trim()) nextErrors.phone_number = 'Phone number is required.';
 
-    // Validate phone
-    if (!formData.phone_number.trim()) {
-      newErrors.phone_number = SETTINGS_ERRORS.PHONE_REQUIRED;
-    } else if (formData.phone_number.replace(/\D/g, '').length < SETTINGS_VALIDATION.PHONE_MIN) {
-      newErrors.phone_number = SETTINGS_ERRORS.INVALID_PHONE;
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    // Clear error for this field
+  const handleInputChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((current) => ({ ...current, [name]: value }));
     if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: undefined,
-      }));
+      setErrors((current) => ({ ...current, [name]: undefined }));
     }
   };
 
-  const handleSave = async () => {
-    if (validateForm()) {
-      const dataToSend = {
-        full_name: formData.full_name.trim(),
-        phone_number: formData.phone_number.trim(),
-      };
-      await onSave(dataToSend);
-      setIsEditing(false);
-    }
-  };
+  const handleSave = async (event) => {
+    event.preventDefault();
+    if (!validateForm()) return;
 
-  const handleCancel = () => {
-    setFormData({
-      full_name: profile?.full_name || '',
-      phone_number: profile?.phone_number || '',
-      email: profile?.email || '',
+    await onSave({
+      full_name: formData.full_name.trim(),
+      username: formData.username.trim(),
     });
-    setErrors({});
-    setIsEditing(false);
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">{SETTINGS_LABELS.BASIC_INFO}</h3>
-        {!isEditing && (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="text-gray-600 hover:text-primary transition-colors"
-          >
-            <Edit2 size={18} />
-          </button>
-        )}
-      </div>
+    <div className="space-y-5">
+      <form onSubmit={handleSave} className="space-y-4">
+        <div>
+          <h4 className="text-lg font-bold text-dark">Profile details</h4>
+          <p className="mt-1 text-sm text-muted">Update your name, username, and phone details here. Email stays locked.</p>
+        </div>
 
-      {isEditing ? (
-        <div className="space-y-4">
-          {/* Name Field */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {SETTINGS_LABELS.FULL_NAME}
-            </label>
-            <input
-              type="text"
-              name="full_name"
-              value={formData.full_name}
-              onChange={handleInputChange}
-              placeholder="Enter your full name"
-              className={`w-full px-3 py-2 border rounded-md text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary ${
-                errors.full_name ? 'border-red-500' : 'border-gray-300'
-              }`}
-            />
-            {errors.full_name && (
-              <p className="mt-1 text-sm text-red-600">{errors.full_name}</p>
-            )}
-          </div>
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wide text-gray-500">Username</label>
+          <input
+            type="text"
+            name="username"
+            value={formData.username}
+            onChange={handleInputChange}
+            placeholder="yourusername"
+            className={`mt-1 w-full rounded-xl border bg-gray-50 px-4 py-3 text-sm text-dark placeholder:text-muted focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/10 ${errors.username ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-primary'}`}
+          />
+          {errors.username ? <p className="mt-1 text-xs font-medium text-red-600">{errors.username}</p> : null}
+        </div>
 
-          {/* Phone Field */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {SETTINGS_LABELS.PHONE_NUMBER}
-            </label>
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wide text-gray-500">Full name</label>
+          <input
+            type="text"
+            name="full_name"
+            value={formData.full_name}
+            onChange={handleInputChange}
+            placeholder="Your full name"
+            className={`mt-1 w-full rounded-xl border bg-gray-50 px-4 py-3 text-sm text-dark placeholder:text-muted focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/10 ${errors.full_name ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-primary'}`}
+          />
+          {errors.full_name ? <p className="mt-1 text-xs font-medium text-red-600">{errors.full_name}</p> : null}
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wide text-gray-500">Phone number</label>
+          <div className="relative mt-1">
+            <Phone className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="tel"
               name="phone_number"
               value={formData.phone_number}
               onChange={handleInputChange}
-              placeholder="Enter your phone number"
-              className={`w-full px-3 py-2 border rounded-md text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary ${
-                errors.phone_number ? 'border-red-500' : 'border-gray-300'
-              }`}
+              placeholder="+234..."
+              className={`w-full rounded-xl border bg-gray-50 px-4 py-3 pl-11 text-sm text-dark placeholder:text-muted focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/10 ${errors.phone_number ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-primary'}`}
             />
-            {errors.phone_number && (
-              <p className="mt-1 text-sm text-red-600">{errors.phone_number}</p>
-            )}
           </div>
+          {errors.phone_number ? <p className="mt-1 text-xs font-medium text-red-600">{errors.phone_number}</p> : null}
+          <p className={`mt-1 text-xs font-medium ${isPhoneVerified ? 'text-emerald-700' : 'text-amber-700'}`}>
+            {isPhoneVerified ? 'This phone number is verified.' : 'Verify this phone number below if you changed it.'}
+          </p>
+        </div>
 
-          {/* Email Field (Always Disabled) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {SETTINGS_LABELS.EMAIL}
-            </label>
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wide text-gray-500">Email</label>
+          <div className="relative mt-1">
+            <Mail className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input
               type="email"
               value={formData.email}
               disabled
-              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
+              className="w-full cursor-not-allowed rounded-xl border border-gray-200 bg-gray-100 px-4 py-3 pl-11 text-sm text-gray-500"
             />
-            <p className="mt-1 text-xs text-gray-500">{SETTINGS_LABELS.EMAIL_INFO}</p>
           </div>
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
-            <button
-              onClick={handleSave}
-              disabled={loading}
-              className="flex-1 bg-primary text-white py-2 rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              <Save size={16} />
-              {loading ? SETTINGS_LABELS.SAVING : SETTINGS_LABELS.SAVE_CHANGES}
-            </button>
-            <button
-              onClick={handleCancel}
-              disabled={loading}
-              className="flex-1 bg-gray-200 text-gray-900 py-2 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              <X size={16} />
-              {SETTINGS_LABELS.CANCEL}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div>
-            <label className="text-sm text-gray-600">{SETTINGS_LABELS.FULL_NAME}</label>
-            <p className="text-gray-900 font-medium">{profile?.full_name || '-'}</p>
-          </div>
-          <div>
-            <label className="text-sm text-gray-600">{SETTINGS_LABELS.PHONE_NUMBER}</label>
-            <p className="text-gray-900 font-medium">{profile?.phone_number || '-'}</p>
-          </div>
-          <div>
-            <label className="text-sm text-gray-600">{SETTINGS_LABELS.EMAIL}</label>
-            <p className="text-gray-900 font-medium">{profile?.email || '-'}</p>
-          </div>
-        </div>
-      )}
+        <button
+          type="submit"
+          disabled={loading}
+          className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-5"
+        >
+          {loading ? 'Saving...' : 'Save profile'}
+        </button>
+      </form>
+
+      <PhoneVerification
+        phone={formData.phone_number}
+        verifiedPhone={verifiedPhone}
+        phoneVerified={isPhoneVerified}
+        onVerified={async (phone) => {
+          setVerifiedPhone(phone);
+          await onPhoneVerified?.(phone);
+        }}
+      />
     </div>
   );
 };

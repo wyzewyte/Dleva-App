@@ -1,3 +1,1 @@
-import Deliveries from './Deliveries';
-
-export default Deliveries;
+export { default } from './Deliveries';

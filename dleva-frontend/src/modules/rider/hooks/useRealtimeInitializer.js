@@ -10,10 +10,11 @@ import riderFCM from '../services/riderFCM';
 
 export const useRealtimeInitializer = () => {
   const { rider, token, loading } = useRiderAuth();
+  const riderId = rider?.id;
 
   useEffect(() => {
     // ✅ Guard: Don't initialize during auth loading or without token
-    if (loading || !token || !rider) {
+    if (loading || !token || !riderId) {
       return;
     }
 
@@ -26,7 +27,7 @@ export const useRealtimeInitializer = () => {
 
         // Initialize WebSocket for rider notifications (not order status)
         if (riderWebSocket && typeof riderWebSocket.connectNotifications === 'function') {
-          riderWebSocket.connectNotifications(rider.id);
+          riderWebSocket.connectNotifications(riderId);
         }
       } catch (error) {
         console.error('Failed to initialize real-time features:', error);
@@ -40,7 +41,7 @@ export const useRealtimeInitializer = () => {
         riderWebSocket.disconnect();
       }
     };
-  }, [token, rider, loading]);
+  }, [token, riderId, loading]);
 };
 
 export default useRealtimeInitializer;

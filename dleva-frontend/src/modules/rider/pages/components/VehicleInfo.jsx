@@ -1,173 +1,87 @@
-import React, { useState } from 'react';
-import { Edit2, Save, X } from 'lucide-react';
-import {
-  VEHICLE_TYPES,
-  VEHICLE_TYPE_LABELS,
-  SETTINGS_VALIDATION,
-  SETTINGS_ERRORS,
-  SETTINGS_LABELS,
-} from '../../constants/settingsConstants';
+import { useState } from 'react';
+import SettingsOptionSelect from './SettingsOptionSelect';
+
+const VEHICLE_OPTIONS = [
+  { value: 'bike', label: 'Bike' },
+  { value: 'bicycle', label: 'Bicycle' },
+  { value: 'car', label: 'Car' },
+];
 
 const VehicleInfo = ({ profile, onSave, loading }) => {
-  const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    vehicle_type: profile?.vehicle_type || '',
+    vehicle_type: profile?.vehicle_type || 'bike',
     vehicle_plate_number: profile?.vehicle_plate_number || '',
   });
   const [errors, setErrors] = useState({});
 
   const validateForm = () => {
-    const newErrors = {};
-
-    if (!formData.vehicle_type) {
-      newErrors.vehicle_type = SETTINGS_ERRORS.VEHICLE_TYPE_REQUIRED;
-    }
-
-    if (!formData.vehicle_plate_number.trim()) {
-      newErrors.vehicle_plate_number = SETTINGS_ERRORS.PLATE_REQUIRED;
-    } else if (
-      formData.vehicle_plate_number.length < SETTINGS_VALIDATION.PLATE_MIN ||
-      formData.vehicle_plate_number.length > SETTINGS_VALIDATION.PLATE_MAX
-    ) {
-      newErrors.vehicle_plate_number = SETTINGS_ERRORS.INVALID_PLATE;
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const nextErrors = {};
+    if (!formData.vehicle_type) nextErrors.vehicle_type = 'Vehicle type is required.';
+    if (!formData.vehicle_plate_number.trim()) nextErrors.vehicle_plate_number = 'Plate number is required.';
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
+  const handleInputChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((current) => ({
+      ...current,
+      [name]: name === 'vehicle_plate_number' ? value.toUpperCase() : value,
     }));
     if (errors[name]) {
-      setErrors((prev) => ({
-        ...prev,
-        [name]: undefined,
-      }));
+      setErrors((current) => ({ ...current, [name]: undefined }));
     }
   };
 
-  const handleSave = async () => {
-    if (validateForm()) {
-      const dataToSend = {
-        vehicle_type: formData.vehicle_type,
-        vehicle_plate_number: formData.vehicle_plate_number.trim().toUpperCase(),
-      };
-      await onSave(dataToSend);
-      setIsEditing(false);
-    }
-  };
-
-  const handleCancel = () => {
-    setFormData({
-      vehicle_type: profile?.vehicle_type || '',
-      vehicle_plate_number: profile?.vehicle_plate_number || '',
+  const handleSave = async (event) => {
+    event.preventDefault();
+    if (!validateForm()) return;
+    await onSave({
+      vehicle_type: formData.vehicle_type,
+      vehicle_plate_number: formData.vehicle_plate_number.trim().toUpperCase(),
     });
-    setErrors({});
-    setIsEditing(false);
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">{SETTINGS_LABELS.VEHICLE_INFO}</h3>
-        {!isEditing && (
-          <button
-            onClick={() => setIsEditing(true)}
-            className="text-gray-600 hover:text-primary transition-colors"
-          >
-            <Edit2 size={18} />
-          </button>
-        )}
+    <form onSubmit={handleSave} className="space-y-4">
+      <div>
+        <h4 className="text-lg font-bold text-dark">Vehicle details</h4>
+        <p className="mt-1 text-sm text-muted">Keep your active delivery vehicle details accurate and easy to review.</p>
       </div>
 
-      {isEditing ? (
-        <div className="space-y-4">
-          {/* Vehicle Type Dropdown */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {SETTINGS_LABELS.VEHICLE_TYPE}
-            </label>
-            <select
-              name="vehicle_type"
-              value={formData.vehicle_type}
-              onChange={handleInputChange}
-              className={`w-full px-3 py-2 border rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary ${
-                errors.vehicle_type ? 'border-red-500' : 'border-gray-300'
-              }`}
-            >
-              <option value="">{SETTINGS_LABELS.SELECT_VEHICLE}</option>
-              {Object.entries(VEHICLE_TYPES).map(([key, value]) => (
-                <option key={value} value={value}>
-                  {VEHICLE_TYPE_LABELS[value]}
-                </option>
-              ))}
-            </select>
-            {errors.vehicle_type && (
-              <p className="mt-1 text-sm text-red-600">{errors.vehicle_type}</p>
-            )}
-          </div>
+      <div>
+        <label className="block text-xs font-bold uppercase tracking-wide text-gray-500">Vehicle type</label>
+        <SettingsOptionSelect
+          value={formData.vehicle_type}
+          options={VEHICLE_OPTIONS}
+          onChange={(value) => handleInputChange({ target: { name: 'vehicle_type', value } })}
+          error={Boolean(errors.vehicle_type)}
+          placeholder="Select vehicle type"
+        />
+        {errors.vehicle_type ? <p className="mt-1 text-xs font-medium text-red-600">{errors.vehicle_type}</p> : null}
+      </div>
 
-          {/* Plate Number */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {SETTINGS_LABELS.LICENSE_PLATE}
-            </label>
-            <input
-              type="text"
-              name="vehicle_plate_number"
-              value={formData.vehicle_plate_number}
-              onChange={handleInputChange}
-              placeholder={SETTINGS_LABELS.PLATE_EXAMPLE}
-              className={`w-full px-3 py-2 border rounded-md text-gray-900 placeholder-gray-400 font-mono focus:outline-none focus:ring-2 focus:ring-primary ${
-                errors.vehicle_plate_number ? 'border-red-500' : 'border-gray-300'
-              }`}
-            />
-            {errors.vehicle_plate_number && (
-              <p className="mt-1 text-sm text-red-600">{errors.vehicle_plate_number}</p>
-            )}
-          </div>
+      <div>
+        <label className="block text-xs font-bold uppercase tracking-wide text-gray-500">Plate number</label>
+        <input
+          type="text"
+          name="vehicle_plate_number"
+          value={formData.vehicle_plate_number}
+          onChange={handleInputChange}
+          placeholder="ABC-1234"
+          className={`mt-1 w-full rounded-xl border bg-gray-50 px-4 py-3 font-mono text-sm text-dark placeholder:text-muted focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/10 ${errors.vehicle_plate_number ? 'border-red-300 focus:border-red-400' : 'border-gray-200 focus:border-primary'}`}
+        />
+        {errors.vehicle_plate_number ? <p className="mt-1 text-xs font-medium text-red-600">{errors.vehicle_plate_number}</p> : null}
+      </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
-            <button
-              onClick={handleSave}
-              disabled={loading}
-              className="flex-1 bg-primary text-white py-2 rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              <Save size={16} />
-              {loading ? SETTINGS_LABELS.SAVING : SETTINGS_LABELS.SAVE_CHANGES}
-            </button>
-            <button
-              onClick={handleCancel}
-              disabled={loading}
-              className="flex-1 bg-gray-200 text-gray-900 py-2 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              <X size={16} />
-              {SETTINGS_LABELS.CANCEL}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div>
-            <label className="text-sm text-gray-600">{SETTINGS_LABELS.VEHICLE_TYPE}</label>
-            <p className="text-gray-900 font-medium">
-              {formData.vehicle_type ? VEHICLE_TYPE_LABELS[formData.vehicle_type] : '-'}
-            </p>
-          </div>
-          <div>
-            <label className="text-sm text-gray-600">{SETTINGS_LABELS.LICENSE_PLATE}</label>
-            <p className="text-gray-900 font-mono font-medium">
-              {profile?.vehicle_plate_number || '-'}
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
+      <button
+        type="submit"
+        disabled={loading}
+        className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-5"
+      >
+        {loading ? 'Saving...' : 'Save vehicle'}
+      </button>
+    </form>
   );
 };
 

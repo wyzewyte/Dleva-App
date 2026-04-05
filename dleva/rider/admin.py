@@ -226,16 +226,16 @@ class RiderOrderAdmin(admin.ModelAdmin):
 
 @admin.register(RiderBankDetails)
 class RiderBankDetailsAdmin(admin.ModelAdmin):
-    list_display = ('rider', 'bank_name', 'verified', 'created_at')
+    list_display = ('rider', 'bank_name', 'bank_code', 'verified', 'created_at')
     list_filter = ('verified', 'created_at')
-    search_fields = ('rider__full_name', 'bank_name')
+    search_fields = ('rider__full_name', 'bank_name', 'bank_code', 'account_number')
     readonly_fields = ('created_at', 'updated_at')
     fieldsets = (
         ('Rider', {
             'fields': ('rider',)
         }),
         ('Bank Details', {
-            'fields': ('bank_name', 'account_name', 'account_number')
+            'fields': ('bank_code', 'bank_name', 'account_name', 'account_number')
         }),
         ('Status', {
             'fields': ('verified',)

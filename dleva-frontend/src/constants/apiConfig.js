@@ -162,6 +162,8 @@ export const API_ENDPOINTS = {
       DOCUMENT_STATUS: '/rider/documents/status/',
       BANK_DETAILS: '/rider/bank/add/',
       GET_BANK_DETAILS: '/rider/bank/details/',
+      LIST_BANKS: '/rider/bank/banks/',
+      RESOLVE_BANK_ACCOUNT: '/rider/bank/resolve/',
       SERVICE_AREAS_AVAILABLE: '/rider/service-areas/available/',
       SERVICE_AREAS_GET: '/rider/service-areas/my-areas/',
       SERVICE_AREAS_SET: '/rider/service-areas/set/',
@@ -219,6 +221,11 @@ export const API_ENDPOINTS = {
     GET_RECENT: '/location/recent/',
     ESTIMATE_DELIVERY_FEE: '/estimate-delivery-fee/',
     GET_NEARBY_RESTAURANTS: '/restaurants/',
+  },
+
+  PAYSTACK: {
+    BANKS: '/paystack/banks/',
+    RESOLVE_ACCOUNT: '/paystack/resolve-account/',
   },
 
   // Payment endpoints

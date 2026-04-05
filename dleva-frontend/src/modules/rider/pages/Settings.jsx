@@ -1,500 +1,491 @@
-/**
- * Profile Page
- * Comprehensive rider profile and account management
- */
-
-import { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, Loader2, AlertCircle, CheckCircle2, Camera, 
-  User, Phone, FileCheck, Truck, MapPin, Settings, LogOut, Lock,
-  ChevronRight, Clock, Calendar
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BadgeCheck, Camera, ChevronRight, LifeBuoy, Loader2, LogOut, MapPin, Pencil, ShieldAlert, Truck, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useRiderAuth } from '../context/RiderAuthContext';
 import riderSettings from '../services/riderSettings';
+import riderVerification from '../services/riderVerification';
+import RiderLocationManagement from './components/RiderLocationManagement';
+import BankDetailsForm from './components/BankDetailsForm';
 import ProfileForm from './components/ProfileForm';
 import VehicleInfo from './components/VehicleInfo';
-import PhoneVerification from './components/PhoneVerification';
-import PreferencesForm from './components/PreferencesForm';
-import RiderLocationManagement from './components/RiderLocationManagement';
-import MESSAGES from '../../../constants/messages';
-import { ACCOUNT_STATUS_COLORS, ACCOUNT_STATUS_LABELS, SETTINGS_SUCCESS, SETTINGS_ERRORS, SETTINGS_LABELS } from '../../../constants/settingsConstants';
+import {
+  RiderCard,
+  RiderFormField,
+  RiderPageHeader,
+  RiderPageShell,
+  RiderPrimaryButton,
+  RiderSecondaryButton,
+  RiderStatusBadge,
+  RiderTextInput,
+} from '../components/ui/RiderPrimitives';
 
-const Profile = () => {
+const initials = (value) =>
+  String(value || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'R';
+
+const SettingsModal = ({ open, title, subtitle, onClose, children }) => {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-4 pb-4 pt-10 sm:items-center sm:px-6">
+      <div className="w-full max-w-2xl overflow-hidden rounded-[28px] bg-white shadow-[0_24px_80px_rgba(15,23,42,0.2)]">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-5 sm:px-6">
+          <div className="min-w-0">
+            <h3 className="text-xl font-bold text-dark">{title}</h3>
+            {subtitle ? <p className="mt-1 text-sm text-muted">{subtitle}</p> : null}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-gray-200 bg-gray-50 text-dark transition-colors hover:bg-gray-100"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="max-h-[78vh] overflow-y-auto px-5 py-5 sm:px-6">{children}</div>
+      </div>
+    </div>
+  );
+};
+
+const SettingsRow = ({ icon, title, subtitle, badge, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="flex w-full items-center gap-3 border-b border-gray-100 px-1 py-3 text-left transition-colors last:border-b-0 hover:bg-gray-50/70"
+  >
+    <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gray-50 text-primary">{icon}</div>
+    <div className="min-w-0 flex-1">
+      <p className="text-base font-semibold text-dark">{title}</p>
+      {subtitle ? <p className="mt-0.5 line-clamp-2 text-sm leading-5 text-muted">{subtitle}</p> : null}
+    </div>
+    {badge ? (
+      <div className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+        {badge}
+      </div>
+    ) : null}
+    <ChevronRight size={18} className="shrink-0 text-muted" />
+  </button>
+);
+
+const Settings = () => {
   const navigate = useNavigate();
+  const { rider, logout, updateProfile: syncRider, refreshRider } = useRiderAuth();
+  const fileInputRef = useRef(null);
+  const syncRiderRef = useRef(syncRider);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState(null);
+  const [activeModal, setActiveModal] = useState(null);
   const [profile, setProfile] = useState(null);
   const [verification, setVerification] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
-  const [activeTab, setActiveTab] = useState('personal');
-  const [profilePhotoPreview, setProfilePhotoPreview] = useState(null);
+  const [bankDetails, setBankDetails] = useState(null);
+  const [busyKey, setBusyKey] = useState('');
+
+  const isBusy = (key) => busyKey === key;
+  const verificationBadge = useMemo(
+    () => [!verification?.phone_verified, !verification?.documents_approved, !(verification?.bank_details_verified ?? verification?.bank_details_added)].filter(Boolean).length,
+    [verification]
+  );
+  const closeModal = () => setActiveModal(null);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    syncRiderRef.current = syncRider;
+  }, [syncRider]);
 
-  const fetchData = async () => {
+  const loadSettings = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
+    setError('');
     try {
-      setLoading(true);
-      setError(null);
-      const [profileData, verificationData] = await Promise.all([
+      const [profileRes, verificationRes, bankRes] = await Promise.allSettled([
         riderSettings.getProfile(),
         riderSettings.getVerificationStatus(),
+        riderVerification.getBankDetails(),
       ]);
-      setProfile(profileData);
-      setVerification(verificationData);
-    } catch (err) {
-      setError(err.message || SETTINGS_ERRORS.FETCH_PROFILE_FAILED);
+
+      if (profileRes.status !== 'fulfilled') throw profileRes.reason;
+      if (verificationRes.status !== 'fulfilled') throw verificationRes.reason;
+
+      const nextProfile = profileRes.value;
+      const nextVerification = verificationRes.value;
+
+      setProfile(nextProfile);
+      setVerification(nextVerification);
+      setBankDetails(bankRes.status === 'fulfilled' ? bankRes.value : null);
+      syncRiderRef.current({
+        ...nextProfile,
+        can_go_online: nextVerification?.can_go_online,
+        phone_verified: nextVerification?.phone_verified,
+        verification_status: nextVerification?.verification_status,
+        account_status: nextVerification?.account_status,
+        is_online: nextVerification?.is_online,
+      });
+    } catch (loadError) {
+      setError(loadError?.error || loadError?.message || 'Unable to load rider settings right now.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
-  const handleProfileUpdate = async (data) => {
+  useEffect(() => {
+    loadSettings().catch(() => {});
+  }, [loadSettings]);
+
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = window.setTimeout(() => setNotice(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  const saveProfileDetails = async (data) => {
+    if (!data?.full_name?.trim()) return setNotice({ type: 'error', message: 'Full name is required.' });
+    if (!data?.username?.trim()) return setNotice({ type: 'error', message: 'Username is required.' });
+    setBusyKey('profile-details');
     try {
-      setSaving(true);
-      setError(null);
-      setSuccess(null);
-
-      const updated = await riderSettings.updateProfile(data);
-      setProfile(updated);
-      setSuccess(SETTINGS_SUCCESS.PROFILE_UPDATED);
-
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError(err.message || SETTINGS_ERRORS.PROFILE_UPDATE_FAILED);
+      await riderSettings.updateProfile({
+        full_name: data.full_name.trim(),
+        username: data.username.trim(),
+      });
+      await refreshRider?.();
+      await loadSettings({ silent: true });
+      setNotice({ type: 'success', message: 'Profile updated.' });
+      return true;
+    } catch (saveError) {
+      setNotice({ type: 'error', message: saveError?.error || 'Unable to update profile right now.' });
+      return false;
     } finally {
-      setSaving(false);
+      setBusyKey('');
     }
   };
 
-  const handleVehicleUpdate = async (data) => {
-    try {
-      setSaving(true);
-      setError(null);
-      setSuccess(null);
-
-      const updated = await riderSettings.updateProfile(data);
-      setProfile(updated);
-      setSuccess(SETTINGS_SUCCESS.VEHICLE_UPDATED);
-
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError(err.message || SETTINGS_ERRORS.PROFILE_UPDATE_FAILED);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handlePreferencesUpdate = async (data) => {
-    try {
-      setSaving(true);
-      setError(null);
-      setSuccess(null);
-
-      // Note: Preferences update endpoint would need to be added to backend
-      setSuccess(SETTINGS_SUCCESS.PREFERENCES_SAVED);
-
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError(err.message || SETTINGS_ERRORS.PROFILE_UPDATE_FAILED);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handlePhoneVerified = async () => {
-    try {
-      const updated = await riderSettings.getVerificationStatus();
-      setVerification(updated);
-      setSuccess(SETTINGS_SUCCESS.PHONE_VERIFIED);
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError(err.message || SETTINGS_ERRORS.VERIFICATION_STATUS_FAILED);
-    }
-  };
-
-  const handleProfilePhotoChange = async (e) => {
-    const file = e.target.files?.[0];
+  const savePhoto = async (event) => {
+    const file = event.target.files?.[0];
     if (!file) return;
-
+    setBusyKey('photo');
     try {
-      setSaving(true);
-      setError(null);
-
-      // Create preview immediately
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfilePhotoPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-
-      // Upload to backend
       const formData = new FormData();
       formData.append('profile_photo', file);
-      
-      const updated = await riderSettings.updateProfile(formData);
-      setProfile(updated);
-      setSuccess('Profile photo updated successfully');
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError('Failed to update profile photo');
-      setProfilePhotoPreview(null);
+      await riderSettings.updateProfile(formData);
+      await refreshRider?.();
+      await loadSettings({ silent: true });
+      setNotice({ type: 'success', message: 'Profile photo updated.' });
+    } catch (saveError) {
+      setNotice({ type: 'error', message: saveError?.error || 'Unable to update profile photo right now.' });
     } finally {
-      setSaving(false);
+      event.target.value = '';
+      setBusyKey('');
+    }
+  };
+
+  const saveVehicle = async (data) => {
+    if (!data?.vehicle_plate_number?.trim()) return setNotice({ type: 'error', message: 'Vehicle plate number is required.' });
+    setBusyKey('vehicle');
+    try {
+      await riderSettings.updateProfile({
+        vehicle_type: data.vehicle_type,
+        vehicle_plate_number: data.vehicle_plate_number.trim().toUpperCase(),
+      });
+      await refreshRider?.();
+      await loadSettings({ silent: true });
+      setNotice({ type: 'success', message: 'Vehicle details updated.' });
+      return true;
+    } catch (saveError) {
+      setNotice({ type: 'error', message: saveError?.error || 'Unable to update vehicle details right now.' });
+      return false;
+    } finally {
+      setBusyKey('');
+    }
+  };
+
+  const saveBank = async (data) => {
+    if (!data?.bank_name?.trim()) return setNotice({ type: 'error', message: 'Bank name is required.' });
+    if (!data?.account_name?.trim()) return setNotice({ type: 'error', message: 'Account holder name is required.' });
+    if (!/^\d{10,}$/.test(data?.account_number?.trim())) return setNotice({ type: 'error', message: 'Enter a valid account number.' });
+    setBusyKey('bank');
+    try {
+      await riderVerification.addBankDetails({
+        bank_code: data.bank_code,
+        bank_name: data.bank_name.trim(),
+        account_name: data.account_name.trim(),
+        account_number: data.account_number.trim(),
+      });
+      await refreshRider?.();
+      await loadSettings({ silent: true });
+      setNotice({ type: 'success', message: 'Bank details saved.' });
+      return true;
+    } catch (bankError) {
+      setNotice({ type: 'error', message: bankError?.error || 'Unable to save bank details right now.' });
+      return false;
+    } finally {
+      setBusyKey('');
+    }
+  };
+
+  const handleLogout = async () => {
+    setBusyKey('logout');
+    try {
+      await logout();
+      navigate('/rider/login', { replace: true });
+    } finally {
+      setBusyKey('');
     }
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center space-y-3">
-          <Loader2 size={40} className="animate-spin text-blue-600 mx-auto" />
-          <p className="text-gray-600 font-medium">Loading profile...</p>
+      <RiderPageShell maxWidth="max-w-6xl">
+        <RiderPageHeader
+          title="Settings"
+          subtitle="Everything riders need to keep their account ready, verified, and easy to manage should feel focused here."
+          sticky
+        />
+
+        <div className="space-y-6 py-6">
+          <RiderCard className="p-5 sm:p-6">
+            <div className="flex flex-col gap-5 sm:flex-row">
+              <div className="h-24 w-24 animate-pulse rounded-[24px] bg-gray-100" />
+              <div className="flex-1 space-y-3">
+                <div className="h-8 w-48 animate-pulse rounded-xl bg-gray-100" />
+                <div className="flex gap-2">
+                  <div className="h-7 w-28 animate-pulse rounded-full bg-gray-100" />
+                  <div className="h-7 w-16 animate-pulse rounded-full bg-gray-100" />
+                </div>
+                <div className="h-4 w-20 animate-pulse rounded bg-gray-100" />
+              </div>
+            </div>
+          </RiderCard>
+
+          {[1, 2, 3].map((section) => (
+            <section key={section}>
+              <div className="mb-3 px-1">
+                <div className="h-7 w-36 animate-pulse rounded-lg bg-gray-100" />
+              </div>
+              <RiderCard className="p-4 sm:p-5">
+                {[1, 2, 3].map((row) => (
+                  <div key={row} className="flex items-center gap-3 border-b border-gray-100 px-1 py-3 last:border-b-0">
+                    <div className="h-9 w-9 animate-pulse rounded-2xl bg-gray-100" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-5 w-32 animate-pulse rounded bg-gray-100" />
+                      {section === 1 && row === 2 ? <div className="h-4 w-40 animate-pulse rounded bg-gray-100" /> : null}
+                    </div>
+                    <div className="h-5 w-5 animate-pulse rounded bg-gray-100" />
+                  </div>
+                ))}
+              </RiderCard>
+            </section>
+          ))}
         </div>
-      </div>
+      </RiderPageShell>
     );
   }
 
-  const accountStatus = verification?.account_status;
-  const statusConfig = ACCOUNT_STATUS_COLORS[accountStatus] || ACCOUNT_STATUS_COLORS.pending;
-
-  // Tab configuration
-  const tabs = [
-    { id: 'personal', label: 'Personal Info', icon: User },
-    { id: 'vehicle', label: 'Vehicle', icon: Truck },
-    { id: 'verification', label: 'Verification', icon: FileCheck },
-    { id: 'location', label: 'Location', icon: MapPin },
-    { id: 'preferences', label: 'Preferences', icon: Settings },
-  ];
+  if (error || !profile || !verification) {
+    return (
+      <RiderPageShell maxWidth="max-w-6xl">
+        <div className="py-10">
+          <RiderFeedbackState
+            type="error"
+            title="Unable to load settings"
+            message={error || 'Rider settings are unavailable right now.'}
+            action={<RiderPrimaryButton onClick={() => loadSettings()} className="sm:w-auto sm:px-5">Try again</RiderPrimaryButton>}
+          />
+        </div>
+      </RiderPageShell>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-16">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-40">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={20} className="text-gray-700" />
-          </button>
-          <div className="flex-1">
-            <h1 className="font-bold text-xl text-gray-900">Profile</h1>
-            <p className="text-sm text-gray-600">Manage your account and preferences</p>
-          </div>
-        </div>
-      </div>
+    <RiderPageShell maxWidth="max-w-6xl">
+      <RiderPageHeader
+        title="Settings"
+        subtitle="Everything riders need to keep their account ready, verified, and easy to manage should feel focused here."
+        sticky
+      />
 
-      <main className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        {/* Error Message */}
-        {error && (
-          <div className="flex gap-3 p-4 bg-red-50 border border-red-200 rounded-2xl">
-            <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm font-bold text-red-700">{error}</p>
-              <button
-                onClick={fetchData}
-                className="text-sm text-red-600 hover:underline font-bold mt-1"
-              >
-                Retry
-              </button>
-            </div>
-          </div>
-        )}
+      <div className="space-y-6 py-6">
+        {notice ? <div className={`rounded-2xl border px-4 py-3 text-sm font-medium ${notice.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>{notice.message}</div> : null}
 
-        {/* Success Message */}
-        {success && (
-          <div className="flex gap-3 p-4 bg-green-50 border border-green-200 rounded-2xl">
-            <CheckCircle2 size={20} className="text-green-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-green-700 font-medium">{success}</p>
-          </div>
-        )}
-
-        {/* Profile Header with Photo */}
-        <div className="bg-white rounded-3xl p-8 border border-gray-200 shadow-sm">
-          <div className="flex flex-col sm:flex-row items-start gap-6">
-            {/* Profile Photo */}
-            <div className="relative">
-              <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center overflow-hidden border-4 border-white shadow-md">
-                {profilePhotoPreview ? (
-                  <img src={profilePhotoPreview} alt="Profile" className="w-full h-full object-cover" />
-                ) : profile?.profile_photo ? (
-                  <img src={profile.profile_photo} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <User size={48} className="text-white" />
-                )}
-              </div>
-              <label className="absolute bottom-0 right-0 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-full cursor-pointer shadow-lg transition-colors">
-                <Camera size={18} />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleProfilePhotoChange}
-                  className="hidden"
-                  disabled={saving}
-                />
-              </label>
-            </div>
-
-            {/* Profile Info */}
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold text-gray-900">{profile?.full_name || profile?.first_name || 'Rider'}</h2>
-              <div className="mt-2 flex items-center gap-2 text-gray-600">
-                <Phone size={16} className="text-blue-600" />
-                <p className="text-sm font-medium">{profile?.phone_number || profile?.phone || '—'}</p>
-                {verification?.phone_verified && (
-                  <CheckCircle2 size={14} className="text-green-600" />
-                )}
-              </div>
-              
-              {/* Account Status */}
-              <div className="mt-4 flex items-center gap-2">
-                <div className={`px-3 py-1 rounded-full text-xs font-bold ${statusConfig.badge} border ${statusConfig.border}`}>
-                  {ACCOUNT_STATUS_LABELS[accountStatus] || accountStatus}
+        <RiderCard className="p-5 sm:p-6">
+          <div className="flex flex-col gap-5 sm:flex-row">
+              <div className="relative">
+                <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] bg-dark text-2xl font-bold text-white">
+                  {profile.profile_photo ? <img src={profile.profile_photo} alt={profile.full_name || 'Rider profile'} className="h-full w-full object-cover" /> : initials(profile.full_name || rider?.full_name)}
                 </div>
-                <span className="text-sm text-gray-600">{verification?.profile_completion_percent}% Profile Complete</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveModal('profile');
+                  }}
+                  className="absolute -bottom-2 -right-2 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white bg-primary text-white shadow-lg"
+                >
+                  <Pencil size={16} />
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={savePhoto} />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <h2 className="text-2xl font-bold text-dark">{profile.full_name || rider?.full_name || 'Rider profile'}</h2>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <RiderStatusBadge status={verification.can_go_online ? 'approved' : verification.account_status || 'pending'}>
+                    {verification.can_go_online ? 'Ready to work' : 'Setup in progress'}
+                  </RiderStatusBadge>
+                  <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-bold text-dark">
+                    {Number(verification.profile_completion_percent || 0)}%
+                  </span>
+                </div>
+                <p className="mt-2 text-sm font-semibold text-muted">@{profile.username || profile.user?.username || 'rider'}</p>
               </div>
             </div>
-          </div>
-        </div>
+        </RiderCard>
 
-        {/* Verification Status Card */}
-        {verification && (
-          <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-sm">
-            <h3 className="font-bold text-lg text-gray-900 mb-4 flex items-center gap-2">
-              <FileCheck size={20} className="text-blue-600" />
-              Verification Status
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="space-y-6">
+          <section>
+            <div className="mb-3 px-1">
+              <h3 className="text-xl font-bold text-dark">Personal</h3>
+            </div>
+            <RiderCard className="p-4 sm:p-5">
+              <SettingsRow
+                icon={<Pencil size={18} />}
+                title="Profile details"
+                onClick={() => {
+                  setActiveModal('profile');
+                }}
+              />
+              <SettingsRow
+                icon={<MapPin size={18} />}
+                title="Location"
+                subtitle={profile.address || 'No work location saved yet'}
+                onClick={() => setActiveModal('location')}
+              />
+              <SettingsRow
+                icon={<BadgeCheck size={18} />}
+                title="Bank details"
+                onClick={() => setActiveModal('bank')}
+              />
+              <SettingsRow
+                icon={<Truck size={18} />}
+                title="Vehicle details"
+                onClick={() => setActiveModal('vehicle')}
+              />
+            </RiderCard>
+          </section>
+
+          <section>
+            <div className="mb-3 px-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xl font-bold text-dark">Verification status</h3>
+                {verificationBadge > 0 ? <div className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">{verificationBadge} pending</div> : null}
+              </div>
+            </div>
+            {verification.blocked_reasons?.length ? (
+              <RiderCard className="mb-4 border-amber-100 bg-amber-50 p-5 sm:p-6">
+                <div className="flex items-start gap-3">
+                  <ShieldAlert size={18} className="mt-0.5 text-amber-700" />
+                  <div>
+                    <h4 className="text-base font-bold text-amber-800">What is still blocking rider work</h4>
+                    <div className="mt-3 space-y-2">
+                      {verification.blocked_reasons.map((reason) => <p key={reason} className="text-sm text-amber-700">{reason}</p>)}
+                    </div>
+                  </div>
+                </div>
+              </RiderCard>
+            ) : null}
+            <RiderCard className="p-4 sm:p-5">
               {[
-                { icon: Phone, label: 'Phone Verified', value: verification.phone_verified },
-                { icon: FileCheck, label: 'Documents Approved', value: verification.documents_approved },
-                { icon: Truck, label: 'Bank Details', value: verification.bank_details_added },
-                { icon: Settings, label: 'Ready to Work', value: verification.can_go_online },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                  <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                    item.value ? 'bg-green-100' : 'bg-gray-200'
-                  }`}>
-                    <item.icon size={18} className={item.value ? 'text-green-600' : 'text-gray-400'} />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-gray-900">{item.label}</p>
-                    <p className="text-xs text-gray-600">{item.value ? 'Verified' : 'Pending'}</p>
-                  </div>
+                ['Phone number', verification.phone_verified],
+                ['Documents', verification.documents_approved],
+                ['Bank details', verification.bank_details_verified ?? verification.bank_details_added],
+              ].map(([label, complete]) => (
+                <div key={label} className="flex items-center justify-between border-b border-gray-100 px-1 py-4 last:border-b-0">
+                  <span className="text-base font-semibold text-dark">{label}</span>
+                  <RiderStatusBadge status={complete ? 'approved' : 'pending'}>{complete ? 'Complete' : 'Pending'}</RiderStatusBadge>
                 </div>
               ))}
+              <button
+                type="button"
+                onClick={() => navigate('/rider/verification-setup')}
+                className="mt-2 flex w-full items-center justify-between rounded-2xl px-1 py-4 text-left transition-colors hover:bg-gray-50/70"
+              >
+                <span className="text-base font-semibold text-dark">Open full verification setup</span>
+                <ChevronRight size={18} className="text-muted" />
+              </button>
+            </RiderCard>
+          </section>
+
+          <section>
+            <div className="mb-3 px-1">
+              <h3 className="text-xl font-bold text-dark">Quick actions</h3>
             </div>
-
-            {/* Blocked Reasons */}
-            {verification.blocked_reasons && verification.blocked_reasons.length > 0 && (
-              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl">
-                <p className="text-sm font-bold text-red-700 mb-2">Blocked Reasons:</p>
-                {verification.blocked_reasons.map((reason, idx) => (
-                  <p key={idx} className="text-sm text-red-600">
-                    • {reason}
-                  </p>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Tabs Navigation */}
-        <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-sm">
-          <div className="flex overflow-x-auto border-b border-gray-200">
-            {tabs.map((tab) => {
-              const TabIcon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex-1 px-4 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap border-b-2 ${
-                    activeTab === tab.id
-                      ? 'text-blue-600 border-blue-600'
-                      : 'text-gray-600 border-transparent hover:text-gray-900'
-                  }`}
-                >
-                  <TabIcon size={16} />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Tab Content with Top Padding */}
-          <div className="pt-8 pb-6 px-6">
-            {/* Personal Info Tab */}
-            {activeTab === 'personal' && profile && (
-              <div className="space-y-4">
-                <ProfileForm
-                  profile={profile}
-                  onSave={handleProfileUpdate}
-                  loading={saving}
-                />
-              </div>
-            )}
-
-            {/* Vehicle Tab */}
-            {activeTab === 'vehicle' && profile && (
-              <div className="space-y-4">
-                <VehicleInfo
-                  profile={profile}
-                  onSave={handleVehicleUpdate}
-                  loading={saving}
-                />
-              </div>
-            )}
-
-            {/* Verification Tab */}
-            {activeTab === 'verification' && profile && verification && (
-              <div className="space-y-6">
-                {/* Phone Verification Section */}
-                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
-                  <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <Phone size={18} className="text-blue-600" />
-                    Phone Verification
-                  </h4>
-                  <PhoneVerification
-                    profile={profile}
-                    onVerified={handlePhoneVerified}
-                  />
-                </div>
-
-                {/* Document Verification Section */}
-                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
-                  <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <FileCheck size={18} className="text-blue-600" />
-                    Document Verification
-                  </h4>
-                  <div className="space-y-3">
-                    {verification.documents_approved ? (
-                      <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-                        <CheckCircle2 size={20} className="text-green-600" />
-                        <div>
-                          <p className="font-bold text-green-700">Documents Verified</p>
-                          <p className="text-xs text-green-600">Your documents have been approved</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-                        <Clock size={20} className="text-yellow-600" />
-                        <div>
-                          <p className="font-bold text-yellow-700">Pending Review</p>
-                          <p className="text-xs text-yellow-600">Your documents are being reviewed by our team</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-600 mt-3 italic">* Documents cannot be edited from this page. Contact support if you need to update them.</p>
-                </div>
-
-                {/* Bank Details Section */}
-                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
-                  <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <Truck size={18} className="text-blue-600" />
-                    Bank Details
-                  </h4>
-                  {verification.bank_details_added ? (
-                    <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-                      <CheckCircle2 size={20} className="text-green-600" />
-                      <div>
-                        <p className="font-bold text-green-700">Bank Details Added</p>
-                        <p className="text-xs text-green-600">Your bank account has been verified</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
-                      <Clock size={20} className="text-yellow-600" />
-                      <div>
-                        <p className="font-bold text-yellow-700">Not Added</p>
-                        <p className="text-xs text-yellow-600">Please add your bank details in your profile</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Location Tab */}
-            {activeTab === 'location' && profile && (
-              <div className="space-y-4">
-                <RiderLocationManagement
-                  profile={profile}
-                  onLocationUpdate={(location) => {
-                    setProfile({
-                      ...profile,
-                      address: location.address,
-                      current_latitude: location.latitude,
-                      current_longitude: location.longitude,
-                      location_accuracy: location.accuracy,
-                    });
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Preferences Tab */}
-            {activeTab === 'preferences' && profile && (
-              <div className="space-y-4">
-                <PreferencesForm
-                  preferences={profile.preferences || {}}
-                  onSave={handlePreferencesUpdate}
-                  loading={saving}
-                />
-              </div>
-            )}
-          </div>
+            <RiderCard className="p-4 sm:p-5">
+              <SettingsRow icon={<ChevronRight size={18} />} title="Order history" onClick={() => navigate('/rider/order-history')} />
+              <SettingsRow icon={<LifeBuoy size={18} />} title="Help and support" onClick={() => navigate('/rider/help')} />
+              <SettingsRow icon={<LogOut size={18} />} title="Logout" onClick={handleLogout} />
+            </RiderCard>
+          </section>
         </div>
 
-        {/* Order History Card */}
-        <div 
-          onClick={() => navigate('/rider/order-history')}
-          className="bg-white rounded-3xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                <Calendar size={24} className="text-green-600" />
+      </div>
+
+      <SettingsModal
+        open={activeModal === 'profile'}
+        title="Profile details"
+        subtitle="Keep your rider identity up to date here. Email stays locked."
+        onClose={closeModal}
+      >
+        <div className="space-y-6">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Profile photo</p>
+            <div className="mt-4 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
+              <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] bg-dark text-2xl font-bold text-white">
+                {profile.profile_photo ? <img src={profile.profile_photo} alt={profile.full_name || 'Rider profile'} className="h-full w-full object-cover" /> : initials(profile.full_name || rider?.full_name)}
               </div>
-              <div>
-                <h3 className="font-bold text-gray-900">Order History</h3>
-                <p className="text-sm text-gray-600">View completed deliveries and earnings</p>
-              </div>
+              <RiderSecondaryButton type="button" onClick={() => fileInputRef.current?.click()} className="sm:w-auto sm:px-5" icon={isBusy('photo') ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}>
+                Change photo
+              </RiderSecondaryButton>
             </div>
-            <ChevronRight size={24} className="text-gray-400" />
           </div>
+
+          <ProfileForm
+            key={`${profile?.full_name || ''}-${profile?.username || profile?.user?.username || ''}-${profile?.phone_number || ''}-${verification?.phone_verified ? 'verified' : 'pending'}`}
+            profile={{ ...profile, phone_verified: verification?.phone_verified }}
+            loading={isBusy('profile-details')}
+            onSave={saveProfileDetails}
+            onPhoneVerified={async () => {
+              await refreshRider?.();
+              await loadSettings({ silent: true });
+              setNotice({ type: 'success', message: 'Phone number verified and saved.' });
+            }}
+          />
         </div>
+      </SettingsModal>
 
-        {/* Account Actions */}
-        <div className="bg-white rounded-3xl p-6 border border-gray-200 shadow-sm">
-          <h3 className="font-bold text-lg text-gray-900 mb-4 flex items-center gap-2">
-            <Settings size={20} className="text-gray-600" />
-            Account Actions
-          </h3>
+      <SettingsModal open={activeModal === 'location'} title="Location" subtitle="Search, select, and confirm the rider location from one focused flow." onClose={closeModal}>
+        <RiderLocationManagement
+          profile={profile}
+          onLocationUpdate={async () => {
+            await refreshRider?.();
+            await loadSettings({ silent: true });
+            setNotice({ type: 'success', message: 'Work location updated.' });
+          }}
+          onClose={closeModal}
+        />
+      </SettingsModal>
 
-          <div className="space-y-3">
-            <button className="w-full px-4 py-3 border-2 border-blue-200 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors flex items-center gap-3 justify-center">
-              <Lock size={18} />
-              Change Password
-            </button>
+      <SettingsModal open={activeModal === 'bank'} title="Bank details" subtitle="Use only the payout fields that already exist in the app." onClose={closeModal}>
+        <BankDetailsForm key={`${bankDetails?.bank_name || ''}-${bankDetails?.account_name || ''}-${bankDetails?.account_number_masked || ''}-${bankDetails?.verified ? 'verified' : 'pending'}`} bankDetails={bankDetails} loading={isBusy('bank')} onSave={saveBank} />
+      </SettingsModal>
 
-            <button className="w-full px-4 py-3 border-2 border-orange-200 text-orange-600 font-bold rounded-xl hover:bg-orange-50 transition-colors flex items-center gap-3 justify-center">
-              <AlertCircle size={18} />
-              Deactivate Account
-            </button>
-
-            <button className="w-full px-4 py-3 border-2 border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center gap-3 justify-center">
-              <LogOut size={18} />
-              Logout
-            </button>
-          </div>
-        </div>
-      </main>
-    </div>
+      <SettingsModal open={activeModal === 'vehicle'} title="Vehicle details" subtitle="Keep your active delivery vehicle details simple and accurate." onClose={closeModal}>
+        <VehicleInfo key={`${profile?.vehicle_type || ''}-${profile?.vehicle_plate_number || ''}`} profile={profile} loading={isBusy('vehicle')} onSave={saveVehicle} />
+      </SettingsModal>
+    </RiderPageShell>
   );
 };
 
-export default Profile;
+export default Settings;

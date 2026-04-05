@@ -1,3 +1,1 @@
-import RiderDashboard from './Dashboard';
-
-export default RiderDashboard;
+export { default } from './Dashboard';

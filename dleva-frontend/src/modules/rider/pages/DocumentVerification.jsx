@@ -1,65 +1,53 @@
-/**
- * Rider Document Verification Page
- * Handles document uploads and verification status tracking
- */
-
-import React, { useState, useEffect } from 'react';
-import { Upload, Check, AlertCircle, Loader2, X, Eye, ArrowRight } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertCircle, Check, Eye, FileText, Loader2, Upload, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useRiderAuth } from '../context/RiderAuthContext';
 import riderVerification from '../services/riderVerification';
 import {
-  DOCUMENT_TYPES,
-  DOCUMENT_TYPE_LABELS,
-  DOCUMENT_TYPE_DESCRIPTIONS,
+  DOCUMENT_REQUIREMENTS,
   DOCUMENT_STATUSES,
   DOCUMENT_STATUS_BADGES,
+  DOCUMENT_TYPE_DESCRIPTIONS,
+  DOCUMENT_TYPE_LABELS,
+  DOCUMENT_TYPES,
   FILE_VALIDATION,
   VERIFICATION_ERRORS,
-  VERIFICATION_SUCCESS,
   VERIFICATION_INFO,
-  DOCUMENT_REQUIREMENTS,
 } from '../constants/verificationConstants';
+import {
+  RiderCard,
+  RiderPageHeader,
+  RiderPageShell,
+  RiderPrimaryButton,
+  RiderSecondaryButton,
+  RiderStatusBadge,
+} from '../components/ui/RiderPrimitives';
 
 const DocumentVerification = () => {
   const navigate = useNavigate();
-  const { rider } = useRiderAuth();
   const [documents, setDocuments] = useState({});
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState({});
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
-  const [activeTab, setActiveTab] = useState('pending');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [previewFile, setPreviewFile] = useState(null);
-  const [selectedCategory, setSelectedCategory] = useState(DOCUMENT_TYPES.ID_CARD);
-  const [isStageComplete, setIsStageComplete] = useState(false);
   const [recentlyUploaded, setRecentlyUploaded] = useState(null);
-  const [selectedFiles, setSelectedFiles] = useState({}); // ✅ NEW: Local file state
-  const [isSubmittingAll, setIsSubmittingAll] = useState(false); // ✅ NEW: Submit all state
+  const [selectedFiles, setSelectedFiles] = useState({});
+  const [isSubmittingAll, setIsSubmittingAll] = useState(false);
 
-  // Fetch documents on mount
   useEffect(() => {
     fetchDocuments();
   }, []);
 
-  // Check if document verification stage is complete (all required docs approved)
   useEffect(() => {
-    checkStageCompletion();
-  }, [documents]);
-
-  // Clear success/error messages after 3 seconds
-  useEffect(() => {
-    if (success) {
-      const timer = setTimeout(() => setSuccess(null), 5000);
-      return () => clearTimeout(timer);
-    }
+    if (!success) return undefined;
+    const timer = window.setTimeout(() => setSuccess(''), 5000);
+    return () => window.clearTimeout(timer);
   }, [success]);
 
   useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => setError(null), 5000);
-      return () => clearTimeout(timer);
-    }
+    if (!error) return undefined;
+    const timer = window.setTimeout(() => setError(''), 5000);
+    return () => window.clearTimeout(timer);
   }, [error]);
 
   const fetchDocuments = async () => {
@@ -67,40 +55,26 @@ const DocumentVerification = () => {
       setLoading(true);
       const data = await riderVerification.getVerificationStatus();
       setDocuments(data.documents || {});
-      setError(null);
+      setError('');
     } catch (err) {
-      console.error('Failed to fetch documents:', err);
       setError(err.error || 'Failed to load documents');
     } finally {
       setLoading(false);
     }
   };
 
-  // Check if all required documents are approved
-  const checkStageCompletion = () => {
-    const requiredDocs = Object.entries(DOCUMENT_REQUIREMENTS)
-      .filter(([_, req]) => req.required)
-      .map(([docType, _]) => docType);
+  const requiredDocs = Object.entries(DOCUMENT_REQUIREMENTS)
+    .filter(([, requirement]) => requirement.required)
+    .map(([docType]) => docType);
 
-    const allRequiredApproved = requiredDocs.every(
-      (docType) => documents[docType]?.status === DOCUMENT_STATUSES.APPROVED
-    );
+  const isStageComplete = requiredDocs.every(
+    (docType) => documents[docType]?.status === DOCUMENT_STATUSES.APPROVED
+  );
 
-    setIsStageComplete(allRequiredApproved);
-  };
-
-  const handleNavigateNext = () => {
-    if (isStageComplete) {
-      // Navigate back to verification setup to see all stages and proceed
-      navigate('/rider/verification-setup');
-    }
-  };
-
-  const handleFileSelect = (e, docType) => {
-    const file = e.target.files?.[0];
+  const handleFileSelect = (event, docType) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
-    // Validate file
     const validation = riderVerification.validateFile(
       file,
       FILE_VALIDATION.MAX_SIZE,
@@ -112,484 +86,318 @@ const DocumentVerification = () => {
       return;
     }
 
-    // ✅ Store file locally instead of uploading immediately
-    setSelectedFiles(prev => ({ ...prev, [docType]: file }));
-    setSuccess(`${DOCUMENT_TYPE_LABELS[docType]} selected. Click Submit to upload.`);
+    setSelectedFiles((current) => ({ ...current, [docType]: file }));
+    setSuccess(`${DOCUMENT_TYPE_LABELS[docType]} selected. Upload when you are ready.`);
   };
 
   const handleRemoveFile = (docType) => {
-    setSelectedFiles(prev => {
-      const updated = { ...prev };
-      delete updated[docType];
-      return updated;
+    setSelectedFiles((current) => {
+      const next = { ...current };
+      delete next[docType];
+      return next;
     });
   };
 
   const handleReplaceFile = (docType) => {
-    const fileInput = document.getElementById(`file-${docType}`);
-    fileInput?.click();
+    document.getElementById(`file-${docType}`)?.click();
   };
 
   const handleUploadDocument = async (file, docType) => {
     try {
-      setUploading(prev => ({ ...prev, [docType]: true }));
-
-      console.log(`📤 Uploading ${DOCUMENT_TYPE_LABELS[docType]}...`);
-
+      setUploading((current) => ({ ...current, [docType]: true }));
       const response = await riderVerification.uploadDocument(file, docType);
-
-      // Update documents state
-      setDocuments(prev => ({
-        ...prev,
-        [docType]: response.document || { ...response, document_type: docType }
+      setDocuments((current) => ({
+        ...current,
+        [docType]: response.document || { ...response, document_type: docType },
       }));
-
       setRecentlyUploaded(docType);
-      console.log('✓ Upload successful:', response);
-
-      // Refresh documents after delay to get updated status from backend
-      setTimeout(() => {
+      window.setTimeout(() => {
         fetchDocuments();
-        // Keep showing recently uploaded indicator for 5 more seconds
-        setTimeout(() => {
-          setRecentlyUploaded(null);
-        }, 5000);
-      }, 1500);
+        window.setTimeout(() => setRecentlyUploaded(null), 5000);
+      }, 1200);
     } catch (err) {
-      console.error('Upload failed:', err);
       setError(err.message || VERIFICATION_ERRORS.UPLOAD_FAILED);
+      throw err;
     } finally {
-      setUploading(prev => ({ ...prev, [docType]: false }));
+      setUploading((current) => ({ ...current, [docType]: false }));
     }
   };
 
-  // ✅ NEW: Submit all selected files at once
   const handleSubmitAll = async () => {
     const filesToUpload = Object.entries(selectedFiles);
-
-    if (filesToUpload.length === 0) {
+    if (!filesToUpload.length) {
       setError('Please select at least one document to upload.');
       return;
     }
 
     setIsSubmittingAll(true);
-    setError(null);
-    setSuccess(null);
+    setError('');
+    setSuccess('');
 
     let successCount = 0;
     let failCount = 0;
     const failedDocs = [];
 
     try {
-      // Upload all files in parallel
       await Promise.all(
         filesToUpload.map(async ([docType, file]) => {
           try {
             await handleUploadDocument(file, docType);
-            successCount++;
-          } catch (err) {
-            failCount++;
+            successCount += 1;
+          } catch {
+            failCount += 1;
             failedDocs.push(DOCUMENT_TYPE_LABELS[docType]);
           }
         })
       );
 
-      // Clear selected files on success
       setSelectedFiles({});
 
       if (failCount === 0) {
-        setSuccess(`✓ All ${successCount} document(s) uploaded successfully!`);
+        setSuccess(`All ${successCount} document(s) uploaded successfully.`);
       } else {
-        setError(
-          `${successCount} uploaded successfully, but ${failCount} failed: ${failedDocs.join(', ')}`
-        );
+        setError(`${successCount} uploaded successfully, but ${failCount} failed: ${failedDocs.join(', ')}`);
       }
-    } catch (err) {
-      console.error('Batch upload failed:', err);
-      setError('Failed to upload documents. Please try again.');
     } finally {
       setIsSubmittingAll(false);
     }
   };
 
-  const getDocumentStatus = (docType) => {
-    const doc = documents[docType];
-    return doc?.status || null;
-  };
-
-  const isDocumentApproved = (docType) => {
-    return getDocumentStatus(docType) === DOCUMENT_STATUSES.APPROVED;
-  };
-
-  const isDocumentRejected = (docType) => {
-    return getDocumentStatus(docType) === DOCUMENT_STATUSES.REJECTED;
-  };
-
   const renderDocumentCard = (docType) => {
-    const status = getDocumentStatus(docType);
-    const doc = documents[docType];
+    const document = documents[docType];
+    const status = document?.status || null;
     const requirement = DOCUMENT_REQUIREMENTS[docType];
-    const selectedFile = selectedFiles[docType]; // ✅ Get locally selected file
+    const selectedFile = selectedFiles[docType];
+    const isRejected = status === DOCUMENT_STATUSES.REJECTED;
+    const isPending = status === DOCUMENT_STATUSES.PENDING;
+    const isApproved = status === DOCUMENT_STATUSES.APPROVED;
 
     return (
-      <div
-        key={docType}
-        className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 hover:shadow-md transition-shadow"
-      >
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900">
-              {DOCUMENT_TYPE_LABELS[docType]}
-            </h3>
-            {!requirement.required && (
-              <span className="text-xs text-gray-500">(Optional)</span>
-            )}
-            <p className="text-sm text-gray-600 mt-1">
-              {DOCUMENT_TYPE_DESCRIPTIONS[docType]}
-            </p>
+      <RiderCard key={docType} className="p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-base font-bold text-dark">{DOCUMENT_TYPE_LABELS[docType]}</h3>
+              <RiderStatusBadge status={status || (requirement.required ? 'pending' : 'offline')} className="text-[9px]">
+                {status ? status.replace('_', ' ') : requirement.required ? 'Needed' : 'Optional'}
+              </RiderStatusBadge>
+            </div>
+            <p className="mt-2 text-sm leading-relaxed text-muted">{DOCUMENT_TYPE_DESCRIPTIONS[docType]}</p>
           </div>
-
-          {status && (
-            <span className={`px-3 py-1 rounded-full text-xs font-medium ${DOCUMENT_STATUS_BADGES[status]}`}>
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </span>
-          )}
         </div>
 
-        {/* ✅ Show locally selected file (not yet uploaded) */}
-        {selectedFile && !status && (
-          <div className="bg-blue-50 border border-blue-300 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-blue-900">📄 File Selected</p>
-                <p
-                  className="text-xs text-blue-700 mt-1"
-                  title={selectedFile.name}
-                  style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-all' }}
-                >
-                  {selectedFile.name}
-                </p>
-                <p className="text-xs text-blue-600 mt-1">
-                  Size: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-3">
-              <button
-                onClick={() => handleReplaceFile(docType)}
-                className="flex-1 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-100 rounded transition-colors"
-              >
+        {selectedFile ? (
+          <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+            <p className="text-sm font-semibold text-blue-900">Selected file</p>
+            <p
+              className="mt-1 text-xs leading-relaxed text-blue-700"
+              style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}
+              title={selectedFile.name}
+            >
+              {selectedFile.name}
+            </p>
+            <p className="mt-1 text-xs text-blue-700">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+            <div className="mt-3 flex gap-3">
+              <button type="button" onClick={() => handleReplaceFile(docType)} className="text-xs font-semibold text-primary transition-colors hover:opacity-80">
                 Replace
               </button>
-              <button
-                onClick={() => handleRemoveFile(docType)}
-                className="flex-1 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-100 rounded transition-colors"
-              >
+              <button type="button" onClick={() => handleRemoveFile(docType)} className="text-xs font-semibold text-red-600 transition-colors hover:opacity-80">
                 Remove
               </button>
             </div>
           </div>
-        )}
+        ) : null}
 
-        {/* ✅ Show selected file for rejected documents (so user can replace with new file) */}
-        {selectedFile && status === DOCUMENT_STATUSES.REJECTED && (
-          <div className="bg-blue-50 border border-blue-300 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex-1">
-                <p className="text-sm font-medium text-blue-900">📄 New File Selected</p>
-                <p
-                  className="text-xs text-blue-700 mt-1"
-                  title={selectedFile.name}
-                  style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-all' }}
-                >
-                  {selectedFile.name}
-                </p>
-                <p className="text-xs text-blue-600 mt-1">
-                  Size: {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-3">
-              <button
-                onClick={() => handleReplaceFile(docType)}
-                className="flex-1 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-100 rounded transition-colors"
-              >
-                Replace
-              </button>
-              <button
-                onClick={() => handleRemoveFile(docType)}
-                className="flex-1 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-100 rounded transition-colors"
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        )}
+        {!status && !selectedFile ? (
+          <label
+            htmlFor={`file-${docType}`}
+            className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-4 py-7 text-center transition-colors hover:border-primary/50 hover:bg-white"
+          >
+            <Upload size={24} className="text-primary" />
+            <p className="mt-3 text-sm font-semibold text-dark">Choose file</p>
+            <p className="mt-1 text-xs text-muted">Max 5MB. JPEG, PNG, or PDF.</p>
+          </label>
+        ) : null}
 
-        {/* Document not uploaded yet */}
-        {!status && !selectedFile && (
-          <div>
-            <label
-              htmlFor={`file-${docType}`}
-              className={`block border-2 border-dashed rounded-lg p-6 text-center transition-colors border-blue-300 cursor-pointer hover:border-blue-400`}
-            >
-              <Upload size={32} className="mx-auto mb-2 text-blue-600" />
-              <p className="text-sm font-medium text-gray-700">Click to upload</p>
-              <p className="text-xs text-gray-500 mt-1">Max 5MB • JPEG, PNG, PDF</p>
-              <input
-                id={`file-${docType}`}
-                type="file"
-                accept={FILE_VALIDATION.ALLOWED_EXTENSIONS.join(',')}
-                onChange={(e) => handleFileSelect(e, docType)}
-                className="hidden"
-              />
-            </label>
-          </div>
-        )}
-
-        {/* Document uploaded - Pending review */}
-        {status === DOCUMENT_STATUSES.PENDING && (
-          <div className={`rounded-lg p-4 ${
-            recentlyUploaded === docType
-              ? 'bg-blue-50 border border-blue-300'
-              : 'bg-yellow-50 border border-yellow-200'
-          }`}>
-            <div className="flex items-center gap-3">
-              <Loader2 size={20} className={`${
-                recentlyUploaded === docType
-                  ? 'text-blue-600'
-                  : 'text-yellow-600'
-              } animate-spin`} />
-              <div className="flex-1">
-                <p className={`text-sm font-medium ${
-                  recentlyUploaded === docType
-                    ? 'text-blue-900'
-                    : 'text-yellow-900'
-                }`}>
-                  {recentlyUploaded === docType ? '✓ Upload Successful - Pending Review' : 'Under Review'}
-                </p>
-                <p className={`text-xs mt-1 ${
-                  recentlyUploaded === docType
-                    ? 'text-blue-700'
-                    : 'text-yellow-700'
-                }`}>
-                  {recentlyUploaded === docType 
-                    ? 'Your document has been received and our team will review it shortly.'
-                    : VERIFICATION_INFO.VERIFICATION_PROCESS
-                  }
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Document approved */}
-        {status === DOCUMENT_STATUSES.APPROVED && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <Check size={20} className="text-green-600" />
-              <p className="text-sm font-medium text-green-900">Verified</p>
-            </div>
-          </div>
-        )}
-
-        {/* Document rejected - Allow re-upload */}
-        {status === DOCUMENT_STATUSES.REJECTED && !selectedFile && (
-          <div>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-              <div className="flex items-start gap-3">
-                <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-red-900">Rejected</p>
-                  {doc?.rejection_reason && (
-                    <p className="text-xs text-red-700 mt-2">
-                      {VERIFICATION_INFO.REJECTION_REASON} {doc.rejection_reason}
-                    </p>
-                  )}
-                  <p className="text-xs text-red-700 mt-2">{VERIFICATION_INFO.RESUBMIT_ALLOWED}</p>
-                </div>
-              </div>
+        {isRejected && !selectedFile ? (
+          <div className="mt-4 space-y-4">
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+              <p className="text-sm font-semibold text-red-700">Rejected</p>
+              {document?.rejection_reason ? <p className="mt-1 text-xs leading-relaxed text-red-700">{document.rejection_reason}</p> : null}
+              <p className="mt-2 text-xs text-red-700">Upload a clearer replacement file to continue.</p>
             </div>
             <label
               htmlFor={`file-${docType}`}
-              className="block border-2 border-dashed border-orange-300 rounded-lg p-6 text-center cursor-pointer hover:border-orange-400 transition-colors"
+              className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-orange-300 bg-orange-50 px-4 py-7 text-center transition-colors hover:border-orange-400"
             >
-              <Upload size={32} className="mx-auto mb-2 text-orange-600" />
-              <p className="text-sm font-medium text-gray-700">Click to upload new file</p>
-              <p className="text-xs text-gray-500 mt-1">Max 5MB • JPEG, PNG, PDF</p>
-              <input
-                id={`file-${docType}`}
-                type="file"
-                accept={FILE_VALIDATION.ALLOWED_EXTENSIONS.join(',')}
-                onChange={(e) => handleFileSelect(e, docType)}
-                className="hidden"
-              />
+              <Upload size={24} className="text-orange-600" />
+              <p className="mt-3 text-sm font-semibold text-dark">Upload replacement</p>
+              <p className="mt-1 text-xs text-muted">Max 5MB. JPEG, PNG, or PDF.</p>
             </label>
           </div>
-        )}
+        ) : null}
 
-        {/* Action buttons */}
-        {status && (
-          <div className="flex gap-3 mt-4">
-            {doc?.file_url && (
-              <button
-                onClick={() => setPreviewFile(doc.file_url)}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors text-sm font-medium"
-              >
-                <Eye size={16} />
-                Preview
-              </button>
-            )}
+        {isPending ? (
+          <div className={`mt-4 rounded-2xl border p-4 ${recentlyUploaded === docType ? 'border-blue-200 bg-blue-50' : 'border-amber-200 bg-amber-50'}`}>
+            <div className="flex items-start gap-3">
+              <Loader2 size={16} className={`mt-0.5 shrink-0 animate-spin ${recentlyUploaded === docType ? 'text-blue-700' : 'text-amber-700'}`} />
+              <div>
+                <p className={`text-sm font-semibold ${recentlyUploaded === docType ? 'text-blue-900' : 'text-amber-900'}`}>
+                  {recentlyUploaded === docType ? 'Upload successful, pending review' : 'Under review'}
+                </p>
+                <p className={`mt-1 text-xs leading-relaxed ${recentlyUploaded === docType ? 'text-blue-700' : 'text-amber-700'}`}>
+                  {recentlyUploaded === docType ? 'Your file has been received and is waiting for verification.' : VERIFICATION_INFO.VERIFICATION_PROCESS}
+                </p>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
+        ) : null}
+
+        {isApproved ? (
+          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="flex items-center gap-2 text-emerald-700">
+              <Check size={16} />
+              <p className="text-sm font-semibold">Verified</p>
+            </div>
+          </div>
+        ) : null}
+
+        {document?.file_url ? (
+          <button
+            type="button"
+            onClick={() => setPreviewFile(document.file_url)}
+            className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary transition-colors hover:opacity-80"
+          >
+            <Eye size={16} />
+            Preview file
+          </button>
+        ) : null}
+
+        <input
+          id={`file-${docType}`}
+          type="file"
+          accept={FILE_VALIDATION.ALLOWED_EXTENSIONS.join(',')}
+          onChange={(event) => handleFileSelect(event, docType)}
+          className="hidden"
+          disabled={Boolean(uploading[docType] || isSubmittingAll)}
+        />
+      </RiderCard>
     );
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <Loader2 size={48} className="mx-auto mb-4 text-blue-600 animate-spin" />
-          <p className="text-gray-600">Loading documents...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Document Verification</h1>
-          <p className="text-gray-600 mt-2">
-            Upload required documents to complete your account verification
-          </p>
-          {isStageComplete && (
-            <div className="mt-4 inline-block bg-green-50 border border-green-200 rounded-lg px-4 py-2">
-              <p className="text-green-700 font-semibold flex items-center gap-2">
-                <Check size={18} /> All documents approved!
-              </p>
+    <RiderPageShell maxWidth="max-w-5xl" withBottomNavSpacing={false}>
+      <RiderPageHeader
+        title="Document verification"
+        subtitle="Upload clear rider documents so identity and vehicle checks can be approved without delays."
+        showBack
+        onBack={() => navigate('/rider/verification-setup')}
+        sticky
+      />
+
+      <div className="space-y-6 py-6">
+        <RiderCard className="p-5 sm:p-6">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <FileText size={20} />
             </div>
-          )}
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
-        )}
-
-        {/* Success Message */}
-        {success && (
-          <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-300 rounded-lg flex items-start gap-3">
-            <Check size={20} className="text-blue-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-semibold text-blue-700">{success}</p>
-              {success.includes('selected') && (
-                <p className="text-xs text-blue-600 mt-1">You can review and edit your selections below before clicking Upload All.</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Info Banner */}
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-700">
-            💡 {VERIFICATION_INFO.UPLOAD_HINT}. All documents must be clear and legible for review.
-          </p>
-        </div>
-
-        {/* Document Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {Object.values(DOCUMENT_TYPES).map(docType => renderDocumentCard(docType))}
-        </div>
-
-        {/* Submit All Files or Navigation */}
-        {Object.keys(selectedFiles).length > 0 ? (
-          <div className="mt-12 bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="min-w-0">
-                <h3 className="text-lg font-semibold text-gray-900">Ready to Submit?</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  You have {Object.keys(selectedFiles).length} file(s) ready to upload. Click submit to upload all documents at once.
-                </p>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-bold text-dark">Document status</h2>
+                <RiderStatusBadge status={isStageComplete ? 'approved' : 'pending'}>
+                  {isStageComplete ? 'Complete' : 'In progress'}
+                </RiderStatusBadge>
               </div>
-              <button
-                onClick={handleSubmitAll}
-                disabled={isSubmittingAll}
-                className={`
-                  w-full sm:w-auto justify-center flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all whitespace-nowrap
-                  ${isSubmittingAll
-                    ? 'bg-gray-400 text-white cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
-                  }
-                `}
-              >
-                {isSubmittingAll ? (
-                  <>
-                    <Loader2 size={20} className="animate-spin" />
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    Upload All <ArrowRight size={20} />
-                  </>
-                )}
-              </button>
+              <p className="mt-2 text-sm text-muted">Upload all required files clearly. Optional files can still be added later if needed.</p>
             </div>
+          </div>
+        </RiderCard>
+
+        {error ? (
+          <RiderCard className="border-red-100 bg-red-50 p-4">
+            <div className="flex items-start gap-3 text-red-700">
+              <AlertCircle size={18} className="mt-0.5 shrink-0" />
+              <p className="text-sm font-medium">{error}</p>
+            </div>
+          </RiderCard>
+        ) : null}
+
+        {success ? (
+          <RiderCard className="border-blue-200 bg-blue-50 p-4">
+            <div className="flex items-start gap-3 text-blue-700">
+              <Check size={18} className="mt-0.5 shrink-0" />
+              <p className="text-sm font-medium">{success}</p>
+            </div>
+          </RiderCard>
+        ) : null}
+
+        {loading ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {[1, 2, 3, 4].map((item) => (
+              <RiderCard key={item} className="p-5 sm:p-6">
+                <div className="space-y-3">
+                  <div className="h-5 w-32 animate-pulse rounded bg-gray-100" />
+                  <div className="h-4 w-full animate-pulse rounded bg-gray-100" />
+                  <div className="h-4 w-5/6 animate-pulse rounded bg-gray-100" />
+                  <div className="h-24 w-full animate-pulse rounded-2xl bg-gray-100" />
+                </div>
+              </RiderCard>
+            ))}
           </div>
         ) : (
-          <div className="mt-12 bg-white rounded-lg border border-gray-200 p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="min-w-0">
-                <h3 className="text-lg font-semibold text-gray-900">Document Verification</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  {isStageComplete 
-                    ? '✓ All required documents approved. Ready to proceed to next step.' 
-                    : '⏳ Awaiting document approval. This may take 24-48 hours.'}
-                </p>
-              </div>
-              <button
-                onClick={handleNavigateNext}
-                disabled={!isStageComplete}
-                className={`
-                  w-full sm:w-auto justify-center flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all whitespace-nowrap
-                  ${isStageComplete
-                    ? 'bg-primary text-white hover:bg-primary-dark cursor-pointer'
-                    : 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-50'
-                  }
-                `}
-              >
-                {isStageComplete ? 'Next Step' : 'Pending'} <ArrowRight size={20} />
-              </button>
-            </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {Object.values(DOCUMENT_TYPES).map((docType) => renderDocumentCard(docType))}
           </div>
         )}
 
-        {/* File Preview Modal */}
-        {previewFile && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-96 overflow-auto relative">
-              <button
-                onClick={() => setPreviewFile(null)}
-                className="absolute top-4 right-4 p-1 hover:bg-gray-100 rounded-full z-10"
-              >
-                <X size={24} />
-              </button>
-              {previewFile.endsWith('.pdf') ? (
-                <iframe src={previewFile} className="w-full h-96" title="PDF Preview" />
-              ) : (
-                <img src={previewFile} alt="Document Preview" className="w-full h-auto" />
-              )}
+        <RiderCard className="p-5 sm:p-6">
+          {Object.keys(selectedFiles).length > 0 ? (
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-dark">Ready to upload</h3>
+                <p className="mt-1 text-sm text-muted">
+                  You have {Object.keys(selectedFiles).length} file(s) selected. Upload them together when you are ready.
+                </p>
+              </div>
+              <RiderPrimaryButton onClick={handleSubmitAll} loading={isSubmittingAll} className="sm:w-auto sm:px-6">
+                {isSubmittingAll ? 'Uploading...' : 'Upload selected files'}
+              </RiderPrimaryButton>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-dark">Verification progress</h3>
+                <p className="mt-1 text-sm text-muted">
+                  {isStageComplete ? 'All required rider documents are approved.' : 'Keep checking here while your uploads are being reviewed.'}
+                </p>
+              </div>
+              <RiderSecondaryButton onClick={() => navigate('/rider/verification-setup')} className="sm:w-auto sm:px-6">
+                Back to setup
+              </RiderSecondaryButton>
+            </div>
+          )}
+        </RiderCard>
       </div>
-    </div>
+
+      {previewFile ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="relative max-h-[85vh] w-full max-w-3xl overflow-auto rounded-[24px] bg-white p-3 sm:p-4">
+            <button
+              type="button"
+              onClick={() => setPreviewFile(null)}
+              className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-dark transition-colors hover:bg-gray-50"
+            >
+              <X size={18} />
+            </button>
+            {previewFile.endsWith('.pdf') ? (
+              <iframe src={previewFile} className="h-[75vh] w-full rounded-2xl" title="Document preview" />
+            ) : (
+              <img src={previewFile} alt="Document preview" className="h-auto w-full rounded-2xl" />
+            )}
+          </div>
+        </div>
+      ) : null}
+    </RiderPageShell>
   );
 };
 

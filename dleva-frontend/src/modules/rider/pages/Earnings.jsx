@@ -1,210 +1,186 @@
-/**
- * Earnings Page
- * Displays earnings overview and transaction history
- */
-
-import { useState, useEffect } from 'react';
-import { ArrowLeft, Loader2, TrendingDown, DollarSign } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowUpRight, CircleDollarSign } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import EarningsSummary from '../components/EarningsSummary';
 import riderWallet from '../services/riderWallet';
 import { formatCurrency } from '../../../utils/formatters';
-import MESSAGES from '../../../constants/messages';
-import { PAYOUT_CONFIG } from '../constants/walletConstants';
+import {
+  RiderCard,
+  RiderFeedbackState,
+  RiderPageHeader,
+  RiderPageShell,
+  RiderPrimaryButton,
+  RiderSecondaryButton,
+} from '../components/ui/RiderPrimitives';
 
 const Earnings = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [todayEarnings, setTodayEarnings] = useState(0);
-  const [weeklyEarnings, setWeeklyEarnings] = useState(0);
-  const [monthlyEarnings, setMonthlyEarnings] = useState(0);
-  const [allTimeEarnings, setAllTimeEarnings] = useState(0);
+  const [error, setError] = useState('');
+  const [summary, setSummary] = useState({
+    today: 0,
+    week: 0,
+    month: 0,
+    total: 0,
+  });
   const [transactions, setTransactions] = useState([]);
 
-  useEffect(() => {
-    fetchEarningsData();
-  }, []);
-
-  const fetchEarningsData = async () => {
+  const loadEarnings = async () => {
+    setLoading(true);
+    setError('');
     try {
-      setLoading(true);
-      setError(null);
-
-      const [today, weekly, summary, trans] = await Promise.all([
+      const [today, weekly, fullSummary, transactionHistory] = await Promise.all([
         riderWallet.getEarningsToday(),
         riderWallet.getEarningsWeekly(),
         riderWallet.getEarningsSummary(),
         riderWallet.getTransactionHistory(1, 10),
       ]);
 
-      // Extract correct fields from backend response
-      setTodayEarnings(
-        parseFloat(today.earnings?.total_earned || 0)
-      );
-      setWeeklyEarnings(
-        parseFloat(weekly.earnings?.total_earnings || 0)
-      );
-      setMonthlyEarnings(
-        parseFloat(summary.summary?.this_month_earnings || 0)
-      );
-      setAllTimeEarnings(
-        parseFloat(summary.summary?.total_earnings || 0)
-      );
-      setTransactions(trans.transactions || []);
-    } catch (err) {
-      setError(err.error || MESSAGES.ERROR.SOMETHING_WRONG);
+      setSummary({
+        today: parseFloat(today?.earnings?.total_earned || today?.earnings?.amount || 0),
+        week: parseFloat(weekly?.earnings?.total_earnings || 0),
+        month: parseFloat(fullSummary?.summary?.this_month_earnings || 0),
+        total: parseFloat(fullSummary?.summary?.total_earnings || 0),
+      });
+      setTransactions(transactionHistory?.transactions || []);
+    } catch (loadError) {
+      setError(loadError?.error || 'Unable to load rider earnings right now.');
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    loadEarnings().catch(() => {});
+  }, []);
+
   return (
-    <div className="min-h-screen bg-bg">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 py-3 sm:py-4 flex items-center gap-2 sm:gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
-          >
-            <ArrowLeft size={20} className="text-dark" />
-          </button>
-          <div className="flex-1 min-w-0">
-            <h1 className="font-bold text-dark text-base sm:text-lg">Earnings</h1>
-            <p className="text-xs text-muted">Track your delivery earnings</p>
-          </div>
-        </div>
-      </div>
+    <RiderPageShell maxWidth="max-w-5xl">
+      <RiderPageHeader
+        title="Earnings"
+        subtitle="Keep payouts and delivery income understandable at a glance, without turning the rider app into a finance dashboard."
+        sticky
+      />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 md:px-8 py-4 sm:py-6 md:py-8 space-y-4 sm:space-y-6 md:space-y-8 pb-8">
-        {/* Error State */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-3 sm:px-4 py-3 rounded-lg text-sm">
-            {error}
-            <button
-              onClick={fetchEarningsData}
-              className="ml-2 sm:ml-3 text-red-800 font-bold hover:underline"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center py-12 gap-3">
-            <Loader2 size={32} className="animate-spin text-primary flex-shrink-0" />
-            <span className="text-muted font-medium text-sm">Loading earnings...</span>
-          </div>
-        )}
-
-        {!loading && (
+      <div className="space-y-6 py-6">
+        {loading ? (
           <>
-            {/* Summary Cards */}
-            <section>
-              <h2 className="text-xs font-bold text-muted uppercase tracking-wide mb-3 sm:mb-4">
-                Earnings Overview
-              </h2>
-              <EarningsSummary
-                today={todayEarnings}
-                weekly={weeklyEarnings}
-                monthly={monthlyEarnings}
-                allTime={allTimeEarnings}
-                loading={loading}
-              />
-            </section>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {[1, 2, 3, 4].map((item) => (
+                <RiderCard key={item} className="p-5">
+                  <div className="h-3 w-20 animate-pulse rounded bg-gray-100" />
+                  <div className="mt-4 h-9 w-28 animate-pulse rounded-xl bg-gray-100" />
+                </RiderCard>
+              ))}
+            </div>
 
-            {/* Recent Transactions */}
-            <section>
-              <h2 className="text-xs font-bold text-muted uppercase tracking-wide mb-3 sm:mb-4">
-                Recent Transactions
-              </h2>
-
-              {transactions.length === 0 ? (
-                <div className="bg-white border border-gray-100 rounded-xl sm:rounded-2xl p-6 sm:p-8 text-center space-y-3">
-                  <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto text-gray-300">
-                    <DollarSign size={48} />
-                  </div>
-                  <p className="text-muted font-medium text-sm sm:text-base">No transactions yet</p>
-                  <p className="text-xs text-muted">
-                    Complete deliveries to earn money
-                  </p>
+            <RiderCard className="p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <div className="space-y-2">
+                  <div className="h-6 w-40 animate-pulse rounded bg-gray-100" />
+                  <div className="h-4 w-56 animate-pulse rounded bg-gray-100" />
                 </div>
-              ) : (
-                <div className="space-y-2 sm:space-y-3">
-                  {transactions.map((txn, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-white border border-gray-100 rounded-lg sm:rounded-xl p-3 sm:p-4 flex items-center justify-between hover:shadow-sm transition-shadow"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-bold text-dark truncate">
-                          {txn.description || 'Delivery Payment'}
-                        </p>
-                        <p className="text-xs text-muted">
-                          {new Date(txn.created_at).toLocaleDateString('en-NG', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                <div className="h-10 w-32 animate-pulse rounded-xl bg-gray-100" />
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {[1, 2, 3].map((row) => (
+                  <div key={row} className="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 p-4">
+                    <div className="space-y-2">
+                      <div className="h-4 w-36 animate-pulse rounded bg-gray-100" />
+                      <div className="h-3 w-28 animate-pulse rounded bg-gray-100" />
+                    </div>
+                    <div className="space-y-2 text-right">
+                      <div className="h-4 w-20 animate-pulse rounded bg-gray-100" />
+                      <div className="h-3 w-16 animate-pulse rounded bg-gray-100" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </RiderCard>
+          </>
+        ) : error ? (
+          <RiderFeedbackState
+            type="error"
+            title="Unable to load earnings"
+            message={error}
+            action={
+              <RiderPrimaryButton onClick={() => loadEarnings()} className="sm:w-auto sm:px-5">
+                Try again
+              </RiderPrimaryButton>
+            }
+          />
+        ) : (
+          <>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {[
+                ['Today', summary.today],
+                ['This week', summary.week],
+                ['This month', summary.month],
+                ['All time', summary.total],
+              ].map(([label, value]) => (
+                <RiderCard key={label} className="p-5">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">{label}</p>
+                  <p className="mt-3 text-3xl font-bold text-dark">{formatCurrency(value)}</p>
+                </RiderCard>
+              ))}
+            </div>
+
+            <RiderCard className="p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-bold text-dark">Recent transactions</h2>
+                  <p className="text-sm text-muted">The latest credits and payout movements from your rider wallet.</p>
+                </div>
+                <RiderSecondaryButton onClick={() => navigate('/rider/earnings')} className="w-auto px-4" icon={<ArrowUpRight size={16} />}>
+                  Earnings details
+                </RiderSecondaryButton>
+              </div>
+
+              <div className="mt-5 space-y-3">
+                {transactions.length > 0 ? (
+                  transactions.map((transaction, index) => (
+                    <div key={transaction.id || index} className="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 p-4">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-dark">{transaction.description || 'Delivery payment'}</p>
+                        <p className="mt-1 text-xs text-muted">
+                          {transaction.created_at
+                            ? new Date(transaction.created_at).toLocaleString()
+                            : 'Recent'}
                         </p>
                       </div>
-
-                      <div className="text-right flex-shrink-0 ml-2">
-                        <p
-                          className={`font-bold text-sm sm:text-base ${
-                            txn.type === 'credit'
-                              ? 'text-success'
-                              : 'text-danger'
-                          }`}
-                        >
-                          {txn.type === 'credit' ? '+' : '-'}
-                          {formatCurrency(txn.amount)}
+                      <div className="text-right">
+                        <p className="text-sm font-bold text-dark">
+                          {transaction.type === 'credit' ? '+' : '-'}
+                          {formatCurrency(transaction.amount || 0)}
                         </p>
-                        <p className="text-xs text-muted capitalize">
-                          {txn.status}
-                        </p>
+                        <p className="mt-1 text-xs uppercase tracking-[0.14em] text-gray-500">{transaction.status || 'processed'}</p>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </section>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center text-sm text-muted">
+                    No transactions yet. Completed deliveries will start appearing here.
+                  </div>
+                )}
+              </div>
+            </RiderCard>
 
-            {/* Earnings Breakdown Info */}
-            <section className="bg-primary/5 border border-primary/10 rounded-lg sm:rounded-2xl p-4 sm:p-6 space-y-3">
-              <h3 className="font-bold text-dark text-xs sm:text-sm uppercase tracking-wide">
-                How Earnings Work
-              </h3>
-              <ul className="space-y-2 text-xs sm:text-sm text-dark">
-                <li className="flex gap-2">
-                  <span className="font-bold flex-shrink-0">•</span>
-                  <span>Earn money for each successful delivery completion</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-bold flex-shrink-0">•</span>
-                  <span>Earnings are calculated based on distance and delivery time</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-bold flex-shrink-0">•</span>
-                  <span>
-                    Minimum withdrawal amount is {PAYOUT_CONFIG.CURRENCY}
-                    {PAYOUT_CONFIG.MINIMUM_AMOUNT.toLocaleString()}
-                  </span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-bold flex-shrink-0">•</span>
-                  <span>Payouts are processed within 24-48 business hours</span>
-                </li>
-              </ul>
-            </section>
+            <RiderCard className="p-5 sm:p-6">
+              <div className="flex items-start gap-3">
+                <CircleDollarSign size={20} className="mt-0.5 text-primary" />
+                <div>
+                  <h3 className="text-base font-bold text-dark">What this page is for</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted">
+                    Riders mainly need a quick answer to three questions: how much they earned today, what is available for payout,
+                    and what recently changed in the wallet. This view keeps those answers close and avoids extra complexity.
+                  </p>
+                </div>
+              </div>
+            </RiderCard>
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </RiderPageShell>
   );
 };
 

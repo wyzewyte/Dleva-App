@@ -1,23 +1,10 @@
-import { MapPin, DollarSign, Clock, User, AlertCircle, CheckCircle2, Loader2, Image as ImageIcon } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, MapPin, Store, User } from 'lucide-react';
 import { formatCurrency } from '../../../utils/formatters';
+import { RiderCard, RiderPrimaryButton, RiderSecondaryButton, RiderStatusBadge } from './ui/RiderPrimitives';
 
 const OrderCard = ({ order, onAccept, onReject, isLoading }) => {
   // Defensive checks
   if (!order) return null;
-
-  const getDistanceColor = (km) => {
-    const distance = typeof km === 'string' ? parseFloat(km) : km;
-    if (distance <= 2) return 'text-green-600';
-    if (distance <= 5) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
-  const getEarningsColor = (amount) => {
-    const earnings = typeof amount === 'string' ? parseFloat(amount) : amount;
-    if (earnings >= 2000) return 'text-green-600';
-    if (earnings >= 1000) return 'text-blue-600';
-    return 'text-gray-600';
-  };
 
   // Safe property accessors with defaults
   const orderId = order.id || order.order_id || 'N/A';
@@ -35,132 +22,105 @@ const OrderCard = ({ order, onAccept, onReject, isLoading }) => {
   const specialInstructions = order.special_instructions || null;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-4 hover:shadow-md transition-shadow">
-      
-      {/* Header: Order ID & Time */}
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h3 className="text-lg font-bold text-dark">Order #{orderId}</h3>
-          <p className="text-xs text-muted mt-1">
-            <Clock size={12} className="inline mr-1" />
-            Placed {timeCreated}
+    <RiderCard className="p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-bold text-dark">Order #{orderId}</h3>
+            {isUrgent ? <RiderStatusBadge status="blocked">Urgent</RiderStatusBadge> : null}
+          </div>
+          <p className="mt-1 flex items-center gap-1 text-xs text-muted">
+            <Clock size={12} />
+            <span>Placed {timeCreated}</span>
           </p>
         </div>
-        {isUrgent && (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
-            <AlertCircle size={12} />
-            Urgent
+
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-right">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-emerald-700">Estimated pay</p>
+          <p className="mt-1 text-xl font-bold text-emerald-700">{formatCurrency(estimatedEarnings)}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-primary">
+                <Store size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-dark">{restaurantName}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted">{restaurantAddress}</p>
+              </div>
+            </div>
           </div>
-        )}
-      </div>
 
-      {/* Restaurant Info */}
-      <div className="bg-gray-50 rounded-xl p-3 mb-4">
-        <h4 className="font-bold text-dark text-sm mb-1">{restaurantName}</h4>
-        <p className="text-xs text-muted line-clamp-2">{restaurantAddress}</p>
-      </div>
-
-      {/* Buyer Info */}
-      <div className="flex items-center gap-2 mb-4 pb-4 border-b border-gray-100">
-        <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-          <User size={14} className="text-primary" />
-        </div>
-        <div className="flex-1">
-          <p className="text-xs text-muted">Buyer</p>
-          <p className="text-sm font-bold text-dark">{buyerName}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs text-muted">{itemsCount} items</p>
-          <p className="text-sm font-bold text-dark">{formatCurrency(orderTotal)}</p>
-        </div>
-      </div>
-
-      {/* Distance & Pickup/Dropoff Info */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        {/* Distance */}
-        <div className="flex items-start gap-2">
-          <MapPin size={16} className={`mt-0.5 shrink-0 ${getDistanceColor(distanceKm)}`} />
-          <div>
-            <p className="text-xs text-muted">Distance</p>
-            <p className={`font-bold text-sm ${getDistanceColor(distanceKm)}`}>
-              {distanceKm.toFixed(1)} km
-            </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-gray-200 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Buyer</p>
+              <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-dark">
+                <User size={14} className="text-primary" />
+                <span className="truncate">{buyerName}</span>
+              </p>
+            </div>
+            <div className="rounded-2xl border border-gray-200 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Distance</p>
+              <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-dark">
+                <MapPin size={14} className="text-primary" />
+                <span>{distanceKm.toFixed(1)} km</span>
+              </p>
+            </div>
+            <div className="rounded-2xl border border-gray-200 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Items</p>
+              <p className="mt-2 text-sm font-semibold text-dark">
+                {itemsCount} item{itemsCount === 1 ? '' : 's'} · {formatCurrency(orderTotal)}
+              </p>
+            </div>
           </div>
+
+          {specialInstructions ? (
+            <div className="rounded-2xl border border-amber-100 bg-amber-50 p-3 text-sm text-amber-800">
+              <span className="font-bold">Special instructions:</span> {specialInstructions}
+            </div>
+          ) : null}
         </div>
 
-        {/* Time to Pickup */}
-        <div className="flex items-start gap-2">
-          <Clock size={16} className="mt-0.5 shrink-0 text-blue-600" />
-          <div>
-            <p className="text-xs text-muted">Est. Pickup</p>
-            <p className="font-bold text-sm text-blue-600">{estimatedTimeMinutes}m</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Earnings Estimate */}
-      <div className="bg-primary/5 rounded-xl p-4 mb-4 border border-primary/10">
-        <div className="flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-xs text-muted mb-1">Your Earning</p>
-            <p className={`text-2xl font-bold ${getEarningsColor(estimatedEarnings)}`}>
-              {formatCurrency(estimatedEarnings)}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Delivery Instructions (if any) */}
-      {specialInstructions && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-          <p className="text-xs text-yellow-700">
-            <span className="font-bold">Note:</span> {specialInstructions}
-          </p>
-        </div>
-      )}
-      
-      {/* Restaurant Image */}
-      {restaurantImage ? (
-        <div className="-mx-5 -mb-2">
-          <img 
-            src={restaurantImage} 
-            alt={restaurantName} 
-            className="w-full h-32 object-cover rounded-b-2xl"
-            onError={(e) => {
-              e.target.style.display = 'none';
-            }}
-          />
-        </div>
-      ) : null}
-
-      {/* Action Buttons */}
-      <div className="flex gap-3">
-        <button
-          onClick={() => onReject(orderId)}
-          disabled={isLoading}
-          className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-colors disabled:opacity-50 active:scale-95"
-        >
-          Reject
-        </button>
-        <button
-          onClick={() => onAccept(orderId)}
-          disabled={isLoading}
-          className="flex-1 px-4 py-3 rounded-xl bg-primary text-white font-bold hover:bg-primary-hover transition-colors disabled:opacity-50 active:scale-95 flex items-center justify-center gap-2"
-        >
-          {isLoading ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              Accepting...
-            </>
+        <div className="flex flex-col gap-3">
+          {restaurantImage ? (
+            <img
+              src={restaurantImage}
+              alt={restaurantName}
+              className="h-32 w-full rounded-2xl object-cover"
+              onError={(event) => {
+                event.currentTarget.style.display = 'none';
+              }}
+            />
           ) : (
-            <>
-              <CheckCircle2 size={16} />
-              Accept Order
-            </>
+            <div className="flex h-32 items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gray-50 text-sm text-muted">
+              Pickup preview unavailable
+            </div>
           )}
-        </button>
+
+          <div className="rounded-2xl border border-gray-200 p-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Pickup ETA</p>
+            <p className="mt-2 text-base font-bold text-dark">{estimatedTimeMinutes} mins</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <RiderSecondaryButton onClick={() => onReject(orderId)} disabled={isLoading}>
+              Reject
+            </RiderSecondaryButton>
+            <RiderPrimaryButton
+              onClick={() => onAccept(orderId)}
+              loading={isLoading}
+              icon={!isLoading ? <CheckCircle2 size={16} /> : null}
+            >
+              Accept order
+            </RiderPrimaryButton>
+          </div>
+        </div>
       </div>
-    </div>
+    </RiderCard>
   );
 };
 

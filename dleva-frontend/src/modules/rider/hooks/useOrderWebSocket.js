@@ -48,7 +48,7 @@ export const useOrderWebSocket = (options = {}) => {
   const handleStatusUpdate = useCallback((data) => {
     console.log('📍 Status update notification received:', data);
     
-    const { order_id, status, current_step } = data;
+    const { order_id, status } = data;
 
     // If order is assigned to rider, fetch active orders to show it immediately
     if (status === 'assigned' && order?.actions?.fetchActiveOrders) {
@@ -60,13 +60,21 @@ export const useOrderWebSocket = (options = {}) => {
       }
     }
 
-    // Update in OrderContext if this order is in active list
-    if (autoRefreshStatusUpdate && order?.actions?.updateOrderStatus) {
-      try {
-        // Update context with new status
-        order.actions.updateOrderStatus(order_id, status, { current_step });
-      } catch (error) {
-        console.error('Failed to update order status:', error);
+    if (autoRefreshStatusUpdate) {
+      if (order?.actions?.fetchActiveOrders) {
+        try {
+          order.actions.fetchActiveOrders();
+        } catch (error) {
+          console.error('Failed to refresh active orders:', error);
+        }
+      }
+
+      if (order?.actions?.fetchAvailableOrders) {
+        try {
+          order.actions.fetchAvailableOrders();
+        } catch (error) {
+          console.error('Failed to refresh available orders:', error);
+        }
       }
     }
 
@@ -124,9 +132,7 @@ export const useOrderWebSocket = (options = {}) => {
         console.log('✅ WebSocket connected in hook');
       } catch (error) {
         console.error('Failed to connect WebSocket:', error);
-        if (onError) {
-          onError(error);
-        }
+        handleError(error);
       }
     };
 
@@ -150,7 +156,7 @@ export const useOrderWebSocket = (options = {}) => {
         }
       });
     };
-  }, [autoConnect, handleNewOrder, handleStatusUpdate, handleMessage, handleError]);
+  }, [autoConnect, handleError, handleMessage, handleNewOrder, handleStatusUpdate]);
 
   /**
    * Return control methods
@@ -184,6 +190,11 @@ export const useOrderWebSocket = (options = {}) => {
  */
 export const useNewOrderListener = (callback, enabled = true) => {
   const unsubscribeRef = useRef(null);
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -194,14 +205,14 @@ export const useNewOrderListener = (callback, enabled = true) => {
     });
 
     // Subscribe
-    unsubscribeRef.current = orderWebSocket.onNewOrder(callback);
+    unsubscribeRef.current = orderWebSocket.onNewOrder((data) => callbackRef.current?.(data));
 
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
       }
     };
-  }, [callback, enabled]);
+  }, [enabled]);
 };
 
 /**
@@ -209,6 +220,11 @@ export const useNewOrderListener = (callback, enabled = true) => {
  */
 export const useStatusUpdateListener = (callback, enabled = true) => {
   const unsubscribeRef = useRef(null);
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -219,14 +235,14 @@ export const useStatusUpdateListener = (callback, enabled = true) => {
     });
 
     // Subscribe
-    unsubscribeRef.current = orderWebSocket.onStatusUpdate(callback);
+    unsubscribeRef.current = orderWebSocket.onStatusUpdate((data) => callbackRef.current?.(data));
 
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
       }
     };
-  }, [callback, enabled]);
+  }, [enabled]);
 };
 
 /**
@@ -234,6 +250,11 @@ export const useStatusUpdateListener = (callback, enabled = true) => {
  */
 export const useOrderMessageListener = (callback, enabled = true) => {
   const unsubscribeRef = useRef(null);
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -244,14 +265,14 @@ export const useOrderMessageListener = (callback, enabled = true) => {
     });
 
     // Subscribe
-    unsubscribeRef.current = orderWebSocket.onMessage(callback);
+    unsubscribeRef.current = orderWebSocket.onMessage((data) => callbackRef.current?.(data));
 
     return () => {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
       }
     };
-  }, [callback, enabled]);
+  }, [enabled]);
 };
 
 export default useOrderWebSocket;

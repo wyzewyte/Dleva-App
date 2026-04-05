@@ -1,9 +1,10 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * Order Context
  * Manages rider order state including available, active, and history orders
  */
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { riderOrders } from '../services';
 import MESSAGES from '../../../constants/messages';
 
@@ -58,18 +59,9 @@ export const OrderProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      // Debug: log when fetchActiveOrders is called
-      // eslint-disable-next-line no-console
-      console.debug('[OrderContext] fetchActiveOrders called');
-
       const data = await riderOrders.getActiveOrders();
-      // eslint-disable-next-line no-console
-      console.debug('[OrderContext] fetchActiveOrders response:', data);
 
       const orders = Array.isArray(data.active_orders) ? data.active_orders : data.results || [];
-
-      // eslint-disable-next-line no-console
-      console.debug('[OrderContext] normalized active orders count:', orders.length);
 
       setActiveOrders(orders);
       return orders;
@@ -337,8 +329,37 @@ export const OrderProvider = ({ children }) => {
     }
   }, [fetchAvailableOrders, fetchActiveOrders]);
 
-  const value = {
-    // State
+  const actionsValue = useMemo(() => ({
+    fetchAvailableOrders,
+    fetchActiveOrders,
+    fetchOrderHistory,
+    fetchOrderDetails,
+    acceptOrder,
+    rejectOrder,
+    updateOrderStatus,
+    completeOrder,
+    cancelOrder,
+    updateOrderLocation,
+    clearError,
+    clearSelectedOrder,
+    refreshAllData,
+  }), [
+    fetchAvailableOrders,
+    fetchActiveOrders,
+    fetchOrderHistory,
+    fetchOrderDetails,
+    acceptOrder,
+    rejectOrder,
+    updateOrderStatus,
+    completeOrder,
+    cancelOrder,
+    updateOrderLocation,
+    clearError,
+    clearSelectedOrder,
+    refreshAllData,
+  ]);
+
+  const value = useMemo(() => ({
     availableOrders,
     activeOrders,
     orderHistory,
@@ -346,24 +367,17 @@ export const OrderProvider = ({ children }) => {
     loading,
     operationLoading,
     error,
-    
-    // Actions
-    actions: {
-      fetchAvailableOrders,
-      fetchActiveOrders,
-      fetchOrderHistory,
-      fetchOrderDetails,
-      acceptOrder,
-      rejectOrder,
-      updateOrderStatus,
-      completeOrder,
-      cancelOrder,
-      updateOrderLocation,
-      clearError,
-      clearSelectedOrder,
-      refreshAllData,
-    },
-  };
+    actions: actionsValue,
+  }), [
+    availableOrders,
+    activeOrders,
+    orderHistory,
+    selectedOrder,
+    loading,
+    operationLoading,
+    error,
+    actionsValue,
+  ]);
 
   return (
     <OrderContext.Provider value={value}>

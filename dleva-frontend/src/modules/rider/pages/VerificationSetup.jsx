@@ -1,42 +1,36 @@
-/**
- * Rider Verification Setup Page
- * Consolidates all verification requirements (documents, bank, location)
- * Guides rider through the verification process
- */
-
+import { ArrowRight, Banknote, CheckCircle2, FileText, Smartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useRiderAuth } from '../context/RiderAuthContext';
 import { useVerificationStatus } from '../hooks/useVerificationStatus';
-import { FileText, Banknote, MapPin, CheckCircle } from 'lucide-react';
+import {
+  RiderCard,
+  RiderFeedbackState,
+  RiderPageHeader,
+  RiderPageShell,
+  RiderPrimaryButton,
+  RiderStatusBadge,
+} from '../components/ui/RiderPrimitives';
 
-const VERIFICATION_STEPS = [
+const STEPS = [
   {
     id: 'phone',
-    name: 'Phone Verification',
-    description: 'Verify your phone number via OTP',
+    title: 'Phone verification',
+    description: 'Verify your rider phone number so order and payout communication works properly.',
     path: '/rider/verification-phone',
-    icon: FileText,
+    icon: Smartphone,
   },
   {
     id: 'documents',
-    name: 'Document Verification',
-    description: 'Upload your government-issued ID, license, and vehicle registration',
+    title: 'Documents',
+    description: 'Upload and review your identity and vehicle documents.',
     path: '/rider/verification-documents',
     icon: FileText,
   },
   {
     id: 'bank',
-    name: 'Bank Details',
-    description: 'Add your bank account for payouts',
+    title: 'Bank details',
+    description: 'Add the payout account that receives rider earnings.',
     path: '/rider/verification-bank',
     icon: Banknote,
-  },
-  {
-    id: 'location',
-    name: 'Service Area',
-    description: 'Confirm your service area location',
-    path: '/rider/verification-location',
-    icon: MapPin,
   },
 ];
 
@@ -44,142 +38,120 @@ const VerificationSetup = () => {
   const navigate = useNavigate();
   const { status, loading } = useVerificationStatus();
 
-  // ✅ If user can go online, redirect to dashboard
-  if (status?.can_go_online) {
-    navigate('/rider/dashboard', { replace: true });
-    return null;
-  }
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-          <p className="text-gray-600 font-medium">Loading verification status...</p>
+      <RiderPageShell maxWidth="max-w-4xl">
+        <RiderPageHeader
+          title="Verification Setup"
+          subtitle="Riders should always know what is blocking work, what is done already, and which step to complete next."
+          sticky
+        />
+
+        <div className="space-y-6 py-6">
+          <RiderCard className="p-6">
+            <div className="space-y-3">
+              <div className="h-3 w-20 animate-pulse rounded bg-gray-100" />
+              <div className="flex items-end justify-between gap-4">
+                <div className="space-y-2">
+                  <div className="h-10 w-20 animate-pulse rounded-xl bg-gray-100" />
+                  <div className="h-4 w-40 animate-pulse rounded bg-gray-100" />
+                </div>
+                <div className="h-7 w-24 animate-pulse rounded-full bg-gray-100" />
+              </div>
+              <div className="h-2 w-full animate-pulse rounded-full bg-gray-100" />
+            </div>
+          </RiderCard>
+
+          <div className="space-y-4">
+            {[1, 2, 3].map((step) => (
+              <RiderCard key={step} className="p-5 sm:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="h-12 w-12 animate-pulse rounded-2xl bg-gray-100" />
+                    <div className="space-y-2">
+                      <div className="h-6 w-32 animate-pulse rounded bg-gray-100" />
+                      <div className="h-4 w-64 animate-pulse rounded bg-gray-100" />
+                      <div className="h-4 w-52 animate-pulse rounded bg-gray-100" />
+                    </div>
+                  </div>
+                  <div className="h-11 w-28 animate-pulse rounded-xl bg-gray-100" />
+                </div>
+              </RiderCard>
+            ))}
+          </div>
         </div>
-      </div>
+      </RiderPageShell>
     );
   }
 
-  if (!status) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Unable to load verification status. Please try again.</p>
-      </div>
-    );
-  }
-
-  const getCompletionStatus = () => {
-    // ✅ Only track fields that backend returns (phone, documents, bank)
-    // Location is an optional setup step, not required for verification
-    const verificationStatus = {
-      documents: status.documents_approved || false,
-      bank: status.bank_details_added || false,
-      phone: status.phone_verified || false,
-      // location status not tracked by backend - it's an optional preference
-    };
-    const completed = Object.values(verificationStatus).filter(Boolean).length;
-    return { verificationStatus, completed, total: 3 };
+  const stepState = {
+    phone: Boolean(status?.phone_verified),
+    documents: Boolean(status?.documents_approved),
+    bank: Boolean(status?.bank_details_verified ?? status?.bank_details_added),
   };
 
-  const { verificationStatus, completed, total } = getCompletionStatus();
+  const completedCoreCount = [stepState.phone, stepState.documents, stepState.bank].filter(Boolean).length;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-dark mb-4">Account Verification</h1>
-          <p className="text-gray-600 text-lg">
-            Complete all steps to go online and start accepting deliveries
-          </p>
+    <RiderPageShell maxWidth="max-w-4xl" withBottomNavSpacing={false}>
+      <RiderPageHeader
+        title="Verification Setup"
+        subtitle="Riders should always know what is blocking work, what is done already, and which step to complete next."
+        sticky
+      />
 
-          {/* Progress */}
-          <div className="mt-8 mb-4">
-            <div className="flex items-center justify-center gap-2 mb-2">
-              <span className="text-2xl font-bold text-primary">{completed}</span>
-              <span className="text-gray-600">/</span>
-              <span className="text-2xl font-bold text-gray-600">{total}</span>
+      <div className="space-y-6 py-6">
+        <RiderCard className="p-6">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Progress</p>
+          <div className="mt-3 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-4xl font-bold text-dark">{completedCoreCount}/3</p>
+              <p className="mt-2 text-sm text-muted">Core verification steps completed.</p>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-primary h-2 rounded-full transition-all duration-500"
-                style={{ width: `${(completed / total) * 100}%` }}
-              />
-            </div>
+            <RiderStatusBadge status={status?.can_go_online ? 'approved' : 'pending'}>
+              {status?.can_go_online ? 'Ready to work' : 'Still blocked'}
+            </RiderStatusBadge>
           </div>
+          <div className="mt-5 h-2 rounded-full bg-gray-100">
+            <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${(completedCoreCount / 3) * 100}%` }} />
+          </div>
+        </RiderCard>
 
-          {completed === total && (
-            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-green-700 font-medium">
-                ✓ All verifications complete! You can now go online.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Verification Steps */}
         <div className="space-y-4">
-          {VERIFICATION_STEPS.map((step) => {
-            const Icon = step.icon;
-            const isCompleted = verificationStatus[step.id];
-
+          {STEPS.map((step) => {
+            const complete = stepState[step.id];
             return (
-              <button
-                key={step.id}
-                onClick={() => navigate(step.path)}
-                className={`w-full p-6 rounded-lg border-2 transition-all text-left ${
-                  isCompleted
-                    ? 'border-green-300 bg-green-50 hover:bg-green-100'
-                    : 'border-gray-300 bg-white hover:border-primary hover:bg-gray-50'
-                }`}
-              >
-                <div className="flex items-start justify-between">
+              <RiderCard key={step.id} className="p-5 sm:p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex items-start gap-4">
-                    <div
-                      className={`p-3 rounded-lg ${
-                        isCompleted ? 'bg-green-100' : 'bg-gray-100'
-                      }`}
-                    >
-                      <Icon
-                        size={24}
-                        className={isCompleted ? 'text-green-600' : 'text-gray-600'}
-                      />
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      <step.icon size={20} />
                     </div>
                     <div>
-                      <h3 className={`text-lg font-semibold ${
-                        isCompleted ? 'text-green-700' : 'text-dark'
-                      }`}>
-                        {step.name}
-                      </h3>
-                      <p className="text-gray-600 text-sm mt-1">
-                        {step.description}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-lg font-bold text-dark">{step.title}</h2>
+                        <RiderStatusBadge status={complete ? 'approved' : step.optional ? 'offline' : 'pending'}>
+                          {complete ? 'Complete' : step.optional ? 'Optional' : 'Pending'}
+                        </RiderStatusBadge>
+                      </div>
+                      <p className="mt-2 text-sm leading-relaxed text-muted">{step.description}</p>
                     </div>
                   </div>
 
-                  {isCompleted && (
-                    <CheckCircle size={24} className="text-green-600 flex-shrink-0" />
-                  )}
+                  <RiderPrimaryButton
+                    onClick={() => navigate(step.path)}
+                    className="w-full sm:w-auto sm:px-5"
+                    icon={complete ? <CheckCircle2 size={16} /> : <ArrowRight size={16} />}
+                  >
+                    {complete ? 'Review step' : 'Open step'}
+                  </RiderPrimaryButton>
                 </div>
-              </button>
+              </RiderCard>
             );
           })}
         </div>
-
-        {/* Info Box */}
-        <div className="mt-12 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-          <h3 className="text-sm font-semibold text-blue-900 mb-2">
-            Why do we need these verifications?
-          </h3>
-          <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-            <li>Documents verify your identity and driving eligibility</li>
-            <li>Bank details are needed for secure payouts</li>
-            <li>Service area confirms you can deliver in your region</li>
-          </ul>
-        </div>
       </div>
-    </div>
+    </RiderPageShell>
   );
 };
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Clock3, MapPin, Navigation, RefreshCw, ShieldCheck, Store, Truck } from 'lucide-react';
+import { CheckCircle2, Clock3, MapPin, Navigation, RefreshCw, ShieldCheck, Store, Truck } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import buyerCheckout from '../../../services/buyerCheckout';
 import { useTracking } from '../../../context/TrackingContext';
@@ -41,7 +41,10 @@ const TrackingModern = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [showDeliveredCelebration, setShowDeliveredCelebration] = useState(false);
   const unsubscribeRef = useRef(null);
+  const deliveredCelebrationShownRef = useRef(false);
+  const previousStatusRef = useRef(null);
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -106,6 +109,29 @@ const TrackingModern = () => {
     };
   }, [order, orderId]);
 
+  useEffect(() => {
+    deliveredCelebrationShownRef.current = false;
+    previousStatusRef.current = null;
+    setShowDeliveredCelebration(false);
+  }, [orderId]);
+
+  useEffect(() => {
+    if (!order?.status) {
+      return;
+    }
+
+    const previousStatus = previousStatusRef.current;
+    const isFirstStatusSeen = previousStatus === null;
+    const becameDelivered = order.status === 'delivered' && (isFirstStatusSeen || previousStatus !== 'delivered');
+
+    if (becameDelivered && !deliveredCelebrationShownRef.current) {
+      deliveredCelebrationShownRef.current = true;
+      setShowDeliveredCelebration(true);
+    }
+
+    previousStatusRef.current = order.status;
+  }, [order?.status, orderId]);
+
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
@@ -129,6 +155,8 @@ const TrackingModern = () => {
       : order?.status === 'delivered'
         ? 'Delivered'
         : 'Tracking live';
+  const isTrackingActive = !['delivered', 'cancelled', 'cancelled_by_buyer', 'cancelled_by_seller'].includes(order?.status);
+  const showLivePulse = isTrackingActive && order?.connection_status === 'connected';
 
   const totals = useMemo(() => {
     const subtotal = (order?.items || []).reduce((sum, item) => {
@@ -195,25 +223,40 @@ const TrackingModern = () => {
         </div>
       </BuyerCard>
 
-      <BuyerCard className="p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+      <BuyerCard className="p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="w-full">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Current status</p>
-            <h3 className="mt-1 text-2xl font-semibold text-dark">{statusInfo?.label || 'Pending'}</h3>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted">
+            <div className="mt-1 flex items-center justify-between gap-3">
+              <h3 className="text-xl font-semibold text-dark">{statusInfo?.label || 'Pending'}</h3>
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1">
+                {showLivePulse ? <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> : null}
+                <span className="text-[11px] font-semibold text-emerald-700">{etaLabel}</span>
+              </div>
+            </div>
+            <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-muted">
               {statusInfo?.message || 'We are updating your order progress in real time.'}
             </p>
           </div>
-
-          <div className="rounded-[18px] border border-gray-200 bg-gray-50 px-4 py-3 text-right">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">ETA</p>
-            <p className="mt-1 text-lg font-semibold text-dark">{etaLabel}</p>
-            {order.connection_status === 'connected' ? (
-              <p className="mt-1 text-xs text-emerald-600">Live updates connected</p>
-            ) : null}
-          </div>
         </div>
       </BuyerCard>
+
+      {order.confirmation_code && ['picked_up', 'on_the_way', 'delivery_attempted'].includes(order.status) ? (
+        <BuyerCard className="p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} className="text-primary" />
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Confirmation code</p>
+              </div>
+              <p className="mt-1 text-sm text-muted">Share this with the rider at delivery.</p>
+            </div>
+            <div className="inline-flex rounded-[16px] border border-primary/15 bg-primary/5 px-4 py-2.5">
+              <span className="text-xl font-bold tracking-[0.35em] text-primary">{order.confirmation_code}</span>
+            </div>
+          </div>
+        </BuyerCard>
+      ) : null}
 
       <BuyerCard className="p-5">
         <div className="mb-4 flex items-center gap-2">
@@ -252,19 +295,6 @@ const TrackingModern = () => {
           })}
         </div>
       </BuyerCard>
-
-      {order.confirmation_code && ['picked_up', 'on_the_way', 'delivery_attempted'].includes(order.status) ? (
-        <BuyerCard className="p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <ShieldCheck size={18} className="text-primary" />
-            <h3 className="text-lg font-semibold text-dark">Delivery confirmation code</h3>
-          </div>
-          <p className="text-sm text-muted">Share this code with the rider when the order gets to you.</p>
-          <div className="mt-4 inline-flex rounded-[18px] border border-primary/15 bg-primary/5 px-5 py-3">
-            <span className="text-2xl font-bold tracking-[0.5em] text-primary">{order.confirmation_code}</span>
-          </div>
-        </BuyerCard>
-      ) : null}
 
       <div className="grid gap-5 lg:grid-cols-2">
         <BuyerCard className="p-5">
@@ -337,6 +367,45 @@ const TrackingModern = () => {
           </div>
         </div>
       </BuyerCard>
+
+      {showDeliveredCelebration ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4 backdrop-blur-[2px]">
+          <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] border border-emerald-100 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+              <span className="absolute left-6 top-6 h-2.5 w-2.5 rounded-full bg-emerald-300 animate-pulse" />
+              <span className="absolute right-10 top-10 h-2 w-2 rounded-full bg-amber-300 animate-pulse" />
+              <span className="absolute left-12 top-20 h-1.5 w-1.5 rounded-full bg-rose-300 animate-pulse" />
+              <span className="absolute right-16 top-24 h-2.5 w-2.5 rounded-full bg-sky-300 animate-pulse" />
+              <span className="absolute bottom-16 left-10 h-2 w-2 rounded-full bg-primary/30 animate-pulse" />
+              <span className="absolute bottom-20 right-12 h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            </div>
+
+            <div className="relative text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[22px] bg-emerald-50 text-emerald-600 shadow-[0_10px_30px_rgba(16,185,129,0.18)]">
+                <CheckCircle2 size={30} />
+              </div>
+              <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">Delivered successfully</p>
+              <h3 className="mt-2 text-2xl font-bold tracking-tight text-dark">Your food is here</h3>
+              <p className="mt-3 text-sm leading-relaxed text-muted">
+                Your order has been delivered successfully. Enjoy your meal and have a lovely time.
+              </p>
+
+              <div className="mt-6 grid gap-3">
+                <BuyerPrimaryButton onClick={() => setShowDeliveredCelebration(false)} className="min-h-[46px]">
+                  Enjoy
+                </BuyerPrimaryButton>
+                <button
+                  type="button"
+                  onClick={() => setShowDeliveredCelebration(false)}
+                  className="text-sm font-semibold text-muted transition-colors hover:text-dark"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };

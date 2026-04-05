@@ -89,6 +89,23 @@ const riderSettings = {
   },
 
   /**
+   * Resend phone verification OTP
+   */
+  async resendPhoneOtp(phoneNumber) {
+    try {
+      const response = await api.post(API_ENDPOINTS.RIDER.RESEND_PHONE_OTP, {
+        phone_number: phoneNumber,
+      });
+      return response.data;
+    } catch (error) {
+      throw {
+        error: extractErrorMessage(error, 'Failed to resend OTP'),
+        status: error.response?.status,
+      };
+    }
+  },
+
+  /**
    * Get verification status
    */
   async getVerificationStatus() {

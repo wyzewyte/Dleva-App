@@ -1,3 +1,1 @@
-import PayoutHistory from './PayoutHistory';
-
-export default PayoutHistory;
+export { default } from './Earnings';

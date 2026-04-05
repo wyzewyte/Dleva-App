@@ -15,7 +15,6 @@ import LocationSetupWrapper from './components/LocationSetupWrapper';
 // Protected Route Guard
 import ProtectedRoute from './components/ProtectedRoute';
 import SellerProtectedRoute from './modules/seller/ProtectedRoute';
-import RiderProtectedRoute from './modules/rider/ProtectedRoute';
 
 // Buyer Pages
 import BuyerHome from './modules/buyer/pages/HomeModern';
@@ -58,18 +57,10 @@ import PhoneVerification from './modules/rider/pages/PhoneVerification';
 import DocumentVerification from './modules/rider/pages/DocumentVerification';
 import BankDetailsVerification from './modules/rider/pages/BankDetailsVerification';
 import ServiceAreaVerification from './modules/rider/pages/ServiceAreaVerification';
-import RiderHome from './modules/rider/pages/Home';
 import RiderDashboard from './modules/rider/pages/Dashboard';
-import RiderDeliveries from './modules/rider/pages/Deliveries';
-import RiderDeliveryDetail from './modules/rider/pages/DeliveryDetail';
-import RiderWallet from './modules/rider/pages/Wallet';
 import RiderEarnings from './modules/rider/pages/Earnings';
-import RiderWithdrawal from './modules/rider/pages/Withdrawal';
 import RiderProfileSettings from './modules/rider/pages/Settings';
-import RiderDashboardProfileRedirect from './modules/rider/pages/Profile';
-import ActiveDelivery from './modules/rider/pages/ActiveDelivery';
-import AvailableOrders from './modules/rider/pages/AvailableOrders';
-import ActiveOrders from './modules/rider/pages/ActiveOrders';
+import Deliveries from './modules/rider/pages/Deliveries';
 import OrderDetails from './modules/rider/pages/OrderDetails';
 import RiderOrderHistory from './modules/rider/pages/OrderHistory';
 import Performance from './modules/rider/pages/Performance';
@@ -199,30 +190,30 @@ function App() {
             <Route element={<RiderLayout />}>
               {/* Core Pages */}
               <Route path="dashboard" element={<RiderDashboard />} />
-              <Route path="home" element={<RiderHome />} />
+              <Route path="home" element={<Navigate to="/rider/dashboard" replace />} />
               <Route path="verification-phone" element={<PhoneVerification />} />
               <Route path="verification-documents" element={<DocumentVerification />} />
               <Route path="verification-bank" element={<BankDetailsVerification />} />
               <Route path="verification-location" element={<ServiceAreaVerification />} />
               
               {/* Order Pages - Phase 2 */}
-              <Route path="available-orders" element={<AvailableOrders />} />
-              <Route path="active-orders" element={<ActiveOrders />} />
+              <Route path="available-orders" element={<Navigate to="/rider/deliveries?tab=pending" replace />} />
+              <Route path="active-orders" element={<Navigate to="/rider/deliveries?tab=ongoing" replace />} />
+              <Route path="deliveries" element={<Deliveries />} />
               <Route path="orders/:orderId" element={<OrderDetails />} />
               <Route path="order-history" element={<RiderOrderHistory />} />
               
               {/* Legacy Delivery Pages */}
-              <Route path="deliveries" element={<RiderDeliveries />} />
-              <Route path="delivery/:id" element={<RiderDeliveryDetail />} />
-              <Route path="active-delivery/:orderId" element={<ActiveDelivery />} />
+              <Route path="delivery/:id" element={<Navigate to="/rider/deliveries?tab=ongoing" replace />} />
+              <Route path="active-delivery/:orderId" element={<Navigate to="/rider/deliveries?tab=ongoing" replace />} />
               
               {/* Wallet & Earnings */}
-              <Route path="wallet" element={<RiderWallet />} />
+              <Route path="wallet" element={<Navigate to="/rider/earnings" replace />} />
               <Route path="earnings" element={<RiderEarnings />} />
-              <Route path="withdrawal" element={<RiderWithdrawal />} />
+              <Route path="withdrawal" element={<Navigate to="/rider/earnings" replace />} />
               
               {/* Profile & Account */}
-              <Route path="profile" element={<RiderProfileSettings />} />
+              <Route path="profile" element={<Navigate to="/rider/settings" replace />} />
               <Route path="settings" element={<RiderProfileSettings />} />
               
               {/* Performance & Ratings */}

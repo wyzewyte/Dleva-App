@@ -7,7 +7,6 @@ import { useState } from 'react';
 import { ArrowLeft, Loader2, AlertCircle, CheckCircle, Mail, Phone, MapPin, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useRiderAuth } from '../context/RiderAuthContext';
-import riderWallet from '../services/riderWallet';
 import MESSAGES from '../../../constants/messages';
 
 const Contact = () => {
@@ -80,7 +79,7 @@ const Contact = () => {
       // Auto-hide success message and redirect
       setTimeout(() => {
         setSuccess(false);
-        navigate('/rider/home');
+        navigate('/rider/dashboard');
       }, 3000);
     } catch (err) {
       setError(err.error || MESSAGES.ERROR.SOMETHING_WRONG);

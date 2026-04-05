@@ -6,7 +6,9 @@ from rest_framework.views import APIView
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db.models import Q
+from django.db import IntegrityError
 from datetime import datetime
+from utils.paystack_service import PaystackService
 
 from .models import RiderProfile, RiderDocument, RiderBankDetails, RiderOTP, RiderWallet, RiderTransaction, RiderServiceArea
 from .serializers import (
@@ -87,7 +89,9 @@ def verification_status(request):
     # Check what's completed
     phone_verified = rider.phone_verified
     documents_approved = rider.documents.filter(status='approved').exists()
-    bank_details_added = hasattr(rider, 'bank_details') and rider.bank_details is not None
+    bank_details_record = getattr(rider, 'bank_details', None)
+    bank_details_verified = bool(bank_details_record and bank_details_record.verified)
+    bank_details_added = bank_details_verified
     
     # ✅ Get all documents with their individual statuses (for frontend to verify ALL are approved)
     all_documents = rider.documents.all()
@@ -113,6 +117,7 @@ def verification_status(request):
         'documents_approved': documents_approved,
         'documents': documents,  # ✅ NEW: Include detailed documents array
         'bank_details_added': bank_details_added,
+        'bank_details_verified': bank_details_verified,
         'profile_completion_percent': rider.profile_completion_percent,
         'can_go_online': can_go_online(rider),
         'blocked_reasons': blocked_reasons,
@@ -233,10 +238,71 @@ def add_bank_details(request):
     
     serializer = RiderBankDetailsSerializer(data=request.data)
     if serializer.is_valid():
-        bank_details, created = RiderBankDetails.objects.update_or_create(
-            rider=rider,
-            defaults=serializer.validated_data
+        validated = serializer.validated_data
+        banks_result = PaystackService.list_banks(country='nigeria')
+        if not banks_result.get('success'):
+            return Response(
+                {'message': banks_result.get('error', 'Unable to validate bank account right now.')},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        matched_bank = next(
+            (bank for bank in banks_result.get('banks', []) if str(bank.get('code')) == validated['bank_code']),
+            None
         )
+        if not matched_bank:
+            return Response(
+                {'bank_code': ['Invalid bank code.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if matched_bank.get('name', '').strip().lower() != validated['bank_name'].strip().lower():
+            return Response(
+                {'bank_name': ['Bank name must match the selected Paystack bank.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        resolve_result = PaystackService.resolve_account(
+            validated['account_number'],
+            validated['bank_code']
+        )
+
+        if not resolve_result.get('success'):
+            return Response(
+                {'message': resolve_result.get('error', 'Unable to validate bank account.')},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        resolved_name = (resolve_result.get('account_name') or '').strip()
+        if resolved_name.lower() != validated['account_name'].strip().lower():
+            return Response(
+                {'account_name': ['Account name must match Paystack verified account name.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        existing_bank_owner = RiderBankDetails.objects.filter(
+            bank_code=validated['bank_code'],
+            account_number=validated['account_number'],
+        ).exclude(rider=rider).select_related('rider').first()
+        if existing_bank_owner:
+            return Response(
+                {'account_number': ['This bank account is already linked to another rider account.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            bank_details, created = RiderBankDetails.objects.update_or_create(
+                rider=rider,
+                defaults={
+                    **validated,
+                    'verified': True,
+                }
+            )
+        except IntegrityError:
+            return Response(
+                {'account_number': ['This bank account is already linked to another rider account.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         # Recalculate profile completion
         rider.calculate_profile_completion()
@@ -266,6 +332,7 @@ def get_bank_details(request):
     try:
         bank_details = rider.bank_details
         return Response({
+            'bank_code': bank_details.bank_code,
             'bank_name': bank_details.bank_name,
             'account_name': bank_details.account_name,
             'account_number_masked': '*' * (len(bank_details.account_number) - 4) + bank_details.account_number[-4:],
@@ -276,6 +343,72 @@ def get_bank_details(request):
             {'message': 'Bank details not set. Please add your bank details.'},
             status=status.HTTP_404_NOT_FOUND
         )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def list_banks(request):
+    """List Paystack-supported banks for rider bank validation."""
+    result = PaystackService.list_banks(country='nigeria')
+    if not result.get('success'):
+        return Response(
+            {'message': result.get('error', 'Unable to fetch banks right now.')},
+            status=status.HTTP_502_BAD_GATEWAY
+        )
+
+    banks = [
+        {
+            'name': bank.get('name'),
+            'code': str(bank.get('code')),
+        }
+        for bank in result.get('banks', [])
+        if bank.get('name') and bank.get('code') is not None and bank.get('active', True)
+    ]
+    banks.sort(key=lambda bank: bank['name'])
+    return Response({'banks': banks}, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def resolve_bank_account(request):
+    """Resolve rider bank account details with Paystack."""
+    bank_code = str(request.data.get('bank_code', '')).strip()
+    account_number = str(request.data.get('account_number', '')).strip()
+
+    if not bank_code:
+        return Response({'bank_code': ['Bank code is required.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not account_number.isdigit() or len(account_number) != 10:
+        return Response({'account_number': ['Account number must be exactly 10 digits.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    banks_result = PaystackService.list_banks(country='nigeria')
+    if not banks_result.get('success'):
+        return Response(
+            {'message': banks_result.get('error', 'Unable to validate bank account right now.')},
+            status=status.HTTP_502_BAD_GATEWAY
+        )
+
+    matched_bank = next(
+        (bank for bank in banks_result.get('banks', []) if str(bank.get('code')) == bank_code),
+        None
+    )
+    if not matched_bank:
+        return Response({'bank_code': ['Invalid bank code.']}, status=status.HTTP_400_BAD_REQUEST)
+
+    resolve_result = PaystackService.resolve_account(account_number, bank_code)
+    if not resolve_result.get('success'):
+        return Response(
+            {'message': resolve_result.get('error', 'Unable to resolve bank account.')},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    return Response({
+        'bank_code': bank_code,
+        'bank_name': matched_bank.get('name'),
+        'account_number': resolve_result.get('account_number', account_number),
+        'account_name': resolve_result.get('account_name'),
+        'verified': True,
+    }, status=status.HTTP_200_OK)
 
 
 # ==================== ORDERS ====================
@@ -565,6 +698,7 @@ def can_go_online(rider):
         rider.documents.filter(status='approved').exists() and
         hasattr(rider, 'bank_details') and
         rider.bank_details is not None and
+        rider.bank_details.verified and
         rider.profile_completion_percent == 100
     )
     
@@ -581,6 +715,7 @@ def can_go_online(rider):
         rider.documents.filter(status='approved').exists() and
         hasattr(rider, 'bank_details') and
         rider.bank_details is not None and
+        rider.bank_details.verified and
         rider.profile_completion_percent == 100 and
         rider.account_status == 'approved' and
         rider.is_verified and
@@ -613,6 +748,8 @@ def get_blocked_reasons(rider):
     
     if not hasattr(rider, 'bank_details') or rider.bank_details is None:
         reasons.append('Bank details not added')
+    elif not rider.bank_details.verified:
+        reasons.append('Bank details not verified')
     
     if rider.profile_completion_percent < 100:
         reasons.append(f'Profile incomplete ({rider.profile_completion_percent}%)')

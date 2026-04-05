@@ -1,295 +1,154 @@
-/**
- * OrderHistory Page
- * Displays completed orders and earnings summary
- * Includes filtering by date and status
- */
-
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Calendar, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, Loader2, DollarSign, TrendingUp, Calendar } from 'lucide-react';
 import { riderOrders } from '../services';
 import { formatCurrency } from '../../../utils/formatters';
-import MESSAGES from '../../../constants/messages';
+import {
+  RiderCard,
+  RiderEmptyState,
+  RiderFeedbackState,
+  RiderPageHeader,
+  RiderPageShell,
+  RiderPrimaryButton,
+  RiderSegmentedTabs,
+} from '../components/ui/RiderPrimitives';
+
+const STATUS_TABS = [
+  { id: 'delivered', label: 'Delivered' },
+  { id: 'delivery_attempted', label: 'Attempted' },
+  { id: 'cancelled', label: 'Cancelled' },
+];
 
 const OrderHistory = () => {
   const navigate = useNavigate();
-  const [orders, setOrders] = useState([]);
-  const [filteredOrders, setFilteredOrders] = useState([]);
+  const [status, setStatus] = useState('delivered');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [totalEarnings, setTotalEarnings] = useState(0);
-  const [statusFilter, setStatusFilter] = useState('delivered');
-  const [dateRange, setDateRange] = useState({
-    from: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-    to: new Date().toISOString().split('T')[0],
-  });
+  const [orders, setOrders] = useState([]);
 
-  // Fetch order history
-  const fetchOrderHistory = async () => {
+  const loadHistory = useCallback(async (nextStatus = status) => {
+    setLoading(true);
+    setError('');
     try {
-      setLoading(true);
-      setError('');
-
-      const data = await riderOrders.getOrderHistory({
-        status: statusFilter,
-        date_from: dateRange.from,
-        date_to: dateRange.to,
+      const response = await riderOrders.getOrderHistory({
+        status: nextStatus,
+        date_from: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
+        date_to: new Date().toISOString().split('T')[0],
       });
-
-      const ordersList = Array.isArray(data.orders) ? data.orders : data.results || [];
-      setOrders(ordersList);
-      setFilteredOrders(ordersList);
-
-      // Calculate total earnings
-      const total = ordersList.reduce((sum, order) => {
-        const earnings = typeof order.rider_earning === 'string'
-          ? parseFloat(order.rider_earning)
-          : (order.rider_earning || 0);
-        return sum + earnings;
-      }, 0);
-      setTotalEarnings(total);
-    } catch (err) {
-      setError(err.error || MESSAGES.ERROR.SOMETHING_WRONG);
+      setOrders(Array.isArray(response.orders) ? response.orders : response.results || []);
+    } catch (loadError) {
+      setError(loadError?.error || 'Unable to load rider history right now.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [status]);
 
-  // Initial load
   useEffect(() => {
-    fetchOrderHistory();
-  }, []);
+    loadHistory(status).catch(() => {});
+  }, [loadHistory, status]);
 
-  // Handle filter changes
-  const handleStatusChange = (newStatus) => {
-    setStatusFilter(newStatus);
-  };
-
-  const handleApplyFilters = () => {
-    fetchOrderHistory();
-  };
-
-  const handleDateChange = (field, value) => {
-    setDateRange(prev => ({ ...prev, [field]: value }));
-  };
-
-  // Get status badge color
-  const getStatusColor = (status) => {
-    const colorMap = {
-      'delivered': 'bg-green-50 border-green-200 text-green-700',
-      'delivery_attempted': 'bg-yellow-50 border-yellow-200 text-yellow-700',
-      'cancelled': 'bg-red-50 border-red-200 text-red-700',
-    };
-    return colorMap[status?.toLowerCase()] || 'bg-gray-50 border-gray-200 text-gray-700';
-  };
-
-  const getStatusLabel = (status) => {
-    const labels = {
-      'delivered': 'Delivered',
-      'delivery_attempted': 'Attempted',
-      'cancelled': 'Cancelled',
-    };
-    return labels[status?.toLowerCase()] || status || 'Unknown';
-  };
+  const totalEarnings = useMemo(
+    () =>
+      orders.reduce((sum, order) => sum + parseFloat(order?.rider_earning || 0), 0),
+    [orders]
+  );
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-16">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
-        <div className="max-w-2xl mx-auto px-4 py-3 sm:py-4 flex items-center gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={20} className="text-dark" />
-          </button>
-          <div className="flex-1">
-            <h1 className="font-bold text-dark">Order History</h1>
-            <p className="text-xs text-gray-600">{orders.length} orders</p>
-          </div>
-        </div>
-      </div>
+    <RiderPageShell maxWidth="max-w-5xl">
+      <RiderPageHeader
+        title="Order History"
+        subtitle="Past deliveries should be easy to review without turning history into a hard-to-use report page."
+        sticky
+      />
 
-      {/* Main Content */}
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-
-        {/* Error Message */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3 text-sm text-red-700">
-            <AlertCircle size={18} className="mt-0.5 shrink-0" />
+      <div className="space-y-6 py-6">
+        <RiderCard className="p-5">
+          <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <p className="font-bold">Error</p>
-              <p>{error}</p>
-              <button
-                onClick={handleApplyFilters}
-                className="mt-2 text-red-800 font-bold hover:underline text-xs"
-              >
-                Retry
-              </button>
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Last 30 days</p>
+              <p className="mt-3 text-3xl font-bold text-dark">{orders.length}</p>
+              <p className="mt-2 text-sm text-muted">Completed or reviewed delivery records in the selected status.</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Rider earnings</p>
+              <p className="mt-3 text-3xl font-bold text-dark">{formatCurrency(totalEarnings)}</p>
+              <p className="mt-2 text-sm text-muted">Total rider income across the visible delivery history.</p>
             </div>
           </div>
-        )}
+        </RiderCard>
 
-        {/* Earnings Summary */}
-        {!loading && orders.length > 0 && (
-          <div className="bg-gradient-to-br from-green-50 to-blue-50 border border-green-200 rounded-2xl p-6">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs text-gray-600 font-bold mb-1">Total Earnings</p>
-                <p className="text-3xl font-bold text-green-600">{formatCurrency(totalEarnings)}</p>
-                <p className="text-xs text-gray-600 mt-2">{orders.length} deliveries</p>
-              </div>
-              <TrendingUp size={32} className="text-green-600 opacity-50" />
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-dark">Filter by status</h2>
+              <p className="text-sm text-muted">Keep the filter simple and centered on the outcomes riders usually look back on.</p>
             </div>
+            <Filter size={18} className="text-muted" />
           </div>
-        )}
-
-        {/* Filters */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-          <h2 className="text-sm font-bold text-gray-600 uppercase">Filters</h2>
-
-          {/* Status Filter */}
-          <div>
-            <p className="text-xs text-gray-600 font-bold mb-2">Status</p>
-            <div className="flex gap-2 flex-wrap">
-              {['delivered', 'delivery_attempted', 'cancelled'].map(status => (
-                <button
-                  key={status}
-                  onClick={() => handleStatusChange(status)}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                    statusFilter === status
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-dark hover:bg-gray-200'
-                  }`}
-                >
-                  {getStatusLabel(status)}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Date Range */}
-          <div className="pt-4 border-t border-gray-100 space-y-3">
-            <p className="text-xs text-gray-600 font-bold">Date Range</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-gray-600 block mb-1">From</label>
-                <input
-                  type="date"
-                  value={dateRange.from}
-                  onChange={(e) => handleDateChange('from', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-gray-600 block mb-1">To</label>
-                <input
-                  type="date"
-                  value={dateRange.to}
-                  onChange={(e) => handleDateChange('to', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Apply Button */}
-          <button
-            onClick={handleApplyFilters}
-            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors text-sm mt-4"
-          >
-            Apply Filters
-          </button>
+          <RiderSegmentedTabs tabs={STATUS_TABS} value={status} onChange={setStatus} />
         </div>
 
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center py-12 gap-3">
-            <Loader2 size={32} className="animate-spin text-blue-600 flex-shrink-0" />
-            <span className="text-gray-600 font-medium text-sm">Loading order history...</span>
-          </div>
-        )}
-
-        {/* Orders List */}
-        {!loading && filteredOrders.length > 0 && (
+        {loading ? (
           <div className="space-y-3">
-            {filteredOrders.map(order => {
-              const orderId = order.id || order.order_id;
-              const status = order.status || 'completed';
-              const restaurantName = order.restaurant_name || 'Restaurant';
-              const deliveryDate = order.delivered_at || order.time_created || 'N/A';
-              const riderEarning = typeof order.rider_earning === 'string'
-                ? parseFloat(order.rider_earning)
-                : (order.rider_earning || 0);
-              const distanceKm = typeof order.distance_km === 'string'
-                ? parseFloat(order.distance_km)
-                : (order.distance_km || 0);
-
-              return (
-                <button
-                  key={orderId}
-                  onClick={() => navigate(`/rider/orders/${orderId}`, { state: { order } })}
-                  className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md hover:border-gray-200 transition-all text-left"
-                >
-                  {/* Order Header */}
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <h3 className="font-bold text-dark">Order #{orderId}</h3>
-                      <p className="text-xs text-gray-600 mt-1">{restaurantName}</p>
-                    </div>
-                    <div className={`px-3 py-1 rounded-lg text-xs font-bold border ${getStatusColor(status)}`}>
-                      {getStatusLabel(status)}
-                    </div>
+            {[1, 2, 3, 4].map((row) => (
+              <RiderCard key={row} className="p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="space-y-2">
+                    <div className="h-5 w-28 animate-pulse rounded bg-gray-100" />
+                    <div className="h-4 w-32 animate-pulse rounded bg-gray-100" />
                   </div>
-
-                  {/* Order Details */}
-                  <div className="flex justify-between items-end">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs text-gray-600">
-                        <Calendar size={12} />
-                        <span>{deliveryDate}</span>
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        {distanceKm.toFixed(1)} km
-                      </div>
+                  <div className="space-y-2 text-right">
+                    <div className="h-4 w-20 animate-pulse rounded bg-gray-100" />
+                    <div className="h-3 w-24 animate-pulse rounded bg-gray-100" />
+                  </div>
+                </div>
+              </RiderCard>
+            ))}
+          </div>
+        ) : error ? (
+          <RiderFeedbackState
+            type="error"
+            title="Unable to load order history"
+            message={error}
+            action={
+              <RiderPrimaryButton onClick={() => loadHistory()} className="sm:w-auto sm:px-5">
+                Try again
+              </RiderPrimaryButton>
+            }
+          />
+        ) : orders.length > 0 ? (
+          <div className="space-y-3">
+            {orders.map((order) => (
+              <button
+                key={order.id || order.order_id}
+                type="button"
+                onClick={() => navigate(`/rider/orders/${order.id || order.order_id}`, { state: { order } })}
+                className="w-full text-left"
+              >
+                <RiderCard className="p-4 transition-all hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)]">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-bold text-dark">Order #{order.id || order.order_id}</p>
+                      <p className="mt-1 text-sm text-muted">{order.restaurant_name || 'Restaurant'}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-gray-600 mb-1">Earnings</p>
-                      <p className="text-lg font-bold text-green-600">{formatCurrency(riderEarning)}</p>
+                      <p className="text-sm font-bold text-dark">{formatCurrency(order.rider_earning || 0)}</p>
+                      <p className="mt-1 text-xs text-muted">{order.delivered_at ? new Date(order.delivered_at).toLocaleString() : 'Recent'}</p>
                     </div>
                   </div>
-                </button>
-              );
-            })}
+                </RiderCard>
+              </button>
+            ))}
           </div>
+        ) : (
+          <RiderEmptyState
+            icon={<Calendar size={28} />}
+            title="No delivery history in this status"
+            description="Switch the status filter or come back after more deliveries have been completed."
+          />
         )}
-
-        {/* Empty State */}
-        {!loading && filteredOrders.length === 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
-            <Calendar size={32} className="text-gray-400 mx-auto mb-3" />
-            <h3 className="text-lg font-bold text-dark mb-2">No Orders Found</h3>
-            <p className="text-gray-600 mb-6">
-              No orders match your current filters. Try adjusting the date range or status.
-            </p>
-            <button
-              onClick={() => {
-                setStatusFilter('delivered');
-                setDateRange({
-                  from: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-                  to: new Date().toISOString().split('T')[0],
-                });
-                fetchOrderHistory();
-              }}
-              className="inline-block px-6 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors text-sm"
-            >
-              Reset Filters
-            </button>
-          </div>
-        )}
-
-      </main>
-    </div>
+      </div>
+    </RiderPageShell>
   );
 };
 

@@ -21,6 +21,13 @@ class PaystackService:
     
     # ✅ CALLBACK URL - CHANGE THIS TO YOUR DEPLOYED URL
     CALLBACK_URL = config('PAYSTACK_CALLBACK_URL', default='http://localhost:5173/payment/callback')
+
+    @classmethod
+    def _headers(cls):
+        return {
+            "Authorization": f"Bearer {cls.SECRET_KEY}",
+            "Content-Type": "application/json"
+        }
     
     @classmethod
     def initialize_payment(cls, email, amount_kobo, reference, metadata=None, callback_url=None):
@@ -39,10 +46,7 @@ class PaystackService:
         """
         url = f"{cls.API_URL}/transaction/initialize"
         
-        headers = {
-            "Authorization": f"Bearer {cls.SECRET_KEY}",
-            "Content-Type": "application/json"
-        }
+        headers = cls._headers()
         
         # Use provided callback URL or default from config
         callback_url = callback_url or cls.CALLBACK_URL
@@ -154,10 +158,7 @@ class PaystackService:
         """
         url = f"{cls.API_URL}/transaction/verify/{reference}"
         
-        headers = {
-            "Authorization": f"Bearer {cls.SECRET_KEY}",
-            "Content-Type": "application/json"
-        }
+        headers = cls._headers()
         
         try:
             response = requests.get(url, headers=headers, timeout=10)
@@ -203,6 +204,83 @@ class PaystackService:
                 'success': False,
                 'verified': False,
                 'error': f'Payment gateway error: {str(e)}'
+            }
+
+    @classmethod
+    def list_banks(cls, country='nigeria', use_cursor=False, per_page=100):
+        """Fetch supported bank list from Paystack."""
+        url = f"{cls.API_URL}/bank"
+        params = {
+            'country': country,
+            'use_cursor': str(use_cursor).lower(),
+            'perPage': per_page,
+        }
+
+        try:
+            response = requests.get(url, headers=cls._headers(), params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if not data.get('status'):
+                return {
+                    'success': False,
+                    'error': data.get('message', 'Failed to fetch banks'),
+                }
+
+            return {
+                'success': True,
+                'banks': data.get('data', []),
+            }
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Paystack bank list API error: {str(e)}")
+            return {
+                'success': False,
+                'error': 'Unable to fetch banks from Paystack right now.',
+            }
+
+    @classmethod
+    def resolve_account(cls, account_number, bank_code):
+        """Resolve bank account details with Paystack."""
+        url = f"{cls.API_URL}/bank/resolve"
+        params = {
+            'account_number': account_number,
+            'bank_code': bank_code,
+        }
+
+        try:
+            response = requests.get(url, headers=cls._headers(), params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            if not data.get('status'):
+                return {
+                    'success': False,
+                    'error': data.get('message', 'Unable to resolve account'),
+                }
+
+            resolved = data.get('data', {})
+            return {
+                'success': True,
+                'account_name': resolved.get('account_name'),
+                'account_number': resolved.get('account_number', account_number),
+                'bank_id': resolved.get('bank_id'),
+            }
+        except requests.exceptions.HTTPError as e:
+            try:
+                error_data = e.response.json()
+                error_msg = error_data.get('message', 'Unable to resolve account')
+            except Exception:
+                error_msg = 'Unable to resolve account'
+            logger.error(f"Paystack account resolve HTTP error: {error_msg}")
+            return {
+                'success': False,
+                'error': error_msg,
+            }
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Paystack account resolve API error: {str(e)}")
+            return {
+                'success': False,
+                'error': 'Unable to reach Paystack for account validation.',
             }
     
     @classmethod

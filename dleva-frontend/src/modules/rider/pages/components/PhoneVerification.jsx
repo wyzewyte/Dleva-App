@@ -1,36 +1,36 @@
-import React, { useState, useEffect } from 'react';
-import { Phone, CheckCircle, AlertCircle, Loader } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertCircle, CheckCircle, Loader2, Phone } from 'lucide-react';
 import riderSettings from '../../services/riderSettings';
-import {
-  SETTINGS_ERRORS,
-  SETTINGS_SUCCESS,
-  SETTINGS_INFO,
-  OTP_CONFIG,
-  SETTINGS_LABELS,
-} from '../../constants/settingsConstants';
 
-const PhoneVerification = ({ profile, onVerified }) => {
-  const [step, setStep] = useState(profile?.phone_verified ? 'verified' : 'request');
-  const [phone, setPhone] = useState(profile?.phone_number || '');
+const digits = (value) => String(value || '').replace(/\D/g, '');
+
+const PhoneVerification = ({ phone, verifiedPhone, phoneVerified = false, onVerified }) => {
+  const [step, setStep] = useState('request');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
 
-  // Countdown timer for OTP resend
+  const isCurrentPhoneVerified = phoneVerified && digits(phone) && digits(phone) === digits(verifiedPhone);
+
   useEffect(() => {
-    if (resendTimer > 0) {
-      const timer = setTimeout(() => {
-        setResendTimer(resendTimer - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
+    setStep(isCurrentPhoneVerified ? 'verified' : 'request');
+    setOtp('');
+    setError('');
+    setMessage('');
+    setResendTimer(0);
+  }, [isCurrentPhoneVerified, phone]);
+
+  useEffect(() => {
+    if (resendTimer <= 0) return undefined;
+    const timer = window.setTimeout(() => setResendTimer((current) => current - 1), 1000);
+    return () => window.clearTimeout(timer);
   }, [resendTimer]);
 
   const handleRequestOtp = async () => {
     if (!phone.trim()) {
-      setError('Please enter a phone number');
+      setError('Enter a phone number first.');
       return;
     }
 
@@ -39,25 +39,20 @@ const PhoneVerification = ({ profile, onVerified }) => {
     setMessage('');
 
     try {
-      await riderSettings.requestPhoneOtp(phone);
-      setMessage(SETTINGS_SUCCESS.OTP_SENT);
+      await riderSettings.requestPhoneOtp(phone.trim());
+      setMessage('Verification code sent.');
       setStep('verify');
-      setResendTimer(OTP_CONFIG.RESEND_TIMER);
+      setResendTimer(60);
     } catch (err) {
-      setError(err.message || SETTINGS_ERRORS.OTP_REQUEST_FAILED);
+      setError(err?.error || err?.message || 'Unable to send verification code.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleVerifyOtp = async () => {
-    if (!otp.trim()) {
-      setError('Please enter OTP');
-      return;
-    }
-
-    if (otp.length !== OTP_CONFIG.OTP_LENGTH) {
-      setError(SETTINGS_ERRORS.INVALID_OTP);
+    if (otp.trim().length !== 6) {
+      setError('Enter the 6-digit verification code.');
       return;
     }
 
@@ -66,12 +61,12 @@ const PhoneVerification = ({ profile, onVerified }) => {
     setMessage('');
 
     try {
-      await riderSettings.verifyPhone(otp, phone);
-      setMessage(SETTINGS_SUCCESS.PHONE_VERIFIED);
+      await riderSettings.verifyPhone(otp.trim(), phone.trim());
+      setMessage('Phone number verified.');
       setStep('verified');
-      onVerified?.();
+      onVerified?.(phone.trim());
     } catch (err) {
-      setError(err.message || SETTINGS_ERRORS.PHONE_VERIFICATION_FAILED);
+      setError(err?.error || err?.message || 'Unable to verify phone number.');
     } finally {
       setLoading(false);
     }
@@ -83,194 +78,91 @@ const PhoneVerification = ({ profile, onVerified }) => {
     setMessage('');
 
     try {
-      await riderSettings.requestPhoneOtp(phone);
-      setMessage(SETTINGS_SUCCESS.OTP_RESENT);
-      setResendTimer(OTP_CONFIG.RESEND_TIMER);
+      if (typeof riderSettings.resendPhoneOtp === 'function') {
+        await riderSettings.resendPhoneOtp(phone.trim());
+      } else {
+        await riderSettings.requestPhoneOtp(phone.trim());
+      }
+      setMessage('Verification code resent.');
+      setResendTimer(60);
       setOtp('');
     } catch (err) {
-      setError(err.message || SETTINGS_ERRORS.OTP_REQUEST_FAILED);
+      setError(err?.error || err?.message || 'Unable to resend verification code.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleChangeNumber = () => {
-    setStep('request');
-    setPhone(profile?.phone_number || '');
-    setOtp('');
-    setError('');
-    setMessage('');
-  };
-
-  const handleOtpChange = (input) => {
-    // Only allow digits and limit to 6
-    const digitsOnly = input.replace(/\D/g, '').slice(0, OTP_CONFIG.OTP_LENGTH);
-    setOtp(digitsOnly);
-  };
-
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
-      <div className="flex items-center gap-2 mb-6">
-        <Phone size={20} className="text-primary" />
-        <h3 className="text-lg font-semibold text-gray-900">{SETTINGS_LABELS.PHONE_VERIFICATION}</h3>
+    <div className="rounded-[22px] border border-gray-200 bg-gray-50 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Phone size={16} className="text-primary" />
+            <h4 className="text-base font-bold text-dark">Phone verification</h4>
+          </div>
+          <p className="mt-1 text-sm text-muted">
+            {isCurrentPhoneVerified ? 'This number is verified.' : 'Verify the current phone number before you leave this screen.'}
+          </p>
+        </div>
+        <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${isCurrentPhoneVerified ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+          {isCurrentPhoneVerified ? 'Verified' : 'Pending'}
+        </span>
       </div>
 
-      {step === 'verified' ? (
-        // Verified State
-        <div className="text-center py-8">
-          <CheckCircle size={48} className="text-green-500 mx-auto mb-4" />
-          <h4 className="text-lg font-semibold text-gray-900 mb-2">{SETTINGS_INFO.PHONE_VERIFIED}</h4>
-          <p className="text-gray-600 mb-6">{profile?.phone_number}</p>
-          <button
-            onClick={handleChangeNumber}
-            className="text-primary hover:text-primary/80 font-medium transition-colors"
-          >
-            {SETTINGS_INFO.CHANGE_NUMBER}
-          </button>
-        </div>
-      ) : step === 'verify' ? (
-        // OTP Verification State
-        <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-            <p className="text-sm text-blue-800">
-              {SETTINGS_INFO.ENTER_6_DIGIT_OTP} <strong>{phone}</strong>
-            </p>
+      {step === 'verify' ? (
+        <div className="mt-4 space-y-4">
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
+            Enter the code sent to <span className="font-semibold">{phone}</span>.
           </div>
-
-          {/* OTP Input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              {SETTINGS_INFO.ENTER_OTP}
-            </label>
+            <label className="block text-xs font-bold uppercase tracking-wide text-gray-500">Verification code</label>
             <input
               type="text"
               inputMode="numeric"
               value={otp}
-              onChange={(e) => handleOtpChange(e.target.value)}
-              placeholder={SETTINGS_INFO.OTP_PLACEHOLDER}
-              maxLength={OTP_CONFIG.OTP_LENGTH}
-              className="w-full px-4 py-3 text-center text-2xl tracking-widest font-mono border-2 border-gray-300 rounded-lg focus:outline-none focus:border-primary"
+              onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="123456"
+              className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-center text-lg font-bold tracking-[0.35em] text-dark placeholder:text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10"
             />
           </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-
-          {/* Success Message */}
-          {message && (
-            <div className="flex gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <CheckCircle size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-green-700">{message}</p>
-            </div>
-          )}
-
-          {/* Resend Timer */}
-          <div className="text-center">
-            {resendTimer > 0 ? (
-              <p className="text-sm text-gray-600">
-                {SETTINGS_INFO.RESEND_OTP} <strong>{resendTimer}</strong>s
-              </p>
-            ) : (
-              <button
-                onClick={handleResendOtp}
-                disabled={loading}
-                className="text-primary hover:text-primary/80 text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                {SETTINGS_INFO.RESEND_OTP}
-              </button>
-            )}
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
+          {error ? <div className="flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertCircle size={16} className="mt-0.5 shrink-0" />{error}</div> : null}
+          {message ? <div className="flex gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"><CheckCircle size={16} className="mt-0.5 shrink-0" />{message}</div> : null}
+          <div className="flex flex-col gap-3 sm:flex-row">
             <button
+              type="button"
               onClick={handleVerifyOtp}
-              disabled={loading || otp.length !== OTP_CONFIG.OTP_LENGTH}
-              className="flex-1 bg-primary text-white py-2 rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              disabled={loading || otp.length !== 6}
+              className="inline-flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? (
-                <>
-                  <Loader size={16} className="animate-spin" />
-                  {SETTINGS_INFO.VERIFYING}
-                </>
-              ) : (
-                <>
-                  <CheckCircle size={16} />
-                  {SETTINGS_INFO.VERIFY_OTP}
-                </>
-              )}
+              {loading ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle size={16} />}
+              Verify number
             </button>
             <button
-              onClick={handleChangeNumber}
-              disabled={loading}
-              className="flex-1 bg-gray-200 text-gray-900 py-2 rounded-md hover:bg-gray-300 disabled:opacity-50 transition-colors"
+              type="button"
+              onClick={handleResendOtp}
+              disabled={loading || resendTimer > 0}
+              className="inline-flex min-h-[46px] flex-1 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-bold text-dark transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {SETTINGS_INFO.CHANGE_NUMBER}
+              {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend code'}
             </button>
           </div>
         </div>
       ) : (
-        // Request OTP State
-        <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-            <p className="text-sm text-blue-800">
-              {SETTINGS_INFO.PHONE_VERIFICATION_INFO}
-            </p>
-          </div>
-
-          {/* Phone Input */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {SETTINGS_LABELS.PHONE_NUMBER}
-            </label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="Enter your phone number"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div className="flex gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-              <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-
-          {/* Success Message */}
-          {message && (
-            <div className="flex gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <CheckCircle size={18} className="text-green-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-green-700">{message}</p>
-            </div>
-          )}
-
-          {/* Send OTP Button */}
-          <button
-            onClick={handleRequestOtp}
-            disabled={loading}
-            className="w-full bg-primary text-white py-2 rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <Loader size={16} className="animate-spin" />
-                {SETTINGS_INFO.SENDING_OTP}
-              </>
-            ) : (
-              <>
-                <Phone size={16} />
-                {SETTINGS_INFO.SEND_OTP}
-              </>
-            )}
-          </button>
+        <div className="mt-4 space-y-3">
+          {error ? <div className="flex gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"><AlertCircle size={16} className="mt-0.5 shrink-0" />{error}</div> : null}
+          {message ? <div className="flex gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"><CheckCircle size={16} className="mt-0.5 shrink-0" />{message}</div> : null}
+          {!isCurrentPhoneVerified ? (
+            <button
+              type="button"
+              onClick={handleRequestOtp}
+              disabled={loading || !phone.trim()}
+              className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white transition-all hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? <Loader2 size={18} className="animate-spin" /> : <Phone size={16} />}
+              Send verification code
+            </button>
+          ) : null}
         </div>
       )}
     </div>

@@ -137,7 +137,7 @@ const ServiceAreaVerification = () => {
             <MapPin className="w-6 h-6 text-blue-600" />
             <h1 className="text-2xl font-bold text-gray-900">Service Areas</h1>
           </div>
-          <p className="text-gray-600">Select the zones where you want to deliver orders</p>
+          <p className="hidden text-gray-600 lg:block">Select the zones where you want to deliver orders</p>
         </div>
       </div>
 
