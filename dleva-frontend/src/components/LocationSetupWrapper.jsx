@@ -1,27 +1,31 @@
 /**
- * LocationSetupProvider Wrapper
- * 
- * Wraps the app to provide LocationSetupModal globally
- * Modal can be opened from anywhere by calling openLocationSetup()
+ * Global location setup modal host.
+ *
+ * Keeps the modal mounted once and lets any buyer-facing screen
+ * open it through the shared location context.
  */
-
-import { useState, useEffect } from 'react';
-import useLocation from '../hooks/useLocation';
+import LocationContext from '../context/LocationContextObject';
 import LocationSetupModal from '../modules/buyer/components/LocationSetupModal';
 
 const LocationSetupWrapper = ({ children }) => {
-  const { locationSetupOpen, closeLocationSetup } = useLocation();
-
   return (
-    <>
-      {children}
-      {locationSetupOpen && (
-        <LocationSetupModal 
-          isModal={true}
-          onClose={closeLocationSetup}
-        />
-      )}
-    </>
+    <LocationContext.Consumer>
+      {(locationContext) => {
+        const { locationSetupOpen, closeLocationSetup } = locationContext || {};
+
+        return (
+          <>
+            {children}
+            {locationSetupOpen ? (
+              <LocationSetupModal
+                isModal={true}
+                onClose={closeLocationSetup}
+              />
+            ) : null}
+          </>
+        );
+      }}
+    </LocationContext.Consumer>
   );
 };
 

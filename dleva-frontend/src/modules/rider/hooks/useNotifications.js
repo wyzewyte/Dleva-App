@@ -3,22 +3,39 @@
  * Manages rider notifications, unread count, and marking as read
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import * as React from 'react';
 import api from '../../../services/axios';
 import { API_ENDPOINTS } from '../../../constants/apiConfig';
 import { useRiderAuth } from '../context/RiderAuthContext';
 
+const NOTIFICATION_SYNC_EVENT = 'rider-notifications:refresh';
+
+const normalizeNotification = (notification) => ({
+  ...notification,
+  body: notification?.body ?? notification?.message ?? '',
+  message: notification?.message ?? notification?.body ?? '',
+});
+
 export const useNotifications = () => {
   const { token, loading: authLoading } = useRiderAuth();
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  if (typeof window !== 'undefined') {
+    console.debug('[useNotifications] hook invoked', {
+      reactVersion: React.version,
+      sameReactAsBootstrap: window.__DLEVA_REACT__ === React,
+      hasToken: Boolean(token),
+      authLoading,
+    });
+  }
+
+  const [notifications, setNotifications] = React.useState([]);
+  const [unreadCount, setUnreadCount] = React.useState(0);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState(null);
 
   /**
    * Fetch unread notifications
    */
-  const fetchUnreadNotifications = useCallback(async () => {
+  const fetchUnreadNotifications = React.useCallback(async () => {
     // ✅ Guard: Don't fetch if auth is loading or user is not authenticated
     if (authLoading || !token) {
       setLoading(false);
@@ -28,9 +45,9 @@ export const useNotifications = () => {
     try {
       setLoading(true);
       const response = await api.get(API_ENDPOINTS.NOTIFICATIONS.UNREAD);
-      const unreadNotifications = response.data.notifications || [];
+      const unreadNotifications = (response.data.notifications || []).map(normalizeNotification);
       setNotifications(unreadNotifications);
-      setUnreadCount(unreadNotifications.length);
+      setUnreadCount(response.data.unread_count ?? unreadNotifications.length);
       setError(null);
     } catch (err) {
       console.error('Failed to fetch unread notifications:', err);
@@ -43,20 +60,28 @@ export const useNotifications = () => {
   /**
    * Fetch notification history
    */
-  const fetchNotificationHistory = useCallback(async () => {
+  const fetchNotificationHistory = React.useCallback(async ({ limit = 20, offset = 0 } = {}) => {
     try {
-      const response = await api.get(API_ENDPOINTS.NOTIFICATIONS.HISTORY);
-      return response.data.notifications || [];
+      const response = await api.get(API_ENDPOINTS.NOTIFICATIONS.HISTORY, {
+        params: { limit, offset },
+      });
+      return {
+        count: response.data.count ?? 0,
+        notifications: (response.data.notifications || []).map(normalizeNotification),
+      };
     } catch (err) {
       console.error('Failed to fetch notification history:', err);
-      return [];
+      return {
+        count: 0,
+        notifications: [],
+      };
     }
   }, []);
 
   /**
    * Mark notification as read
    */
-  const markAsRead = useCallback(async (notificationId) => {
+  const markAsRead = React.useCallback(async (notificationId) => {
     try {
       await api.post(API_ENDPOINTS.NOTIFICATIONS.MARK_READ(notificationId));
       
@@ -65,6 +90,7 @@ export const useNotifications = () => {
         prev.filter(n => n.id !== notificationId)
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
+      window.dispatchEvent(new CustomEvent(NOTIFICATION_SYNC_EVENT));
       
       return true;
     } catch (err) {
@@ -76,7 +102,7 @@ export const useNotifications = () => {
   /**
    * Mark all notifications as read (via dedicated API endpoint)
    */
-  const markAllAsRead = useCallback(async () => {
+  const markAllAsRead = React.useCallback(async () => {
     if (notifications.length === 0) return true; // Nothing to mark
     
     try {
@@ -86,6 +112,7 @@ export const useNotifications = () => {
       // Clear all notifications from local state
       setNotifications([]);
       setUnreadCount(0);
+      window.dispatchEvent(new CustomEvent(NOTIFICATION_SYNC_EVENT));
       
       return true;
     } catch (err) {
@@ -107,18 +134,43 @@ export const useNotifications = () => {
   /**
    * Add new notification to local state
    */
-  const addNotification = useCallback((notification) => {
-    setNotifications(prev => [notification, ...prev]);
+  const addNotification = React.useCallback((notification) => {
+    setNotifications(prev => [normalizeNotification(notification), ...prev]);
     setUnreadCount(prev => prev + 1);
+    window.dispatchEvent(new CustomEvent(NOTIFICATION_SYNC_EVENT));
   }, []);
 
   // Fetch unread notifications on mount, only if auth is ready
-  useEffect(() => {
+  React.useEffect(() => {
     // ✅ Only fetch when auth is loaded and user has a token
     if (!authLoading && token) {
       fetchUnreadNotifications();
     }
   }, [token, authLoading, fetchUnreadNotifications]);
+
+  React.useEffect(() => {
+    if (!token) return undefined;
+
+    const handleSync = () => {
+      fetchUnreadNotifications();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchUnreadNotifications();
+      }
+    };
+
+    window.addEventListener(NOTIFICATION_SYNC_EVENT, handleSync);
+    window.addEventListener('focus', handleSync);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener(NOTIFICATION_SYNC_EVENT, handleSync);
+      window.removeEventListener('focus', handleSync);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [token, fetchUnreadNotifications]);
 
   return {
     notifications,

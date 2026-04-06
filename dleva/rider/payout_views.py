@@ -8,9 +8,66 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from decimal import Decimal
+from datetime import timedelta, datetime
 from rider.models import RiderProfile, PayoutRequest
 from .payout_service import PayoutService, PayoutError
+
+
+def _subtract_months(value, months):
+    year = value.year
+    month = value.month - months
+
+    while month <= 0:
+        month += 12
+        year -= 1
+
+    day = min(value.day, 28)
+    return value.replace(year=year, month=month, day=day)
+
+
+def _resolve_period(request):
+    period = request.query_params.get('period', 'day')
+    today = timezone.localdate()
+
+    if period == 'day':
+        start_date = today
+        end_date = today
+    elif period == 'week':
+        start_date = today - timedelta(days=6)
+        end_date = today
+    elif period == 'month':
+        start_date = _subtract_months(today, 1) + timedelta(days=1)
+        end_date = today
+    elif period == '3_months':
+        start_date = _subtract_months(today, 3) + timedelta(days=1)
+        end_date = today
+    elif period == '6_months':
+        start_date = _subtract_months(today, 6) + timedelta(days=1)
+        end_date = today
+    elif period == '12_months':
+        start_date = _subtract_months(today, 12) + timedelta(days=1)
+        end_date = today
+    elif period == '24_hours':
+        now = timezone.now()
+        return now - timedelta(hours=24), now, True
+    elif period == 'custom':
+        start_raw = request.query_params.get('start_date')
+        end_raw = request.query_params.get('end_date')
+
+        if not start_raw or not end_raw:
+            raise ValueError('Custom period requires start_date and end_date')
+
+        start_date = datetime.strptime(start_raw, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_raw, '%Y-%m-%d').date()
+    else:
+        raise ValueError('Invalid period')
+
+    if start_date > end_date:
+        raise ValueError('start_date cannot be after end_date')
+
+    return start_date, end_date, False
 
 
 @api_view(['POST'])
@@ -98,6 +155,29 @@ def payout_history(request):
         status_filter = request.query_params.get('status')
         if status_filter:
             payouts = payouts.filter(status=status_filter)
+
+        period = request.query_params.get('period')
+        if period:
+            start_value, end_value, is_datetime_range = _resolve_period(request)
+            if is_datetime_range:
+                payouts = payouts.filter(
+                    requested_at__gte=start_value,
+                    requested_at__lte=end_value,
+                )
+            else:
+                payouts = payouts.filter(
+                    requested_at__date__gte=start_value,
+                    requested_at__date__lte=end_value,
+                )
+
+        page = int(request.query_params.get('page', 1))
+        limit = int(request.query_params.get('limit', 50))
+        if page < 1 or limit < 1:
+            raise ValueError('page and limit must be positive integers')
+        offset = (page - 1) * limit
+
+        total_count = payouts.count()
+        payouts = payouts[offset:offset + limit]
         
         data = []
         for payout in payouts:
@@ -115,10 +195,20 @@ def payout_history(request):
         
         return Response({
             'status': 'success',
-            'count': len(data),
+            'count': total_count,
+            'pagination': {
+                'page': page,
+                'limit': limit,
+                'count': len(data),
+                'total': total_count,
+            },
             'payouts': data
         }, status=status.HTTP_200_OK)
-        
+    except ValueError as exc:
+        return Response(
+            {'error': str(exc)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
     except Exception as e:
         return Response(
             {'error': str(e)},

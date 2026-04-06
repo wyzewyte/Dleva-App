@@ -9,8 +9,61 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime
 from rider.models import RiderProfile, RiderWallet, RiderTransaction
+from rider.payout_service import PayoutService
+
+
+def _subtract_months(value, months):
+    year = value.year
+    month = value.month - months
+
+    while month <= 0:
+        month += 12
+        year -= 1
+
+    day = min(value.day, 28)
+    return value.replace(year=year, month=month, day=day)
+
+
+def _resolve_stats_period(request):
+    period = request.query_params.get('period', 'day')
+    today = timezone.localdate()
+
+    if period == 'day':
+      start_date = today
+      end_date = today
+    elif period == 'week':
+      start_date = today - timedelta(days=6)
+      end_date = today
+    elif period == 'month':
+      start_date = _subtract_months(today, 1) + timedelta(days=1)
+      end_date = today
+    elif period == '3_months':
+      start_date = _subtract_months(today, 3) + timedelta(days=1)
+      end_date = today
+    elif period == '6_months':
+      start_date = _subtract_months(today, 6) + timedelta(days=1)
+      end_date = today
+    elif period == '12_months':
+      start_date = _subtract_months(today, 12) + timedelta(days=1)
+      end_date = today
+    elif period == 'custom':
+      start_raw = request.query_params.get('start_date')
+      end_raw = request.query_params.get('end_date')
+
+      if not start_raw or not end_raw:
+          raise ValueError('Custom period requires start_date and end_date')
+
+      start_date = datetime.strptime(start_raw, '%Y-%m-%d').date()
+      end_date = datetime.strptime(end_raw, '%Y-%m-%d').date()
+    else:
+      raise ValueError('Invalid period')
+
+    if start_date > end_date:
+        raise ValueError('start_date cannot be after end_date')
+
+    return period, start_date, end_date
 
 
 @api_view(['GET'])
@@ -36,7 +89,9 @@ def wallet_info(request):
     """
     try:
         rider = get_object_or_404(RiderProfile, user__id=request.user.id)
+        PayoutService.release_matured_pending_for_rider(rider, hours=24)
         wallet = get_object_or_404(RiderWallet, rider=rider)
+        withdrawal_context = PayoutService.get_withdrawal_context(rider, wallet)
         
         return Response({
             'status': 'success',
@@ -50,10 +105,28 @@ def wallet_info(request):
                 'frozen_reason': wallet.frozen_reason,
                 'frozen_at': wallet.frozen_at.isoformat() if wallet.frozen_at else None,
                 'last_withdrawal_date': wallet.last_withdrawal_date.isoformat() if wallet.last_withdrawal_date else None,
-                'minimum_payout': '2000.00',
-                'can_withdraw': not wallet.is_frozen and wallet.available_balance >= 2000,
-                'withdrawal_cooldown_hours': 24,
+                'minimum_payout': withdrawal_context['minimum_payout'],
+                'can_withdraw': withdrawal_context['can_withdraw'],
+                'withdrawal_cooldown_hours': withdrawal_context['withdrawal_cooldown_hours'],
                 'pending_hold_hours': 24,
+                'withdrawal_window': withdrawal_context['window'],
+                'withdrawal_blockers': withdrawal_context['blockers'],
+                'open_disputes': withdrawal_context['open_disputes'],
+                'has_bank_details': withdrawal_context['has_bank_details'],
+                'active_payout': (
+                    {
+                        'id': withdrawal_context['active_payout'].id,
+                        'amount': str(withdrawal_context['active_payout'].amount),
+                        'status': withdrawal_context['active_payout'].status,
+                        'bank_name': withdrawal_context['active_payout'].bank_name,
+                        'account_name': withdrawal_context['active_payout'].account_name,
+                        'requested_at': withdrawal_context['active_payout'].requested_at.isoformat(),
+                        'approved_at': withdrawal_context['active_payout'].approved_at.isoformat() if withdrawal_context['active_payout'].approved_at else None,
+                        'completed_at': withdrawal_context['active_payout'].completed_at.isoformat() if withdrawal_context['active_payout'].completed_at else None,
+                    }
+                    if withdrawal_context['active_payout']
+                    else None
+                ),
             }
         }, status=status.HTTP_200_OK)
         
@@ -181,6 +254,49 @@ def earnings_weekly(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def delivery_stats(request):
+    """
+    Get backend-calculated delivery stats for a selected period.
+
+    URL: GET /api/rider/wallet/delivery-stats/?period=day|week|month|3_months|6_months|12_months|custom
+    Query params for custom: start_date=YYYY-MM-DD&end_date=YYYY-MM-DD
+    """
+    try:
+        rider = get_object_or_404(RiderProfile, user__id=request.user.id)
+        period, start_date, end_date = _resolve_stats_period(request)
+
+        transactions = RiderTransaction.objects.filter(
+            rider=rider,
+            transaction_type='delivery_earning',
+            status='completed',
+            created_at__date__gte=start_date,
+            created_at__date__lte=end_date,
+        )
+
+        total_earned = sum(t.amount for t in transactions)
+        total_deliveries = transactions.count()
+
+        return Response({
+            'status': 'success',
+            'stats': {
+                'period': period,
+                'start_date': start_date.isoformat(),
+                'end_date': end_date.isoformat(),
+                'deliveries': total_deliveries,
+                'total_earned': str(total_earned),
+            }
+        }, status=status.HTTP_200_OK)
+    except ValueError as exc:
+        return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def transaction_history(request):
     """
     Get complete transaction history.
@@ -215,6 +331,18 @@ def transaction_history(request):
         type_filter = request.query_params.get('type')
         if type_filter:
             transactions = transactions.filter(transaction_type=type_filter)
+
+        period = request.query_params.get('period')
+        if period:
+            if period == '24_hours':
+                start_datetime = timezone.now() - timedelta(hours=24)
+                transactions = transactions.filter(created_at__gte=start_datetime)
+            else:
+                _, start_date, end_date = _resolve_stats_period(request)
+                transactions = transactions.filter(
+                    created_at__date__gte=start_date,
+                    created_at__date__lte=end_date,
+                )
         
         # Pagination
         limit = int(request.query_params.get('limit', 50))
@@ -246,7 +374,12 @@ def transaction_history(request):
             'transactions': data
         }, status=status.HTTP_200_OK)
         
-    except (ValueError, TypeError):
+    except ValueError as exc:
+        return Response(
+            {'error': str(exc)},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    except TypeError:
         return Response(
             {'error': 'Invalid limit or offset'},
             status=status.HTTP_400_BAD_REQUEST
@@ -278,6 +411,7 @@ def earnings_summary(request):
     """
     try:
         rider = get_object_or_404(RiderProfile, user__id=request.user.id)
+        PayoutService.release_matured_pending_for_rider(rider, hours=24)
         wallet = get_object_or_404(RiderWallet, rider=rider)
         
         # All-time stats

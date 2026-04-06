@@ -32,6 +32,8 @@ class BuyerProfile(models.Model):
     longitude = models.DecimalField(max_digits=10, decimal_places=8, null=True, blank=True, help_text='Buyer GPS longitude for delivery')
     
     image = models.ImageField(upload_to='buyer_profile_images/', blank=True, null=True)
+    fcm_token = models.CharField(max_length=500, blank=True, null=True, db_index=True, help_text="Firebase Cloud Messaging token for push notifications")
+    fcm_token_updated_at = models.DateTimeField(null=True, blank=True, help_text="Last time FCM token was updated")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

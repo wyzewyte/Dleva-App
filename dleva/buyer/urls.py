@@ -11,6 +11,7 @@ urlpatterns = [
     path('profile/', views.ProfileView.as_view(), name='profile'),
     path('profile/update/', views.ProfileView.as_view(), name='profile-update'),
     path('change-password/', views.change_password, name='change-password'),
+    path('push-token/', views.update_buyer_fcm_token, name='buyer-update-push-token'),
     
     # ==================== RESTAURANTS ====================
     path('restaurants/', views.list_restaurants, name='restaurant-list'),

@@ -6,13 +6,19 @@
 import { useEffect } from 'react';
 import { useRiderAuth } from '../context/RiderAuthContext';
 import riderWebSocket from '../services/riderWebSocket';
-import riderFCM from '../services/riderFCM';
+import riderPushNotifications from '../services/riderPushNotifications';
 
 export const useRealtimeInitializer = () => {
   const { rider, token, loading } = useRiderAuth();
   const riderId = rider?.id;
 
   useEffect(() => {
+    console.debug('[useRealtimeInitializer] effect check', {
+      loading,
+      hasToken: Boolean(token),
+      riderId,
+    });
+
     // ✅ Guard: Don't initialize during auth loading or without token
     if (loading || !token || !riderId) {
       return;
@@ -20,9 +26,13 @@ export const useRealtimeInitializer = () => {
 
     const initializeRealtime = async () => {
       try {
+        console.debug('[useRealtimeInitializer] starting realtime init', {
+          riderId,
+        });
+
         // Register FCM token
-        if (riderFCM && typeof riderFCM.registerToken === 'function') {
-          await riderFCM.registerToken();
+        if (riderPushNotifications && typeof riderPushNotifications.initialize === 'function') {
+          await riderPushNotifications.initialize();
         }
 
         // Initialize WebSocket for rider notifications (not order status)

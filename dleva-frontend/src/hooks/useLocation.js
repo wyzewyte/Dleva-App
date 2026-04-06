@@ -3,13 +3,22 @@
  * Use this hook in any component to access location functionality
  */
 
-import { useContext } from 'react';
-import LocationContext from '../context/LocationContext';
+import * as React from 'react';
+import LocationContext from '../context/LocationContextObject';
 
 export const useLocation = () => {
-  const context = useContext(LocationContext);
+  if (typeof window !== 'undefined') {
+    console.debug('[useLocation] about to read context', {
+      reactVersion: React.version,
+      sameReactAsBootstrap: window.__DLEVA_REACT__ === React,
+      hasProviderValueShape: Boolean(LocationContext),
+    });
+  }
+
+  const context = React.useContext(LocationContext);
 
   if (!context) {
+    console.warn('[useLocation] context missing after useContext call');
     throw new Error('useLocation must be used within LocationProvider');
   }
 

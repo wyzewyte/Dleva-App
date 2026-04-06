@@ -8,11 +8,10 @@
  * - UI modes for modal vs page navigation
  */
 
-import React, { createContext, useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import LocationContext from './LocationContextObject';
 import locationManager from '../services/locationManager';
 import { logError } from '../utils/errorHandler';
-
-export const LocationContext = createContext();
 
 export const LocationProvider = ({ children }) => {
   // Location state
@@ -84,7 +83,7 @@ export const LocationProvider = ({ children }) => {
         
         setGpsLoading(false);
         return locationToSave;
-      } catch (reverseGeoError) {
+      } catch {
         const error = new Error('Unable to determine address from GPS. Please search and select an address.');
         error.code = 'REVERSE_GEOCODE_FAILED';
         error.hasCoordinates = true;

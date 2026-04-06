@@ -26,8 +26,22 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config('SECRET_KEY')
 
+def _parse_debug_value(raw_value):
+    if isinstance(raw_value, bool):
+        return raw_value
+
+    normalized = str(raw_value).strip().lower()
+
+    if normalized in {'1', 'true', 'yes', 'on', 'debug', 'development', 'dev'}:
+        return True
+
+    if normalized in {'0', 'false', 'no', 'off', 'release', 'production', 'prod'}:
+        return False
+
+    return True
+
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', cast=bool, default=True)
+DEBUG = _parse_debug_value(config('DEBUG', default='true'))
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
 

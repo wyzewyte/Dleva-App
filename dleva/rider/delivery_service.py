@@ -354,7 +354,9 @@ class DeliveryService:
             amount=earning_amount,
             transaction_type='delivery_earning',
             status='completed',
-            description=f'Delivery completed for Order #{order.id}'
+            description=f'Delivery completed for Order #{order.id}',
+            # Marks this earning as still on dispute hold until the release job clears it.
+            admin_note='pending_release',
         )
         
         # ===== Update rider stats =====

@@ -8,6 +8,7 @@ export { useDeliveryUpdates } from './useDeliveryUpdates';
 export { useLocationBroadcast } from './useLocationBroadcast';
 export { useNotifications } from './useNotifications';
 export { useVerificationStatus } from './useVerificationStatus';
+export { default as useRiderVerificationStatus } from './useRiderVerificationStatus';
 export { useRealtimeInitializer } from './useRealtimeInitializer';
 export { useOfflineDeliveryActions } from './useOfflineDeliveryActions';
 export { useServiceWorker } from './useServiceWorker';

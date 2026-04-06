@@ -29,6 +29,34 @@ class DisputeService:
     """
     
     DISPUTE_WINDOW_DAYS = 7
+
+    @staticmethod
+    def _sync_wallet_freeze_state(order):
+        if not order.rider:
+            return
+
+        try:
+            rider = RiderProfile.objects.get(user=order.rider)
+            wallet = RiderWallet.objects.get(rider=rider)
+        except Exception:
+            return
+
+        open_dispute_count = Dispute.objects.filter(
+            order__rider=order.rider,
+            status__in=['open', 'under_review'],
+        ).count()
+
+        if open_dispute_count > 0:
+            wallet.is_frozen = True
+            wallet.frozen_reason = f'{open_dispute_count} open dispute(s) under review'
+            if not wallet.frozen_at:
+                wallet.frozen_at = timezone.now()
+        else:
+            wallet.is_frozen = False
+            wallet.frozen_reason = ''
+            wallet.frozen_at = None
+
+        wallet.save(update_fields=['is_frozen', 'frozen_reason', 'frozen_at', 'updated_at'])
     
     @staticmethod
     @transaction.atomic
@@ -103,19 +131,8 @@ class DisputeService:
             admin_decision='pending',
         )
         
-        # Freeze rider wallet if not already frozen
         if user_type != 'rider' and order.rider:
-            try:
-                rider = RiderProfile.objects.get(user=order.rider)
-                wallet = RiderWallet.objects.get(rider=rider)
-                
-                if not wallet.is_frozen:
-                    wallet.is_frozen = True
-                    wallet.frozen_reason = f"Dispute #{dispute.id} opened"
-                    wallet.frozen_at = timezone.now()
-                    wallet.save()
-            except:
-                pass  # If rider doesn't exist, just continue
+            DisputeService._sync_wallet_freeze_state(order)
         
         return {
             'status': 'success',
@@ -203,11 +220,21 @@ class DisputeService:
                     description=f'Dispute penalty - Dispute #{dispute.id}',
                     admin_note=reason
                 )
+
+                earning_transaction = RiderTransaction.objects.select_for_update().filter(
+                    rider=rider,
+                    order=order,
+                    transaction_type='delivery_earning',
+                ).order_by('-created_at').first()
+                if earning_transaction and not str(earning_transaction.admin_note or '').startswith('released_to_available:'):
+                    earning_transaction.amount = max(Decimal('0.00'), earning_transaction.amount - penalty_applied)
+                    if not earning_transaction.admin_note:
+                        earning_transaction.admin_note = 'pending_release'
+                    earning_transaction.save(update_fields=['amount', 'admin_note', 'updated_at'])
             except:
                 pass  # If rider details not found, just continue
         
-        # TODO: Process refund to buyer (payment gateway integration)
-        # For now, just record it
+        DisputeService._sync_wallet_freeze_state(order)
         
         return {
             'status': 'success',
@@ -243,17 +270,7 @@ class DisputeService:
         dispute.admin_note = f"Dismissed: {reason}"
         dispute.save()
         
-        # Unfreeze wallet
-        if dispute.order.rider:
-            try:
-                rider = RiderProfile.objects.get(user=dispute.order.rider)
-                wallet = RiderWallet.objects.get(rider=rider)
-                wallet.is_frozen = False
-                wallet.frozen_reason = ''
-                wallet.frozen_at = None
-                wallet.save()
-            except:
-                pass
+        DisputeService._sync_wallet_freeze_state(dispute.order)
         
         return {
             'status': 'success',
@@ -284,17 +301,7 @@ class DisputeService:
         dispute.admin_note = f"Rejected: {reason}"
         dispute.save()
         
-        # Unfreeze wallet
-        if dispute.order.rider:
-            try:
-                rider = RiderProfile.objects.get(user=dispute.order.rider)
-                wallet = RiderWallet.objects.get(rider=rider)
-                wallet.is_frozen = False
-                wallet.frozen_reason = ''
-                wallet.frozen_at = None
-                wallet.save()
-            except:
-                pass
+        DisputeService._sync_wallet_freeze_state(dispute.order)
         
         return {
             'status': 'success',

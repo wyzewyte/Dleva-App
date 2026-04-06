@@ -133,7 +133,7 @@ try:
     import rider.assignment_service as assignment_module
     
     # Read the file to check if it imports notification service
-    with open(assignment_module.__file__, 'r') as f:
+    with open(assignment_module.__file__, 'r', encoding='utf-8', errors='ignore') as f:
         content = f.read()
         
         has_import = 'from rider.notification_service import PushNotificationService' in content

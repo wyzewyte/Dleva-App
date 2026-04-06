@@ -1,9 +1,8 @@
 import { ArrowRight, Banknote, CheckCircle2, FileText, Smartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useVerificationStatus } from '../hooks/useVerificationStatus';
+import useRiderVerificationStatus from '../hooks/useRiderVerificationStatus';
 import {
   RiderCard,
-  RiderFeedbackState,
   RiderPageHeader,
   RiderPageShell,
   RiderPrimaryButton,
@@ -36,7 +35,7 @@ const STEPS = [
 
 const VerificationSetup = () => {
   const navigate = useNavigate();
-  const { status, loading } = useVerificationStatus();
+  const { status, loading } = useRiderVerificationStatus();
 
   if (loading) {
     return (
@@ -45,6 +44,7 @@ const VerificationSetup = () => {
           title="Verification Setup"
           subtitle="Riders should always know what is blocking work, what is done already, and which step to complete next."
           sticky
+          className="top-0"
         />
 
         <div className="space-y-6 py-6">
@@ -91,6 +91,11 @@ const VerificationSetup = () => {
   };
 
   const completedCoreCount = [stepState.phone, stepState.documents, stepState.bank].filter(Boolean).length;
+  const allCoreStepsCompleted =
+    Boolean(status?.can_go_online) ||
+    Boolean(status?.verification_status === 'approved') ||
+    Boolean(status?.account_status === 'approved') ||
+    completedCoreCount === STEPS.length;
 
   return (
     <RiderPageShell maxWidth="max-w-4xl" withBottomNavSpacing={false}>
@@ -98,6 +103,7 @@ const VerificationSetup = () => {
         title="Verification Setup"
         subtitle="Riders should always know what is blocking work, what is done already, and which step to complete next."
         sticky
+        className="top-0"
       />
 
       <div className="space-y-6 py-6">
@@ -115,6 +121,17 @@ const VerificationSetup = () => {
           <div className="mt-5 h-2 rounded-full bg-gray-100">
             <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${(completedCoreCount / 3) * 100}%` }} />
           </div>
+          {allCoreStepsCompleted ? (
+            <div className="mt-5 flex justify-start">
+              <RiderPrimaryButton
+                onClick={() => navigate('/rider/dashboard')}
+                className="w-full bg-[#FF6B00] hover:bg-[#e56000] sm:w-auto sm:px-6"
+                icon={<ArrowRight size={16} />}
+              >
+                Go to Dashboard
+              </RiderPrimaryButton>
+            </div>
+          ) : null}
         </RiderCard>
 
         <div className="space-y-4">

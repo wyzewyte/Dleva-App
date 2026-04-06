@@ -9,6 +9,7 @@ from django.utils import timezone
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from decimal import Decimal
+from core.push_notifications import PushNotificationClient
 
 
 logger = logging.getLogger(__name__)
@@ -290,72 +291,26 @@ class PushNotificationService:
         For backgrounded/offline riders who aren't connected via WebSocket
         """
         try:
-            # Firebase FCM integration for push notifications
-            # Requires:
-            # 1. firebase-admin SDK: pip install firebase-admin
-            # 2. Service account key JSON file in project root
-            # 3. FCM token stored in RiderProfile (added in Phase 7)
-            
-            try:
-                import firebase_admin
-                from firebase_admin import messaging, credentials
-            except ImportError:
-                logger.warning(f"firebase-admin not installed. Install with: pip install firebase-admin")
-                return
-            
-            # Check if Firebase is initialized
-            if not firebase_admin._apps:
-                try:
-                    # Initialize Firebase with service account key
-                    cred = credentials.Certificate('serviceAccountKey.json')
-                    firebase_admin.initialize_app(cred)
-                except FileNotFoundError:
-                    logger.warning("serviceAccountKey.json not found. FCM will not work.")
-                    return
-                except Exception as e:
-                    logger.error(f"Failed to initialize Firebase: {str(e)}")
-                    return
-            
-            # Build message with data payload
             message_data = {
                 'notification_type': notification.notification_type,
                 'order_id': str(notification.related_order_id) if notification.related_order_id else '',
                 'title': notification.title,
             }
-            
-            # Add any additional data
+
             if notification.data:
                 message_data.update(notification.data)
-            
-            # Create FCM message
-            message = messaging.Message(
-                notification=messaging.Notification(
-                    title=notification.title,
-                    body=notification.message,
-                ),
-                data=message_data,
+
+            sent = PushNotificationClient.send(
                 token=rider.fcm_token,
-                android=messaging.AndroidConfig(
-                    priority='high',
-                    notification=messaging.AndroidNotification(
-                        sound='default' if sound else None,
-                    ),
-                ) if sound else None,
-                apns=messaging.APNSConfig(
-                    payload=messaging.APNSPayload(
-                        aps=messaging.Aps(
-                            sound='default' if sound else None,
-                            badge='1',
-                            content_available=True,
-                        )
-                    )
-                ) if sound else None,
+                title=notification.title,
+                body=notification.message,
+                data=message_data,
+                sound=sound,
             )
-            
-            # Send the message
-            response = messaging.send(message)
-            logger.info(f"FCM notification sent to {rider.full_name}. Response: {response}")
-        
+
+            if sent:
+                logger.info("FCM notification sent to rider %s", rider.full_name)
+
         except Exception as e:
             logger.error(f"FCM notification failed for rider {rider.id}: {str(e)}")
     

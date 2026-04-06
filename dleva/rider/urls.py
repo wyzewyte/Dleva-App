@@ -60,6 +60,7 @@ urlpatterns = [
     path('wallet/info/', wallet_views.wallet_info, name='wallet-info'),
     path('wallet/earnings/today/', wallet_views.earnings_today, name='earnings-today'),
     path('wallet/earnings/weekly/', wallet_views.earnings_weekly, name='earnings-weekly'),
+    path('wallet/delivery-stats/', wallet_views.delivery_stats, name='delivery-stats'),
     path('wallet/transactions/', wallet_views.transaction_history, name='transaction-history'),
     path('wallet/summary/', wallet_views.earnings_summary, name='earnings-summary'),
     

@@ -671,6 +671,7 @@ def mark_order_ready_for_delivery(request, order_id):
 # ==================== PHASE 7: NOTIFICATIONS ====================
 
 from seller.notification_service import SellerPushNotificationService
+from core.push_tokens import register_push_token, unregister_push_token
 from seller.models import SellerNotification
 
 @api_view(['GET'])
@@ -794,18 +795,24 @@ def update_seller_fcm_token(request):
             status=status.HTTP_404_NOT_FOUND
         )
     
+    action = request.data.get('action', 'register')
     fcm_token = request.data.get('fcm_token')
-    
+
+    if action == 'unregister':
+        unregister_push_token(seller, token=fcm_token)
+        return Response({
+            'message': 'FCM token removed successfully',
+            'token_registered': False,
+            'updated_at': seller.fcm_token_updated_at.isoformat()
+        }, status=status.HTTP_200_OK)
+
     if not fcm_token:
         return Response(
             {'error': 'FCM token is required'}, 
             status=status.HTTP_400_BAD_REQUEST
         )
-    
-    # Update token
-    seller.fcm_token = fcm_token
-    seller.fcm_token_updated_at = timezone.now()
-    seller.save(update_fields=['fcm_token', 'fcm_token_updated_at'])
+
+    register_push_token(seller, fcm_token)
     
     return Response({
         'message': 'FCM token updated successfully',

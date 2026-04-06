@@ -1,19 +1,24 @@
 import { Outlet, useNavigate, Navigate } from 'react-router-dom';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useRiderAuth } from '../context/RiderAuthContext';
-import { useVerificationStatus } from '../hooks/useVerificationStatus';
 import { useRealtimeInitializer } from '../hooks';
 import { RiderDeliveryProvider } from '../context/RiderDeliveryContext';
 import RiderAppChrome from '../components/RiderAppChrome';
 import OfflineStatus from '../components/OfflineStatus';
+import NotificationPermissionPrompt from '../components/NotificationPermissionPrompt';
+import riderPushNotifications from '../services/riderPushNotifications';
 import { RiderPageShell } from '../components/ui/RiderPrimitives';
+import useRiderVerificationStatus from '../hooks/useRiderVerificationStatus';
 
 const RiderLayout = () => {
   const navigate = useNavigate();
   const { token, loading: authLoading, updateProfile } = useRiderAuth();
-  const { status: verificationStatus, loading: statusLoading } = useVerificationStatus();
+  const { status: verificationStatus, loading: statusLoading } = useRiderVerificationStatus();
   const updateProfileRef = useRef(updateProfile);
+  const [notificationPermission, setNotificationPermission] = useState(() =>
+    riderPushNotifications?.getPermissionStatus?.() || 'unsupported'
+  );
 
   // ✅ CALL ALL HOOKS FIRST - UNCONDITIONALLY (before any early returns)
   useRealtimeInitializer();
@@ -37,16 +42,13 @@ const RiderLayout = () => {
       currentPath === '/rider/available-orders' ||
       currentPath === '/rider/active-orders' ||
       currentPath === '/rider/deliveries' ||
+      currentPath === '/rider/notifications' ||
+      currentPath === '/rider/wallet' ||
       currentPath === '/rider/earnings' ||
       currentPath === '/rider/order-history' ||
       currentPath.startsWith('/rider/orders/');
-    const isOnVerification = currentPath === '/rider/verification-setup';
 
     // ✅ If verified but on verification page, go to dashboard
-    if (verificationStatus.can_go_online && isOnVerification) {
-      navigate('/rider/dashboard', { replace: true });
-    }
-
     // ✅ If not verified and on dashboard, go to verification page
     if (!verificationStatus.can_go_online && isWorkRoute) {
       navigate('/rider/verification-setup', { replace: true });
@@ -63,6 +65,21 @@ const RiderLayout = () => {
       is_online: verificationStatus.is_online,
     });
   }, [verificationStatus]);
+
+  useEffect(() => {
+    const syncPermissionState = () => {
+      setNotificationPermission(riderPushNotifications?.getPermissionStatus?.() || 'unsupported');
+    };
+
+    syncPermissionState();
+    document.addEventListener('visibilitychange', syncPermissionState);
+    window.addEventListener('focus', syncPermissionState);
+
+    return () => {
+      document.removeEventListener('visibilitychange', syncPermissionState);
+      window.removeEventListener('focus', syncPermissionState);
+    };
+  }, []);
 
   // ✅ NOW render conditionally (early returns happen AFTER hooks)
 
@@ -95,6 +112,12 @@ const RiderLayout = () => {
       <div className="min-h-screen bg-white">
         <RiderAppChrome />
         <main className="pt-[72px]">
+          <div className="mx-auto w-full max-w-5xl px-4 pt-4 sm:px-6 md:px-8">
+            <NotificationPermissionPrompt
+              permissionStatus={notificationPermission}
+              onPermissionChange={setNotificationPermission}
+            />
+          </div>
           <Outlet />
         </main>
         

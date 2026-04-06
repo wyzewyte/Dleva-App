@@ -343,7 +343,11 @@ export const BuyerAuthPanel = ({
   const navigate = useNavigate();
 
   return (
-    <BuyerPageShell maxWidth="max-w-md" contentClassName="flex min-h-screen flex-col justify-center py-10">
+    <BuyerPageShell
+      maxWidth="max-w-md"
+      withBottomNavSpacing={false}
+      contentClassName="flex min-h-screen flex-col justify-center py-10"
+    >
       <div className={cn('space-y-6', className)}>
         {showBack ? (
           <button

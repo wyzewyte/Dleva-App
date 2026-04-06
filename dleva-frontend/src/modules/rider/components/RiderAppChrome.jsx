@@ -15,11 +15,12 @@ import { API_ENDPOINTS } from '../../../constants/apiConfig';
 import { useRiderAuth } from '../context/RiderAuthContext';
 import { cn } from '../../../utils/cn';
 import logo from '../../../assets/images/logo.svg';
+import RiderNotificationButton from './RiderNotificationButton';
 
 const PRIMARY_ITEMS = [
   { label: 'Dashboard', path: '/rider/dashboard', icon: LayoutDashboard },
   { label: 'Deliveries', path: '/rider/deliveries', icon: ClipboardList },
-  { label: 'Earnings', path: '/rider/earnings', icon: CircleDollarSign },
+  { label: 'Wallet', path: '/rider/wallet', icon: CircleDollarSign },
   { label: 'Support', path: '/rider/help', icon: LifeBuoy },
   { label: 'Settings', path: '/rider/settings', icon: Settings },
 ];
@@ -101,6 +102,8 @@ const RiderAppChrome = () => {
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <RiderNotificationButton />
+
             <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-2.5 py-2">
               <span
                 className={cn(

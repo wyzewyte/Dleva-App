@@ -69,6 +69,7 @@ import Promotion from './modules/rider/pages/Promotion';
 import Help from './modules/rider/pages/Help';
 import FAQ from './modules/rider/pages/FAQ';
 import Contact from './modules/rider/pages/Contact';
+import RiderNotifications from './modules/rider/pages/Notifications';
 
 // Component
 import CartDrawer from './modules/buyer/components/CartDrawer';
@@ -84,15 +85,15 @@ function App() {
   return (
     <LocationProvider>
       <TrackingProvider>
-        <LocationSetupWrapper>
-          <Router>
-              {/* Cart Drawer (Visible globally, controlled by state) */}
-              <CartDrawer />
-              
-              {/* Toast Notifications (Visible globally) */}
-              <Toast />
-          
-          <Routes>
+        <Router>
+          <LocationSetupWrapper>
+            {/* Cart Drawer (Visible globally, controlled by state) */}
+            <CartDrawer />
+
+            {/* Toast Notifications (Visible globally) */}
+            <Toast />
+
+            <Routes>
           
           {/* ============================== */}
           {/* 🟢 PUBLIC STANDALONE ROUTES    */}
@@ -208,9 +209,10 @@ function App() {
               <Route path="active-delivery/:orderId" element={<Navigate to="/rider/deliveries?tab=ongoing" replace />} />
               
               {/* Wallet & Earnings */}
-              <Route path="wallet" element={<Navigate to="/rider/earnings" replace />} />
-              <Route path="earnings" element={<RiderEarnings />} />
-              <Route path="withdrawal" element={<Navigate to="/rider/earnings" replace />} />
+              <Route path="wallet" element={<RiderEarnings />} />
+              <Route path="earnings" element={<Navigate to="/rider/wallet" replace />} />
+              <Route path="withdrawal" element={<Navigate to="/rider/wallet" replace />} />
+              <Route path="notifications" element={<RiderNotifications />} />
               
               {/* Profile & Account */}
               <Route path="profile" element={<Navigate to="/rider/settings" replace />} />
@@ -233,9 +235,9 @@ function App() {
             <Route path="*" element={<Navigate to="/rider/login" replace />} />
           </Route>
 
-        </Routes>
-      </Router>
-        </LocationSetupWrapper>
+            </Routes>
+          </LocationSetupWrapper>
+        </Router>
       </TrackingProvider>
     </LocationProvider>
   );

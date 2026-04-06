@@ -7,7 +7,8 @@ from decimal import Decimal
 from datetime import timedelta
 from django.utils import timezone
 from django.db import transaction
-from rider.models import RiderProfile, RiderWallet, RiderTransaction, PayoutRequest
+from zoneinfo import ZoneInfo
+from rider.models import RiderProfile, RiderWallet, RiderTransaction, PayoutRequest, Dispute
 
 
 class PayoutError(Exception):
@@ -29,6 +30,221 @@ class PayoutService:
     
     MINIMUM_PAYOUT = Decimal('2000.00')
     WITHDRAWAL_COOLDOWN_HOURS = 24
+    WITHDRAWAL_WEEKDAY = 0  # Monday
+    WITHDRAWAL_START_HOUR = 7
+    WITHDRAWAL_END_HOUR = 11
+    WITHDRAWAL_TIMEZONE = ZoneInfo('Africa/Lagos')
+
+    @classmethod
+    def _get_bank_details(cls, rider):
+        try:
+            return rider.bank_details
+        except Exception:
+            return None
+
+    @classmethod
+    def _lagos_now(cls):
+        return timezone.now().astimezone(cls.WITHDRAWAL_TIMEZONE)
+
+    @classmethod
+    def _next_withdrawal_window_start(cls, now=None):
+        now = now or cls._lagos_now()
+        next_start = now.replace(
+            hour=cls.WITHDRAWAL_START_HOUR,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+
+        if now.weekday() < cls.WITHDRAWAL_WEEKDAY:
+            next_start = next_start + timedelta(days=cls.WITHDRAWAL_WEEKDAY - now.weekday())
+        elif now.weekday() > cls.WITHDRAWAL_WEEKDAY:
+            next_start = next_start + timedelta(days=(7 - now.weekday()) + cls.WITHDRAWAL_WEEKDAY)
+        elif now.hour >= cls.WITHDRAWAL_END_HOUR:
+            next_start = next_start + timedelta(days=7)
+
+        return next_start
+
+    @classmethod
+    def get_withdrawal_window_info(cls):
+        now = cls._lagos_now()
+        current_window_start = now.replace(
+            hour=cls.WITHDRAWAL_START_HOUR,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+        current_window_end = now.replace(
+            hour=cls.WITHDRAWAL_END_HOUR,
+            minute=0,
+            second=0,
+            microsecond=0,
+        )
+
+        is_open = (
+            now.weekday() == cls.WITHDRAWAL_WEEKDAY and
+            cls.WITHDRAWAL_START_HOUR <= now.hour < cls.WITHDRAWAL_END_HOUR
+        )
+
+        return {
+            'is_open': is_open,
+            'timezone': 'Africa/Lagos',
+            'weekday': 'Monday',
+            'start_time': '07:00',
+            'end_time': '11:00',
+            'current_time': now.isoformat(),
+            'current_window_start': current_window_start.isoformat(),
+            'current_window_end': current_window_end.isoformat(),
+            'next_window_start': cls._next_withdrawal_window_start(now).isoformat(),
+            'label': 'Monday 7:00 AM - 11:00 AM',
+        }
+
+    @classmethod
+    @transaction.atomic
+    def release_matured_pending_for_rider(cls, rider, hours=24) -> dict:
+        """
+        Lazily release matured pending earnings for a single rider.
+
+        This is a safety net for environments where the scheduled command
+        has not been wired yet. It only releases earnings that:
+        - belong to this rider
+        - are older than the hold window
+        - are not already marked as released
+        - are not tied to an order with an open/under_review dispute
+        """
+        cutoff_time = timezone.now() - timedelta(hours=hours)
+
+        pending_earnings = list(
+            RiderTransaction.objects.select_for_update()
+            .filter(
+                rider=rider,
+                transaction_type='delivery_earning',
+                created_at__lte=cutoff_time,
+            )
+            .exclude(admin_note__startswith='released_to_available:')
+            .order_by('created_at', 'id')
+        )
+
+        if not pending_earnings:
+            return {
+                'released': False,
+                'earnings_released': 0,
+                'amount_released': Decimal('0.00'),
+            }
+
+        disputed_order_ids = set(
+            Dispute.objects.filter(
+                order_id__in=[txn.order_id for txn in pending_earnings if txn.order_id],
+                status__in=['open', 'under_review'],
+            ).values_list('order_id', flat=True)
+        )
+
+        wallet = RiderWallet.objects.select_for_update().get(rider=rider)
+        released_earnings = 0
+        amount_released = Decimal('0.00')
+        released_at = timezone.now().isoformat()
+
+        for earning in pending_earnings:
+            if earning.order_id in disputed_order_ids:
+                continue
+
+            releasable_amount = min(wallet.pending_balance, earning.amount)
+            if releasable_amount <= 0:
+                continue
+
+            wallet.pending_balance -= releasable_amount
+            wallet.available_balance += releasable_amount
+
+            earning.admin_note = f'released_to_available:{released_at}'
+            earning.save(update_fields=['admin_note', 'updated_at'])
+
+            released_earnings += 1
+            amount_released += releasable_amount
+
+        if released_earnings > 0:
+            wallet.save(update_fields=['pending_balance', 'available_balance', 'updated_at'])
+
+        return {
+            'released': released_earnings > 0,
+            'earnings_released': released_earnings,
+            'amount_released': amount_released,
+        }
+
+    @classmethod
+    def get_withdrawal_context(cls, rider, wallet, amount=None):
+        cls.release_matured_pending_for_rider(rider, hours=24)
+        wallet.refresh_from_db()
+        window = cls.get_withdrawal_window_info()
+        blockers = []
+
+        if not window['is_open']:
+            blockers.append('Withdrawals are only available on Mondays from 7:00 AM to 11:00 AM Africa/Lagos time.')
+
+        if wallet.is_frozen:
+            blockers.append(
+                f"Wallet is frozen: {wallet.frozen_reason or 'No reason provided'}"
+            )
+
+        bank_details = cls._get_bank_details(rider)
+        if not bank_details:
+            blockers.append('Bank details not registered')
+
+        if wallet.available_balance < cls.MINIMUM_PAYOUT:
+            blockers.append(
+                f"Minimum payout is ₦{cls.MINIMUM_PAYOUT}. Current available balance is ₦{wallet.available_balance}"
+            )
+
+        if wallet.last_withdrawal_date:
+            time_since_last = timezone.now() - wallet.last_withdrawal_date
+            if time_since_last < timedelta(hours=cls.WITHDRAWAL_COOLDOWN_HOURS):
+                hours_remaining = (
+                    cls.WITHDRAWAL_COOLDOWN_HOURS -
+                    (time_since_last.total_seconds() / 3600)
+                )
+                blockers.append(
+                    f"Withdrawal cooldown active. Try again in {hours_remaining:.1f} hours"
+                )
+
+        from buyer.models import Order
+        open_disputes = Order.objects.filter(
+            rider=rider,
+            disputes__status__in=['open', 'under_review']
+        ).count()
+        if open_disputes > 0:
+            blockers.append(
+                f"Cannot withdraw while {open_disputes} dispute(s) are open"
+            )
+
+        active_payout = PayoutRequest.objects.filter(
+            rider=rider,
+            status__in=['pending', 'approved']
+        ).order_by('-requested_at').first()
+        if active_payout:
+            blockers.append(
+                f"You already have a {active_payout.status} withdrawal request in progress"
+            )
+
+        if amount is not None:
+            if amount < cls.MINIMUM_PAYOUT:
+                blockers.append(f"Minimum payout is ₦{cls.MINIMUM_PAYOUT}")
+            if wallet.available_balance < amount:
+                blockers.append(
+                    f"Insufficient available balance. Available: ₦{wallet.available_balance}, Requested: ₦{amount}"
+                )
+
+        # Keep order stable and avoid duplicate messages.
+        unique_blockers = list(dict.fromkeys(blockers))
+
+        return {
+            'can_withdraw': len(unique_blockers) == 0,
+            'blockers': unique_blockers,
+            'window': window,
+            'minimum_payout': str(cls.MINIMUM_PAYOUT),
+            'withdrawal_cooldown_hours': cls.WITHDRAWAL_COOLDOWN_HOURS,
+            'has_bank_details': bool(bank_details),
+            'open_disputes': open_disputes,
+            'active_payout': active_payout,
+        }
     
     @staticmethod
     def request_payout(rider_id: int, amount: Decimal) -> dict:
@@ -54,56 +270,18 @@ class PayoutService:
             wallet = RiderWallet.objects.get(rider=rider)
         except RiderWallet.DoesNotExist:
             raise PayoutError("Wallet not found")
+
+        PayoutService.release_matured_pending_for_rider(rider, hours=24)
+        wallet.refresh_from_db()
         
-        # Validation checks
-        if wallet.is_frozen:
-            raise PayoutError(
-                f"Wallet is frozen: {wallet.frozen_reason or 'No reason provided'}"
-            )
-        
-        if amount < PayoutService.MINIMUM_PAYOUT:
-            raise PayoutError(
-                f"Minimum payout is ₦{PayoutService.MINIMUM_PAYOUT}"
-            )
-        
-        if wallet.available_balance < amount:
-            raise PayoutError(
-                f"Insufficient available balance. "
-                f"Available: ₦{wallet.available_balance}, "
-                f"Requested: ₦{amount}"
-            )
-        
-        # Check bank details registered
-        if not hasattr(rider, 'bank_details') or not rider.bank_details:
-            raise PayoutError("Bank details not registered")
-        
-        # Check cooldown - one withdrawal per 24 hours
-        if wallet.last_withdrawal_date:
-            time_since_last = timezone.now() - wallet.last_withdrawal_date
-            if time_since_last < timedelta(hours=PayoutService.WITHDRAWAL_COOLDOWN_HOURS):
-                hours_remaining = (
-                    PayoutService.WITHDRAWAL_COOLDOWN_HOURS - 
-                    (time_since_last.total_seconds() / 3600)
-                )
-                raise PayoutError(
-                    f"Withdrawal cooldown active. "
-                    f"Try again in {hours_remaining:.1f} hours"
-                )
-        
-        # Check for open disputes
-        from buyer.models import Order
-        open_disputes = Order.objects.filter(
-            rider=rider.user,
-            disputes__status__in=['open', 'under_review']
-        ).count()
-        
-        if open_disputes > 0:
-            raise PayoutError(
-                f"Cannot withdraw while {open_disputes} dispute(s) are open"
-            )
+        context = PayoutService.get_withdrawal_context(rider, wallet, amount=amount)
+        if not context['can_withdraw']:
+            raise PayoutError(context['blockers'][0])
         
         # Create payout request
-        bank = rider.bank_details
+        bank = PayoutService._get_bank_details(rider)
+        if not bank:
+            raise PayoutError("Bank details not registered")
         payout_request = PayoutRequest.objects.create(
             rider=rider,
             amount=amount,
@@ -118,9 +296,11 @@ class PayoutService:
             'message': 'Payout request created - awaiting admin approval',
             'payout_id': payout_request.id,
             'amount': str(payout_request.amount),
+            'status': payout_request.status,
             'bank_name': payout_request.bank_name,
             'account_number': f"****{payout_request.account_number[-4:]}",  # Masked
             'requested_at': payout_request.requested_at.isoformat(),
+            'withdrawal_window': context['window'],
         }
     
     @staticmethod
@@ -373,27 +553,70 @@ class PayoutService:
         Scheduled task: Move earnings from pending to available after 24 hours.
         Run this hourly or daily via celery/management command.
         
-        Returns: Number of wallets updated
+        Rules:
+        - Only release delivery earnings older than the hold window
+        - Skip orders that still have open/under_review disputes
+        - Never release the same earning twice
+        
+        Returns: Summary of released earnings
         """
-        from django.db.models import Q
         cutoff_time = timezone.now() - timedelta(hours=hours)
-        
-        # Find wallets with pending balance that's older than 24 hours
-        wallets = RiderWallet.objects.filter(
-            pending_balance__gt=0,
-            updated_at__lt=cutoff_time
-        ).select_for_update()
-        
-        count = 0
-        for wallet in wallets:
-            # Move from pending to available
-            wallet.available_balance += wallet.pending_balance
-            wallet.pending_balance = 0
-            wallet.save()
-            count += 1
-        
+
+        pending_earnings = list(
+            RiderTransaction.objects.select_for_update()
+            .filter(
+                transaction_type='delivery_earning',
+                created_at__lte=cutoff_time,
+            )
+            .exclude(admin_note__startswith='released_to_available:')
+            .order_by('created_at', 'id')
+        )
+
+        if not pending_earnings:
+            return {
+                'status': 'success',
+                'message': 'No eligible pending earnings found',
+                'wallets_updated': 0,
+                'earnings_released': 0,
+                'amount_released': '0.00',
+            }
+
+        disputed_order_ids = set(
+            Dispute.objects.filter(
+                order_id__in=[txn.order_id for txn in pending_earnings if txn.order_id],
+                status__in=['open', 'under_review'],
+            ).values_list('order_id', flat=True)
+        )
+
+        updated_wallet_ids = set()
+        released_earnings = 0
+        amount_released = Decimal('0.00')
+
+        for earning in pending_earnings:
+            if earning.order_id in disputed_order_ids:
+                continue
+
+            wallet = RiderWallet.objects.select_for_update().get(rider=earning.rider)
+            releasable_amount = min(wallet.pending_balance, earning.amount)
+
+            if releasable_amount <= 0:
+                continue
+
+            wallet.pending_balance -= releasable_amount
+            wallet.available_balance += releasable_amount
+            wallet.save(update_fields=['pending_balance', 'available_balance', 'updated_at'])
+
+            earning.admin_note = f'released_to_available:{timezone.now().isoformat()}'
+            earning.save(update_fields=['admin_note', 'updated_at'])
+
+            updated_wallet_ids.add(wallet.id)
+            released_earnings += 1
+            amount_released += releasable_amount
+
         return {
             'status': 'success',
-            'message': f'Moved {count} wallets from pending to available',
-            'wallets_updated': count,
+            'message': f'Released {released_earnings} pending earning(s) across {len(updated_wallet_ids)} wallet(s)',
+            'wallets_updated': len(updated_wallet_ids),
+            'earnings_released': released_earnings,
+            'amount_released': str(amount_released),
         }

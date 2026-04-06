@@ -3,13 +3,22 @@
  * Custom hook for managing seller notifications
  */
 
-import { useContext } from 'react';
+import * as React from 'react';
 import { SellerNotificationsContext } from '../context/SellerNotificationsContext';
 
 export function useSellerNotifications() {
-  const context = useContext(SellerNotificationsContext);
+  if (typeof window !== 'undefined') {
+    console.debug('[useSellerNotifications] about to read context', {
+      reactVersion: React.version,
+      sameReactAsBootstrap: window.__DLEVA_REACT__ === React,
+      hasProviderValueShape: Boolean(SellerNotificationsContext),
+    });
+  }
+
+  const context = React.useContext(SellerNotificationsContext);
 
   if (!context) {
+    console.warn('[useSellerNotifications] context missing after useContext call');
     throw new Error(
       'useSellerNotifications must be used within SellerNotificationsProvider'
     );

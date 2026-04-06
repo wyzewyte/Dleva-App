@@ -14,12 +14,12 @@ const statusConfig = {
     icon: Clock,
     label: 'Pending',
   },
-  processing: {
+  approved: {
     bg: 'bg-blue-50',
     text: 'text-blue-700',
     border: 'border-blue-200',
     icon: Clock,
-    label: 'Processing',
+    label: 'Approved',
   },
   completed: {
     bg: 'bg-green-50',
@@ -28,19 +28,12 @@ const statusConfig = {
     icon: CheckCircle2,
     label: 'Completed',
   },
-  failed: {
+  rejected: {
     bg: 'bg-red-50',
     text: 'text-red-700',
     border: 'border-red-200',
     icon: AlertCircle,
-    label: 'Failed',
-  },
-  cancelled: {
-    bg: 'bg-gray-50',
-    text: 'text-gray-700',
-    border: 'border-gray-200',
-    icon: AlertCircle,
-    label: 'Cancelled',
+    label: 'Rejected',
   },
 };
 

@@ -11,6 +11,7 @@ from rider.models import RiderNotification, RiderProfile
 from core.models import Location, LocationHistory
 from rider.notification_service import PushNotificationService
 from django.utils import timezone
+from core.push_tokens import register_push_token, unregister_push_token
 
 
 # ============================================================================
@@ -218,17 +219,24 @@ def register_fcm_token(request):
     try:
         from rider.models import RiderProfile
         
+        rider = RiderProfile.objects.get(user=request.user)
+        action = request.data.get('action', 'register')
         fcm_token = request.data.get('fcm_token')
+
+        if action == 'unregister':
+            unregister_push_token(rider, token=fcm_token)
+            return Response({
+                'status': 'success',
+                'message': 'FCM token unregistered'
+            })
+
         if not fcm_token:
             return Response(
                 {'error': 'FCM token is required'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        rider = RiderProfile.objects.get(user=request.user)
-        # TODO: Add fcm_token field to RiderProfile.model
-        # rider.fcm_token = fcm_token
-        # rider.save()
+
+        register_push_token(rider, fcm_token)
         
         return Response({
             'status': 'success',

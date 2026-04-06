@@ -20,6 +20,7 @@ from .serializers import (
 )
 from seller.models import Restaurant, MenuItem, MenuItemCategory
 from seller.serializers import MenuItemCategorySerializer
+from core.push_tokens import register_push_token, unregister_push_token
 
 # ✅ PAYSTACK INTEGRATION
 from utils.paystack_service import PaystackService, convert_to_kobo
@@ -1555,3 +1556,40 @@ def join_platform_waitlist(request):
         return Response({'message': 'Successfully joined waitlist', 'id': entry.id}, status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_buyer_fcm_token(request):
+    """Register or unregister buyer FCM token for push notifications."""
+    try:
+        buyer = BuyerProfile.objects.get(user=request.user)
+    except BuyerProfile.DoesNotExist:
+        return Response(
+            {'error': 'Buyer profile not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    action = request.data.get('action', 'register')
+    fcm_token = request.data.get('fcm_token')
+
+    if action == 'unregister':
+        unregister_push_token(buyer, token=fcm_token)
+        return Response({
+            'message': 'FCM token removed successfully',
+            'token_registered': False,
+            'updated_at': buyer.fcm_token_updated_at.isoformat()
+        }, status=status.HTTP_200_OK)
+
+    if not fcm_token:
+        return Response(
+            {'error': 'FCM token is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    register_push_token(buyer, fcm_token)
+
+    return Response({
+        'message': 'FCM token updated successfully',
+        'token_registered': True,
+        'updated_at': buyer.fcm_token_updated_at.isoformat()
+    }, status=status.HTTP_200_OK)
+

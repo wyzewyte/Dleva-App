@@ -3,7 +3,7 @@
  * Integrates orderWebSocket with OrderContext for real-time state sync
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import * as React from 'react';
 import { useOrder } from '../context/OrderContext';
 import orderWebSocket from '../services/orderWebSocket';
 
@@ -19,12 +19,19 @@ export const useOrderWebSocket = (options = {}) => {
   } = options;
 
   const order = useOrder();
-  const unsubscribersRef = useRef([]);
+  if (typeof window !== 'undefined') {
+    console.debug('[useOrderWebSocket] hook invoked', {
+      reactVersion: React.version,
+      sameReactAsBootstrap: window.__DLEVA_REACT__ === React,
+      autoConnect,
+    });
+  }
+  const unsubscribersRef = React.useRef([]);
 
   /**
    * Handle new order notification
    */
-  const handleNewOrder = useCallback(async (data) => {
+  const handleNewOrder = React.useCallback(async (data) => {
     console.log('🎉 New order notification received:', data);
     
     // Refresh available orders
@@ -45,7 +52,7 @@ export const useOrderWebSocket = (options = {}) => {
   /**
    * Handle order status update
    */
-  const handleStatusUpdate = useCallback((data) => {
+  const handleStatusUpdate = React.useCallback((data) => {
     console.log('📍 Status update notification received:', data);
     
     const { order_id, status } = data;
@@ -96,7 +103,7 @@ export const useOrderWebSocket = (options = {}) => {
   /**
    * Handle customer message
    */
-  const handleMessage = useCallback((data) => {
+  const handleMessage = React.useCallback((data) => {
     console.log('💬 Customer message received:', data);
     
     // Call custom handler if provided
@@ -108,7 +115,7 @@ export const useOrderWebSocket = (options = {}) => {
   /**
    * Handle WebSocket error
    */
-  const handleError = useCallback((error) => {
+  const handleError = React.useCallback((error) => {
     console.error('⚠️ WebSocket error:', error);
     
     // Call custom error handler if provided
@@ -120,7 +127,7 @@ export const useOrderWebSocket = (options = {}) => {
   /**
    * Setup and cleanup WebSocket listeners
    */
-  useEffect(() => {
+  React.useEffect(() => {
     if (!autoConnect) {
       return;
     }
@@ -189,14 +196,14 @@ export const useOrderWebSocket = (options = {}) => {
  * Hook to listen for new orders only
  */
 export const useNewOrderListener = (callback, enabled = true) => {
-  const unsubscribeRef = useRef(null);
-  const callbackRef = useRef(callback);
+  const unsubscribeRef = React.useRef(null);
+  const callbackRef = React.useRef(callback);
 
-  useEffect(() => {
+  React.useEffect(() => {
     callbackRef.current = callback;
   }, [callback]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!enabled) return;
 
     // Connect if not already connected
@@ -219,14 +226,14 @@ export const useNewOrderListener = (callback, enabled = true) => {
  * Hook to listen for status updates only
  */
 export const useStatusUpdateListener = (callback, enabled = true) => {
-  const unsubscribeRef = useRef(null);
-  const callbackRef = useRef(callback);
+  const unsubscribeRef = React.useRef(null);
+  const callbackRef = React.useRef(callback);
 
-  useEffect(() => {
+  React.useEffect(() => {
     callbackRef.current = callback;
   }, [callback]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!enabled) return;
 
     // Connect if not already connected
@@ -249,14 +256,14 @@ export const useStatusUpdateListener = (callback, enabled = true) => {
  * Hook to listen for customer messages only
  */
 export const useOrderMessageListener = (callback, enabled = true) => {
-  const unsubscribeRef = useRef(null);
-  const callbackRef = useRef(callback);
+  const unsubscribeRef = React.useRef(null);
+  const callbackRef = React.useRef(callback);
 
-  useEffect(() => {
+  React.useEffect(() => {
     callbackRef.current = callback;
   }, [callback]);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (!enabled) return;
 
     // Connect if not already connected

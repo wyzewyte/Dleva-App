@@ -7,9 +7,7 @@ import api from '../../../services/axios';
 import { API_ENDPOINTS } from '../../../constants/apiConfig';
 import {
   PAYOUT_CONFIG,
-  PAYOUT_ERRORS,
   RATING_SCALE,
-  WALLET_VALIDATION,
 } from '../constants/walletConstants';
 
 const extractErrorMessage = (error, defaultMsg = 'Request failed') => {
@@ -33,7 +31,7 @@ const riderWallet = {
    */
   async getWalletInfo() {
     try {
-      const response = await api.get(API_ENDPOINTS.RIDER.WALLET);
+      const response = await api.get(API_ENDPOINTS.RIDER.WALLET_INFO);
       return response.data;
     } catch (error) {
       throw {
@@ -74,6 +72,30 @@ const riderWallet = {
   },
 
   /**
+   * Get delivery stats for a selected period.
+   */
+  async getDeliveryStats({ period = 'day', startDate, endDate } = {}) {
+    try {
+      const params = { period };
+
+      if (period === 'custom') {
+        params.start_date = startDate;
+        params.end_date = endDate;
+      }
+
+      const response = await api.get(API_ENDPOINTS.RIDER.WALLET_DELIVERY_STATS, {
+        params,
+      });
+      return response.data;
+    } catch (error) {
+      throw {
+        error: extractErrorMessage(error, 'Failed to fetch delivery stats'),
+        status: error.response?.status,
+      };
+    }
+  },
+
+  /**
    * Get all-time earnings summary
    */
   async getEarningsSummary() {
@@ -93,12 +115,32 @@ const riderWallet = {
   /**
    * Get transaction history with pagination
    */
-  async getTransactionHistory(page = 1, limit = PAYOUT_CONFIG.PAGINATION_LIMIT) {
+  async getTransactionHistory(pageOrOptions = 1, limit = PAYOUT_CONFIG.PAGINATION_LIMIT) {
     try {
-      const offset = (page - 1) * limit;
+      const options = typeof pageOrOptions === 'object'
+        ? pageOrOptions
+        : { page: pageOrOptions, limit };
+      const page = options.page || 1;
+      const pageLimit = options.limit || PAYOUT_CONFIG.PAGINATION_LIMIT;
+      const offset = (page - 1) * pageLimit;
+      const params = { offset, limit: pageLimit };
+
+      if (options.period) {
+        params.period = options.period;
+      }
+
+      if (options.period === 'custom') {
+        params.start_date = options.startDate;
+        params.end_date = options.endDate;
+      }
+
+      if (options.type) {
+        params.type = options.type;
+      }
+
       const response = await api.get(
         API_ENDPOINTS.RIDER.WALLET_TRANSACTIONS,
-        { params: { offset, limit } }
+        { params }
       );
       return response.data;
     } catch (error) {
@@ -113,7 +155,7 @@ const riderWallet = {
    * Request a payout/withdrawal
    * Minimum: ₦2000
    */
-  async requestPayout(amount, bankAccountId) {
+  async requestPayout(amount) {
     try {
       if (!amount || amount < PAYOUT_CONFIG.MINIMUM_AMOUNT) {
         throw {
@@ -121,19 +163,15 @@ const riderWallet = {
           status: 400,
         };
       }
-      if (!bankAccountId) {
-        throw { error: 'Bank account selection required', status: 400 };
-      }
 
-      const response = await api.post(API_ENDPOINTS.RIDER.WALLET_WITHDRAW, {
+      const response = await api.post(API_ENDPOINTS.RIDER.PAYOUT_REQUEST, {
         amount: parseFloat(amount),
-        bank_account_id: bankAccountId,
       });
       return response.data;
     } catch (error) {
       throw {
         error: extractErrorMessage(error, 'Failed to request payout'),
-        status: error.response?.status,
+        status: error.response?.status || error.status,
       };
     }
   },
@@ -141,10 +179,31 @@ const riderWallet = {
   /**
    * Get payout history
    */
-  async getPayoutHistory(page = 1, limit = PAYOUT_CONFIG.PAGINATION_LIMIT) {
+  async getPayoutHistory(pageOrOptions = 1, limit = PAYOUT_CONFIG.PAGINATION_LIMIT) {
     try {
+      const options = typeof pageOrOptions === 'object'
+        ? pageOrOptions
+        : { page: pageOrOptions, limit };
+      const params = {
+        page: options.page || 1,
+        limit: options.limit || PAYOUT_CONFIG.PAGINATION_LIMIT,
+      };
+
+      if (options.period) {
+        params.period = options.period;
+      }
+
+      if (options.period === 'custom') {
+        params.start_date = options.startDate;
+        params.end_date = options.endDate;
+      }
+
+      if (options.status) {
+        params.status = options.status;
+      }
+
       const response = await api.get(API_ENDPOINTS.RIDER.PAYOUT_HISTORY, {
-        params: { page, limit },
+        params,
       });
       return response.data;
     } catch (error) {
@@ -272,7 +331,7 @@ const riderWallet = {
   /**
    * Get my disputes
    */
-  async getMyDisputes(page = 1, limit = PAYOUT_CONFIG.PAGINATION_LIMIT) {
+  async getMyDisputes() {
     try {
       const response = await api.get(API_ENDPOINTS.RIDER.MY_DISPUTES);
       return response.data;

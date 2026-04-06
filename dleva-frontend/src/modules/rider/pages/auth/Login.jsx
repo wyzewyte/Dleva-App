@@ -43,7 +43,7 @@ const Login = () => {
   return (
     <RiderAuthPanel
       title="Rider Login"
-      subtitle="Sign in to continue your delivery work with the same calm, focused flow as the rest of the rider app."
+      subtitle="Sign in to continue your delivery."
       showBack
       onBack={() => navigate('/home')}
       icon={<img src={logo} alt="Dleva" className="h-20 w-auto sm:h-24" />}

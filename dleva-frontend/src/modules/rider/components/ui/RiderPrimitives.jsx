@@ -40,7 +40,8 @@ export const RiderPageHeader = ({
     <div
       className={cn(
         'flex items-start justify-between gap-3 border-b border-gray-100 py-5',
-        sticky && 'sticky top-[72px] z-20 bg-white md:top-0',
+        sticky &&
+          'sticky top-[72px] z-30 -mx-4 bg-white/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-white/90 sm:-mx-6 sm:px-6 md:-mx-8 md:px-8',
         className
       )}
     >
@@ -371,7 +372,11 @@ export const RiderAuthPanel = ({
   const navigate = useNavigate();
 
   return (
-    <RiderPageShell maxWidth="max-w-md" contentClassName="flex min-h-screen flex-col justify-center py-10">
+    <RiderPageShell
+      maxWidth="max-w-md"
+      withBottomNavSpacing={false}
+      contentClassName="flex min-h-screen flex-col justify-center py-10"
+    >
       <div className={cn('space-y-6', className)}>
         {showBack ? (
           <button
