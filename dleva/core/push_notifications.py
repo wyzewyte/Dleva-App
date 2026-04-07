@@ -1,4 +1,6 @@
+import json
 import logging
+import tempfile
 from pathlib import Path
 
 from decouple import config
@@ -12,11 +14,58 @@ class PushNotificationClient:
     """Shared Firebase Cloud Messaging helper for all app roles."""
 
     @staticmethod
-    def _service_account_path():
-        configured_path = config('FIREBASE_SERVICE_ACCOUNT_PATH', default='')
-        if configured_path:
-            return Path(configured_path)
-        return Path(settings.BASE_DIR) / 'serviceAccountKey.json'
+    def _get_service_account_credentials():
+        """
+        Get Firebase service account credentials from environment.
+        Supports two methods:
+        1. FIREBASE_SERVICE_ACCOUNT_PATH: Path to service account JSON file
+        2. FIREBASE_SERVICE_ACCOUNT_JSON: JSON content as string (preferred for cloud)
+        """
+        # Method 1: Check for JSON content in environment variable (cloud-friendly)
+        json_content = config('FIREBASE_SERVICE_ACCOUNT_JSON', default='')
+        if json_content:
+            try:
+                credentials_dict = json.loads(json_content)
+                return credentials_dict, 'from_env_variable'
+            except json.JSONDecodeError:
+                logger.error('FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON')
+                return None, None
+
+        # Method 2: Check for file path
+        service_account_path = config('FIREBASE_SERVICE_ACCOUNT_PATH', default='')
+        if service_account_path:
+            path = Path(service_account_path)
+            if path.exists():
+                try:
+                    with open(path, 'r') as f:
+                        credentials_dict = json.load(f)
+                    return credentials_dict, 'from_file_path'
+                except (json.JSONDecodeError, IOError) as exc:
+                    logger.error('Failed to read Firebase credentials from %s: %s', path, exc)
+                    return None, None
+            else:
+                logger.error('Firebase service account file not found at: %s', path)
+                return None, None
+
+        # Fallback: Local development (only if file exists)
+        local_path = Path(settings.BASE_DIR) / 'serviceAccountKey.json'
+        if local_path.exists():
+            try:
+                with open(local_path, 'r') as f:
+                    credentials_dict = json.load(f)
+                return credentials_dict, 'from_local_fallback'
+            except (json.JSONDecodeError, IOError) as exc:
+                logger.error('Failed to read Firebase credentials from local path: %s', exc)
+                return None, None
+
+        # No credentials found
+        logger.error(
+            'Firebase credentials not configured. Set either:\n'
+            '  - FIREBASE_SERVICE_ACCOUNT_JSON: Full JSON content as string (recommended)\n'
+            '  - FIREBASE_SERVICE_ACCOUNT_PATH: Path to service account JSON file\n'
+            '  - Local: serviceAccountKey.json in project root (development only)'
+        )
+        return None, None
 
     @classmethod
     def _initialize_firebase(cls):
@@ -30,13 +79,14 @@ class PushNotificationClient:
         if firebase_admin._apps:
             return firebase_admin
 
-        service_account_path = cls._service_account_path()
-        if not service_account_path.exists():
-            logger.warning('Firebase service account key not found at %s', service_account_path)
+        credentials_dict, source = cls._get_service_account_credentials()
+        if not credentials_dict:
             return None
 
         try:
-            firebase_admin.initialize_app(credentials.Certificate(str(service_account_path)))
+            cred = credentials.Certificate(credentials_dict)
+            firebase_admin.initialize_app(cred)
+            logger.info('Firebase initialized successfully (source: %s)', source)
             return firebase_admin
         except Exception as exc:
             logger.error('Failed to initialize Firebase Admin SDK: %s', exc)
