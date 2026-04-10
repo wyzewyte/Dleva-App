@@ -1,11 +1,13 @@
+/* global clients */
 /**
- * Service Worker
+ * Service Worker - v2
  * Handles offline caching, background sync, and PWA functionality
+ * IMPORTANT: Increment version number when making changes
  */
 
-const CACHE_NAME = 'dleva-rider-v1';
-const ASSETS_CACHE = 'dleva-rider-assets-v1';
-const API_CACHE = 'dleva-rider-api-v1';
+const CACHE_NAME = 'dleva-rider-v2';
+const ASSETS_CACHE = 'dleva-rider-assets-v2';
+const API_CACHE = 'dleva-rider-api-v2';
 
 // Assets to cache on install
 const ASSETS_TO_CACHE = [
@@ -90,6 +92,258 @@ self.addEventListener('fetch', (event) => {
 });
 
 /**
+ * Firebase Cloud Messaging - Handle push notifications
+ * This event fires when a push message is received and the app is in the background
+ */
+self.addEventListener('push', (event) => {
+  console.log('[SW] 🔔 PUSH EVENT RECEIVED:', event);
+
+  if (!event.data) {
+    console.warn('[SW] ⚠️ Push event received but no data payload');
+    return;
+  }
+
+  // App logo from assets
+  const appLogo = '/src/assets/images/favicon.svg';
+  
+  let options = {
+    icon: appLogo,                    // ✅ D-Leva app logo
+    badge: appLogo,
+    requireInteraction: true,         // ✅ Keep visible until user acts
+    vibrate: [200, 100, 200],        // ✅ Vibration pattern
+    silent: false,                    // ✅ Allow sound
+  };
+
+  try {
+    // Parse Firebase Cloud Messaging payload
+    const data = event.data.json();
+    console.log('[SW] 📤 Push data:', data);
+
+    const notification = data.notification || {};
+    const customData = data.data || {};
+
+    // Use role + order + notification type so buyer delivery updates do not overwrite one another.
+    const userRole = customData.user_role || 'rider';
+    const notificationType = customData.notification_type || 'general';
+    const orderId = customData.order_id || 'global';
+    options.tag = `dleva-notification-${userRole}-${orderId}-${notificationType}`;
+
+    options.title = notification.title || 'D-Leva Notification';
+    options.body = notification.body || 'You have a new notification';
+    
+    console.log('[SW] 📢 Notification title:', options.title);
+    console.log('[SW] 📢 Notification body:', options.body);
+    
+    // Add custom data for click handling
+    options.data = {
+      ...customData,
+      notificationType,
+      orderId: customData.order_id,
+      url: customData.url || '/',
+      // ✅ Add user context for routing
+      userRole: customData.user_role || 'rider',
+    };
+
+    // ✅ Enable system sound - this is the key for audio!
+    options.sound = '/notification-sound.mp3';  // ✅ Add default notification sound
+    
+    // Badge for iOS/Android
+    if (data.notification?.badge) {
+      options.badge = data.notification.badge;
+    }
+
+    // ✅ Add actions for better interaction
+    options.actions = [
+      {
+        action: 'open',
+        title: 'Open',
+      },
+      {
+        action: 'close',
+        title: 'Dismiss',
+      },
+    ];
+
+    console.log('[SW] 🎯 Showing notification with options:', options);
+
+    // Show the notification
+    event.waitUntil(
+      self.registration.showNotification(options.title, options)
+        .then(() => console.log('[SW] ✅ Notification displayed successfully'))
+        .catch(err => console.error('[SW] ❌ Failed to show notification:', err))
+    );
+  } catch (error) {
+    console.error('[SW] ❌ Error parsing push event:', error);
+    // Fallback notification with proper settings
+    event.waitUntil(
+      self.registration.showNotification('D-Leva Notification', {
+        body: 'You have a new notification',
+        icon: appLogo,
+        badge: appLogo,
+        tag: 'dleva-notification',
+        requireInteraction: true,
+        sound: '/notification-sound.mp3',
+        vibrate: [200, 100, 200],
+        silent: false,
+        data: { 
+          notificationType: 'general', 
+          url: '/',
+          userRole: 'rider',
+        },
+      })
+        .then(() => console.log('[SW] ✅ Fallback notification displayed'))
+        .catch(err => console.error('[SW] ❌ Failed to show fallback:', err))
+    );
+  }
+});
+
+/**
+ * Handle notification clicks - Route based on user role
+ */
+self.addEventListener('notificationclick', (event) => {
+  console.log('[SW] 👆 NOTIFICATION CLICKED:', event.notification.tag);
+  console.log('[SW] 📋 Notification data:', event.notification.data);
+  console.log('[SW] 🎯 Action:', event.action);
+
+  const notification = event.notification;
+  const data = notification.data || {};
+  const action = event.action;
+  const userRole = data.userRole || 'rider';
+  const notificationType = data.notificationType || 'general';
+  const orderId = data.orderId;
+
+  // Close the notification
+  notification.close();
+
+  // Handle dismiss action
+  if (action === 'close') {
+    console.log('[SW] ❌ Notification dismissed by user');
+    return;
+  }
+
+  // Determine the URL based on user role and notification type
+  let targetUrl = '/';
+
+  switch (userRole) {
+    case 'rider':
+      targetUrl = getRiderUrl(notificationType, orderId);
+      break;
+    case 'seller':
+      targetUrl = getSellerUrl(notificationType, orderId);
+      break;
+    case 'buyer':
+      targetUrl = getBuyerUrl(notificationType, orderId);
+      break;
+    default:
+      targetUrl = data.url || '/';
+  }
+
+  console.log('[SW] ✅ Target URL:', targetUrl);
+
+  // Focus or open the client window
+  event.waitUntil(
+    clients.matchAll({ type: 'window' }).then((clientList) => {
+      console.log('[SW] 🪟 Found windows:', clientList.length);
+      // Check if there's already a window we can focus
+      for (const client of clientList) {
+        if (client.url === targetUrl && 'focus' in client) {
+          console.log('[SW] ✅ Focusing existing client');
+          return client.focus();
+        }
+      }
+      // If no matching window, open a new one
+      if (clients.openWindow) {
+        console.log('[SW] 🆕 Opening new window');
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+
+/**
+ * Get rider-specific notification URL
+ */
+function getRiderUrl(notificationType, orderId) {
+  switch (notificationType) {
+    case 'assignment':
+      return orderId ? `/rider/orders/${orderId}` : '/rider/dashboard';
+    case 'payout':
+      return '/rider/earnings';
+    case 'warning':
+      return '/rider/account';
+    case 'suspension':
+      return '/rider/account';
+    case 'dispute':
+      return '/rider/support';
+    case 'status_update':
+      return orderId ? `/rider/orders/${orderId}` : '/rider/dashboard';
+    default:
+      return '/rider/dashboard';
+  }
+}
+
+/**
+ * Get seller-specific notification URL
+ */
+function getSellerUrl(notificationType, orderId) {
+  switch (notificationType) {
+    case 'order_received':
+      return orderId ? `/seller/orders/${orderId}` : '/seller/dashboard';
+    case 'assignment':
+      return orderId ? `/seller/orders/${orderId}` : '/seller/orders';
+    case 'payout':
+      return '/seller/earnings';
+    case 'review':
+      return '/seller/reviews';
+    case 'order_cancelled':
+      return '/seller/orders';
+    case 'dispute':
+      return '/seller/support';
+    case 'status_update':
+      return orderId ? `/seller/orders/${orderId}` : '/seller/dashboard';
+    default:
+      return '/seller/dashboard';
+  }
+}
+
+/**
+ * Get buyer-specific notification URL
+ */
+function getBuyerUrl(notificationType, orderId) {
+  switch (notificationType) {
+    case 'order_confirmed':
+      return orderId ? `/buyer/orders/${orderId}` : '/buyer/dashboard';
+    case 'order_processing':
+      return orderId ? `/buyer/orders/${orderId}` : '/buyer/orders';
+    case 'order_ready':
+      return orderId ? `/buyer/orders/${orderId}` : '/buyer/orders';
+    case 'rider_assigned':
+    case 'rider_arrived_at_restaurant':
+    case 'order_picked_up':
+    case 'order_on_the_way':
+    case 'delivery_attempted':
+      return orderId ? `/buyer/orders/${orderId}` : '/buyer/orders';
+    case 'order_delivered':
+      return orderId ? `/buyer/orders/${orderId}` : '/buyer/orders';
+    case 'promotion':
+      return '/buyer/explore';
+    case 'payment_failed':
+      return '/buyer/account/payment';
+    case 'support':
+      return '/buyer/support';
+    default:
+      return '/buyer/dashboard';
+  }
+}
+
+/**
+ * Handle notification close
+ */
+self.addEventListener('notificationclose', (event) => {
+  console.log('[SW] Notification closed:', event.notification.tag);
+});
+
+/**
  * Network first strategy
  * Try network first, fallback to cache
  */
@@ -104,7 +358,7 @@ async function networkFirstStrategy(request, cacheName) {
     }
     
     return response;
-  } catch (error) {
+  } catch {
     console.log('[SW] Network request failed, trying cache:', request.url);
     
     const cached = await caches.match(request);
@@ -140,7 +394,7 @@ async function cacheFirstStrategy(request, cacheName) {
     }
     
     return response;
-  } catch (error) {
+  } catch {
     console.log('[SW] Cache and network unavailable:', request.url);
     return new Response('Offline - resource not available', {
       status: 503,

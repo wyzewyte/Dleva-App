@@ -7,11 +7,20 @@ urlpatterns = [
     path('login/', auth_views.login_buyer, name='login'),
     path('logout/', views.logout_buyer, name='logout'),
     
+    # ==================== PASSWORD RESET ====================
+    path('forgot-password/', auth_views.forgot_password_buyer, name='forgot-password'),
+    path('verify-reset-code/', auth_views.verify_reset_code_buyer, name='verify-reset-code'),
+    path('reset-password/', auth_views.reset_password_buyer, name='reset-password'),
+    
     # ==================== PROFILE ====================
     path('profile/', views.ProfileView.as_view(), name='profile'),
     path('profile/update/', views.ProfileView.as_view(), name='profile-update'),
     path('change-password/', views.change_password, name='change-password'),
     path('push-token/', views.update_buyer_fcm_token, name='buyer-update-push-token'),
+    
+    # ==================== PROFILE UPDATE OTP VERIFICATION ====================
+    path('profile/verify-update-otp/request/', auth_views.request_profile_update_otp, name='request-profile-update-otp'),
+    path('profile/verify-update-otp/verify/', auth_views.verify_profile_update_otp, name='verify-profile-update-otp'),
     
     # ==================== RESTAURANTS ====================
     path('restaurants/', views.list_restaurants, name='restaurant-list'),

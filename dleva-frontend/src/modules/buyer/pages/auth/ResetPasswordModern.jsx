@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { KeyRound } from 'lucide-react';
+import { KeyRound, ArrowLeft } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import api from '../../../../services/axios';
 import {
   BuyerAuthPanel,
   BuyerFeedbackState,
@@ -32,21 +33,23 @@ const ResetPasswordModern = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('/api/buyer/reset-password/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code, password }),
+      const response = await api.post('/buyer/reset-password/', {
+        phone_number: phone,
+        code,
+        password,
       });
-      const data = await response.json();
 
-      if (response.ok) {
+      if (response.status === 200) {
         setSuccess('Password reset successful.');
         setTimeout(() => navigate('/login'), 1200);
-      } else {
-        setError(data.detail || 'Failed to reset password.');
       }
-    } catch {
-      setError('Network error.');
+    } catch (err) {
+      const errorMessage = 
+        err.response?.data?.error || 
+        err.response?.data?.message || 
+        err.response?.data?.detail ||
+        'Failed to reset password. Please try again.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -56,6 +59,8 @@ const ResetPasswordModern = () => {
     <BuyerAuthPanel
       title="Reset Password"
       icon={<KeyRound size={24} />}
+      showBack
+      onBack={() => navigate('/verify-code', { state: { phone } })}
     >
       <form className="space-y-4" onSubmit={handleSubmit}>
         {error ? <BuyerFeedbackState type="error" title="Could not reset password" message={error} /> : null}

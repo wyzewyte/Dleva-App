@@ -67,8 +67,8 @@ class PerformanceService:
                 f"Can only rate delivered orders (current status: {order.status})"
             )
         
-        # Check buyer is the one rating (or admin)
-        if order.user.id != user_id and not isinstance(user_id, int):  # TODO: add is_admin check
+        # Check buyer is the one rating
+        if order.buyer.user.id != user_id:
             raise PerformanceError("Only the buyer can rate this order")
         
         # Check rider matches
@@ -112,11 +112,11 @@ class PerformanceService:
     
     @staticmethod
     def _update_average_rating(rider_id: int) -> Decimal:
-        """Calculate and update rider's average rating"""
+        """Calculate and update rider's average rating (rider_id is RiderProfile.id)"""
         try:
-            rider = RiderProfile.objects.get(user__id=rider_id)
+            rider = RiderProfile.objects.get(id=rider_id)  # ✅ Use RiderProfile ID directly
         except RiderProfile.DoesNotExist:
-            raise PerformanceError("Rider not found")
+            raise PerformanceError(f"Rider not found (id={rider_id})")
         
         # Get all ratings for this rider
         ratings = RiderRating.objects.filter(rider=rider, rated_by='buyer').values_list('rating', flat=True)
@@ -132,18 +132,18 @@ class PerformanceService:
     
     @staticmethod
     def _get_average_rating(rider_id: int) -> Decimal:
-        """Get current average rating"""
+        """Get current average rating (rider_id is RiderProfile.id)"""
         try:
-            rider = RiderProfile.objects.get(user__id=rider_id)
+            rider = RiderProfile.objects.get(id=rider_id)
             return rider.average_rating
         except:
             return Decimal('0.00')
     
     @staticmethod
     def _get_rating_count(rider_id: int) -> int:
-        """Count total ratings for rider"""
+        """Count total ratings for rider (rider_id is RiderProfile.id)"""
         try:
-            rider = RiderProfile.objects.get(user__id=rider_id)
+            rider = RiderProfile.objects.get(id=rider_id)
             return RiderRating.objects.filter(rider=rider, rated_by='buyer').count()
         except:
             return 0
@@ -158,7 +158,7 @@ class PerformanceService:
         - If rating < 1.5 AND 5+ ratings AND warning expired (7 days): Suspend
         """
         try:
-            rider = RiderProfile.objects.select_for_update().get(user__id=rider_id)
+            rider = RiderProfile.objects.select_for_update().get(id=rider_id)
         except RiderProfile.DoesNotExist:
             return
         
@@ -376,7 +376,11 @@ class PerformanceService:
     def get_rider_performance(rider_id: int) -> dict:
         """Get complete performance stats for a rider"""
         try:
-            rider = RiderProfile.objects.get(user__id=rider_id)
+            # Try by RiderProfile.id first (common case), then by user__id
+            try:
+                rider = RiderProfile.objects.get(id=rider_id)
+            except RiderProfile.DoesNotExist:
+                rider = RiderProfile.objects.get(user__id=rider_id)
         except RiderProfile.DoesNotExist:
             raise PerformanceError("Rider not found")
         

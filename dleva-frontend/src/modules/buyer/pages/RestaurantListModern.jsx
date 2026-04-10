@@ -14,6 +14,7 @@ import {
   BuyerSearchField,
   BuyerSecondaryButton,
 } from '../components/ui/BuyerPrimitives';
+import BuyerPageLoading from '../components/ui/BuyerPageLoading';
 
 const RestaurantListModern = () => {
   const navigate = useNavigate();
@@ -69,13 +70,7 @@ const RestaurantListModern = () => {
   }
 
   if (loading) {
-    return (
-      <BuyerFeedbackState
-        type="loading"
-        title="Finding restaurants near you"
-        message="Checking your location and loading nearby options."
-      />
-    );
+    return <BuyerPageLoading variant="restaurants" />;
   }
 
   if (error) {

@@ -37,10 +37,42 @@ def submit_rider_rating(request, order_id):
             status=status.HTTP_404_NOT_FOUND
         )
     
-    # Check buyer owns this order
-    if not order.buyer or order.buyer.user.id != request.user.id:
+    # Debug: Log request details
+    print(f"\n=== RIDER RATING REQUEST ===")
+    print(f"Order ID: {order_id}")
+    print(f"Authenticated User: {request.user.id} ({request.user.username})")
+    print(f"Order Buyer: {order.buyer.user.username if order.buyer else 'None'}")
+    print(f"Order Status: {order.status}")
+    print(f"Order Rider: {order.rider}")
+    print(f"Rating: {request.data.get('rating')}")
+    print(f"Comment: {request.data.get('comment', '')}")
+    print(f"===========================\n")
+    
+    # Check buyer owns this order - improved error handling
+    try:
+        if not order.buyer:
+            print(f"[ERROR] Order {order_id} has no buyer assigned")
+            return Response(
+                {'error': 'Order does not have a buyer assigned'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        if order.buyer.user.id != request.user.id:
+            print(f"[ERROR] User {request.user.id} tried to rate order {order_id} which belongs to user {order.buyer.user.id}")
+            return Response(
+                {'error': 'Not authorized to rate this order'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+    except AttributeError as e:
+        print(f"[ERROR] AttributeError checking order buyer: {str(e)}")
         return Response(
-            {'error': 'Not authorized to rate this order'},
+            {'error': 'Unable to verify order ownership - corrupted order data'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    except Exception as e:
+        print(f"[ERROR] Unexpected error checking order buyer: {str(e)}")
+        return Response(
+            {'error': 'Unable to verify order ownership'},
             status=status.HTTP_403_FORBIDDEN
         )
 
@@ -79,12 +111,11 @@ def submit_rider_rating(request, order_id):
     try:
         result = PerformanceService.submit_rating(
             order_id=order.id,
-            rider_id=order.rider.id,
+            rider_id=order.rider.id,  # ✅ RiderProfile ID (needed for RiderRating FK)
             user_id=request.user.id,
             rating=rating,
             comment=comment
         )
-        
         return Response(result, status=status.HTTP_201_CREATED)
     
     except PerformanceError as e:
@@ -93,6 +124,9 @@ def submit_rider_rating(request, order_id):
             status=status.HTTP_400_BAD_REQUEST
         )
     except Exception as e:
+        import traceback
+        print(f"[ERROR] Unexpected error in submit_rider_rating:")
+        print(traceback.format_exc())
         return Response(
             {'error': f'Server error: {str(e)}'},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR

@@ -80,7 +80,7 @@ export const ORDER_STATUSES = {
 
   // Rider statuses
   arrived_at_pickup: {
-    label: 'Rider Here',
+    label: 'Rider at Restaurant',
     color: 'text-purple-700',
     bgColor: 'bg-purple-100',
     borderColor: 'border-l-purple-500',

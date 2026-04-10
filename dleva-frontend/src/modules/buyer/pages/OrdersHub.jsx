@@ -4,9 +4,11 @@ import { LogIn, Package, Truck } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../../../modules/auth/context/AuthContext';
 import buyerOrders from '../../../services/buyerOrders';
+import buyerRatings from '../../../services/buyerRatings';
 import { logError } from '../../../utils/errorHandler';
 import Cart from './Cart';
 import BuyerOrderCard from '../components/BuyerOrderCard';
+import RateOrderModal from '../components/RateOrderModal';
 import {
   BuyerCard,
   BuyerEmptyState,
@@ -16,6 +18,7 @@ import {
   BuyerSecondaryButton,
   BuyerSegmentedTabs,
 } from '../components/ui/BuyerPrimitives';
+import BuyerPageLoading from '../components/ui/BuyerPageLoading';
 
 const VALID_TABS = ['cart', 'ongoing', 'completed'];
 
@@ -27,6 +30,8 @@ const OrdersHub = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isRatingOpen, setIsRatingOpen] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
   const cartItemCount = useMemo(
     () => cartItems.reduce((count, item) => count + (Number(item.quantity) || 1), 0),
@@ -120,6 +125,30 @@ const OrdersHub = () => {
     }
   };
 
+  const handleRatingSubmit = async (ratingData) => {
+    try {
+      const results = await buyerRatings.submitOrderFeedback({
+        orderId: selectedOrder.id,
+        restaurantRating: ratingData.restaurantRating,
+        riderRating: ratingData.riderRating,
+        restaurantComment: ratingData.restaurantComment,
+        riderComment: ratingData.riderComment,
+      });
+      
+      // Check for individual rating errors
+      if (results.restaurantError) {
+        logError({ error: results.restaurantError }, { context: 'OrdersHub.handleRatingSubmit - restaurant' });
+      }
+      if (results.riderError) {
+        logError({ error: results.riderError }, { context: 'OrdersHub.handleRatingSubmit - rider' });
+      }
+      // Don't close modal or update order status - modal shows success and stays open
+    } catch (err) {
+      logError(err, { context: 'OrdersHub.handleRatingSubmit' });
+      setError('Failed to submit rating');
+    }
+  };
+
   const summaryCopy =
     activeTab === 'cart'
       ? `${cartItemCount} item${cartItemCount === 1 ? '' : 's'} ready for checkout`
@@ -141,13 +170,7 @@ const OrdersHub = () => {
     }
 
     if (loading) {
-      return (
-        <BuyerFeedbackState
-          type="loading"
-          title="Loading your orders"
-          message="Please wait while we pull in the latest updates from your restaurants and riders."
-        />
-      );
+      return <BuyerPageLoading variant="orders" />;
     }
 
     if (error) {
@@ -197,11 +220,22 @@ const OrdersHub = () => {
                 ? (selectedOrder) => navigate(`/tracking/${selectedOrder.id}`)
                 : handleReorder
             }
-            secondaryActionLabel={activeTab === 'ongoing' ? null : 'View Details'}
+            secondaryActionLabel={
+              activeTab === 'ongoing'
+                ? null
+                : order.status === 'delivered'
+                  ? 'Rate Order'
+                  : 'View Details'
+            }
             onSecondaryAction={
               activeTab === 'ongoing'
                 ? null
-                : (selectedOrder) => navigate(`/tracking/${selectedOrder.id}`)
+                : order.status === 'delivered'
+                  ? (selectedOrder) => {
+                      setSelectedOrder(selectedOrder);
+                      setIsRatingOpen(true);
+                    }
+                  : (selectedOrder) => navigate(`/tracking/${selectedOrder.id}`)
             }
           />
         ))}
@@ -224,6 +258,16 @@ const OrdersHub = () => {
       </BuyerCard>
 
       <div className="pb-6">{activeTab === 'cart' ? <Cart /> : renderOrderContent()}</div>
+
+      {selectedOrder && (
+        <RateOrderModal
+          key={`${selectedOrder?.id || 'hub-rating'}-${isRatingOpen ? 'open' : 'closed'}`}
+          isOpen={isRatingOpen}
+          onClose={() => setIsRatingOpen(false)}
+          order={selectedOrder}
+          onSubmit={handleRatingSubmit}
+        />
+      )}
     </div>
   );
 };

@@ -56,7 +56,7 @@ class DeliveryService:
         
         if new_status not in DeliveryService.VALID_TRANSITIONS[current_status]:
             raise DeliveryStateError(
-                f"Invalid transition: {current_status} → {new_status}"
+                f"Invalid transition: {current_status} -> {new_status}"
             )
     
     @staticmethod
@@ -97,7 +97,7 @@ class DeliveryService:
         # Update Order status
         order.status = 'arrived_at_pickup'
         order.arrived_at_pickup = timezone.now()
-        order.save()
+        order.save(update_fields=['status', 'arrived_at_pickup'])
         
         # Update RiderOrder status (use filter().first() to handle multiple records)
         try:
@@ -159,7 +159,7 @@ class DeliveryService:
         # Update Order status (picked_up means "on the way")
         order.status = 'picked_up'
         order.picked_up_at = timezone.now()
-        order.save()
+        order.save(update_fields=['status', 'picked_up_at'])
         
         # Update RiderOrder status (use filter().first() to handle multiple records)
         try:
@@ -218,7 +218,7 @@ class DeliveryService:
         
         # Update order
         order.status = 'on_the_way'
-        order.save()
+        order.save(update_fields=['status'])
         
         return {
             'status': 'success',
@@ -264,7 +264,7 @@ class DeliveryService:
         # Update order
         order.status = 'delivery_attempted'
         order.delivery_attempted_at = timezone.now()
-        order.save()
+        order.save(update_fields=['status', 'delivery_attempted_at'])
         
         return {
             'status': 'success',
@@ -293,8 +293,8 @@ class DeliveryService:
     
     @staticmethod
     @transaction.atomic
-    def verify_and_deliver(order_id: int, rider_id: int, 
-                          delivery_pin: str, proof_photo_url: str = '') -> dict:
+    def verify_and_deliver(order_id: int, rider_id: int,
+                          delivery_pin: str, proof_photo=None) -> dict:
         """
         Final delivery: Rider verifies confirmation code and completes delivery.
         
@@ -327,9 +327,11 @@ class DeliveryService:
         # Mark as delivered
         order.status = 'delivered'
         order.delivered_at = timezone.now()
-        if proof_photo_url:
-            order.delivery_proof_photo = proof_photo_url
-        order.save()
+        update_fields = ['status', 'delivered_at']
+        if proof_photo is not None:
+            order.delivery_proof_photo = proof_photo
+            update_fields.append('delivery_proof_photo')
+        order.save(update_fields=update_fields)
         
         # ==== CRITICAL: Credit rider wallet (PHASE 5) ====
         # Money goes to pending_balance first (24-hour hold for disputes)
@@ -415,7 +417,7 @@ class DeliveryService:
         # Find who's trying to cancel
         if user_type == 'rider':
             rider_profile = RiderProfile.objects.get(user__id=user_id)
-            if order.rider.id != rider_profile.id:
+            if not order.rider or order.rider.id != rider_profile.id:
                 raise DeliveryStateError("Rider can only cancel own deliveries")
         elif user_type == 'seller':
             # Seller can only cancel before pickup
@@ -436,7 +438,7 @@ class DeliveryService:
         
         # Mark as cancelled
         order.status = 'cancelled'
-        order.save()
+        order.save(update_fields=['status'])
         
         # If order was assigned, rider loses this delivery
         if old_status in ['assigned', 'arrived_at_pickup', 'released_by_seller', 
@@ -460,6 +462,29 @@ class DeliveryService:
             'cancelled_by': user_type,
             'reason': reason,
             'cancelled_at': timezone.now().isoformat(),
+        }
+
+    @staticmethod
+    @transaction.atomic
+    def seller_release_order(order_id: int, pickup_code: str) -> dict:
+        """
+        Compatibility endpoint for seller pickup verification.
+        The active lifecycle no longer uses a separate released_by_seller state.
+        """
+        order = Order.objects.select_for_update().get(id=order_id)
+
+        if order.status != 'arrived_at_pickup':
+            raise DeliveryStateError(
+                f"Pickup can only be confirmed when rider is at pickup (current: {order.status})"
+            )
+
+        if order.confirmation_code != pickup_code:
+            raise DeliveryStateError("Invalid pickup code")
+
+        return {
+            'status': 'success',
+            'message': 'Pickup confirmed. Rider can now collect the order.',
+            'order_id': order.id,
         }
     
     @staticmethod
@@ -526,21 +551,20 @@ class DeliveryService:
             'current_status': order.status,
             'rider': {
                 'id': order.rider.id if order.rider else None,
-                'name': order.rider.get_full_name() if order.rider else None,
+                'name': order.rider.full_name if order.rider else None,
             },
             'timeline': {
                 'assigned_at': order.assigned_at.isoformat() if order.assigned_at else None,
                 'arrived_at_pickup': order.arrived_at_pickup.isoformat() if order.arrived_at_pickup else None,
-                'released_at': order.released_at.isoformat() if order.released_at else None,
                 'picked_up_at': order.picked_up_at.isoformat() if order.picked_up_at else None,
                 'delivery_attempted_at': order.delivery_attempted_at.isoformat() if order.delivery_attempted_at else None,
                 'delivered_at': order.delivered_at.isoformat() if order.delivered_at else None,
             },
             'restaurant': {
-                'name': order.restaurant.restaurant_name if order.restaurant else None,
+                'name': order.restaurant.name if order.restaurant else None,
             },
             'customer': {
-                'phone': order.phone_number,
+                'phone': order.buyer.phone if order.buyer else '',
                 'address': order.delivery_address,
             },
             'earning': str(order.rider_earning) if order.rider_earning else '0.00',

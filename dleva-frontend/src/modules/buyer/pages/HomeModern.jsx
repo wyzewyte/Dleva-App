@@ -22,54 +22,7 @@ import {
   BuyerPrimaryButton,
   BuyerSearchField,
 } from '../components/ui/BuyerPrimitives';
-
-const HomeLoadingSkeleton = ({ user }) => {
-  return (
-    <div className="mx-auto max-w-6xl space-y-6 pb-8">
-      <section className="space-y-4 border-b border-gray-100 py-5">
-        <div>
-          <h1 className="max-w-[16ch] text-[1.5rem] font-bold leading-tight tracking-tight text-dark sm:text-[1.65rem]">
-            {user ? `Hello, ${user.name?.split(' ')[0] || user.username}` : 'Are you hungry?'}
-          </h1>
-          <p className="mt-1 text-sm text-muted">What are you ordering today?</p>
-        </div>
-
-        <BuyerSearchField
-          placeholder="Search jollof, chicken, drinks..."
-          readOnly
-          className="pointer-events-none"
-        />
-      </section>
-
-      <section className="space-y-4">
-        <div className="h-6 w-36 animate-pulse rounded bg-gray-100" />
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          {[1, 2, 3, 4].map((item) => (
-            <div key={item} className="flex min-w-[92px] flex-col items-center gap-2">
-              <div className="h-[84px] w-[92px] animate-pulse rounded-[18px] bg-gray-100" />
-              <div className="h-3 w-16 animate-pulse rounded bg-gray-100" />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div className="h-6 w-48 animate-pulse rounded bg-gray-100" />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((item) => (
-            <BuyerCard key={item} className="overflow-hidden">
-              <div className="h-48 animate-pulse bg-gray-100" />
-              <div className="space-y-3 p-4">
-                <div className="h-5 w-2/3 animate-pulse rounded bg-gray-100" />
-                <div className="h-4 w-3/4 animate-pulse rounded bg-gray-100" />
-              </div>
-            </BuyerCard>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
-};
+import BuyerPageLoading from '../components/ui/BuyerPageLoading';
 
 const HomeModern = () => {
   const navigate = useNavigate();
@@ -167,7 +120,7 @@ const HomeModern = () => {
           const dismissed = JSON.parse(localStorage.getItem('dismissed_rating_orders') || '[]');
           const isRecent = timestamp ? (new Date() - new Date(timestamp)) / (1000 * 60 * 60) < 24 : false;
 
-          if (latest.status === 'delivered' && !latest.is_rated && isRecent && !dismissed.includes(latest.id)) {
+          if (latest.status === 'delivered' && isRecent && !dismissed.includes(latest.id)) {
             setUnratedOrder(latest);
           }
         }
@@ -249,17 +202,22 @@ const HomeModern = () => {
     if (!unratedOrder?.id) return;
 
     try {
-      await buyerRatings.submitOrderFeedback({
+      const results = await buyerRatings.submitOrderFeedback({
         orderId: unratedOrder.id,
         restaurantRating: ratingData.restaurantRating,
         riderRating: ratingData.riderRating,
-        comment: ratingData.comment,
+        restaurantComment: ratingData.restaurantComment,
+        riderComment: ratingData.riderComment,
       });
-      setLastOrder((previous) => (
-        previous?.id === unratedOrder.id ? { ...previous, is_rated: true } : previous
-      ));
-      setIsRatingOpen(false);
-      setUnratedOrder(null);
+      
+      // Check for individual rating errors
+      if (results.restaurantError) {
+        logError({ error: results.restaurantError }, { context: 'HomeModern.handleRatingSubmit - restaurant' });
+      }
+      if (results.riderError) {
+        logError({ error: results.riderError }, { context: 'HomeModern.handleRatingSubmit - rider' });
+      }
+      // Don't auto-close or mark as rated - let user continue rating if needed
     } catch (err) {
       logError(err, { context: 'HomeModern.handleRatingSubmit', orderId: unratedOrder.id });
       setError(err.error || 'Failed to submit your rating');
@@ -267,7 +225,7 @@ const HomeModern = () => {
   };
 
   if (loading) {
-    return <HomeLoadingSkeleton user={user} />;
+    return <BuyerPageLoading variant="home" />;
   }
 
   return (

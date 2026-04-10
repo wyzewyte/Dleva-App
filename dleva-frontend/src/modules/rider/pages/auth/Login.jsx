@@ -86,6 +86,12 @@ const Login = () => {
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
+          <Link
+            to="/rider/forgot-password"
+            className="mt-2 text-xs font-medium text-primary hover:underline block"
+          >
+            Forgot password?
+          </Link>
         </RiderFormField>
 
         <RiderPrimaryButton type="submit" loading={submitting} icon={<ArrowRight size={16} />}>

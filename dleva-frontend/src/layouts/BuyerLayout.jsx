@@ -6,9 +6,13 @@ import { useCart } from '../modules/buyer/context/CartContext';
 import { useAuth } from '../modules/auth/context/AuthContext'; // Corrected Auth Context path
 import CartSummaryBar from '../modules/buyer/components/CartSummaryBar';
 import { shouldShowCartSummaryBar } from '../modules/buyer/utils/cartSummaryBarVisibility';
+import { useBuyerPushNotifications } from '../modules/buyer/hooks/useBuyerPushNotifications';
 import brandLogo from '../assets/images/logo.svg';
 
 const BuyerLayout = () => {
+  // ✅ INITIALIZE PUSH NOTIFICATIONS - UNCONDITIONALLY (before any early returns)
+  useBuyerPushNotifications();
+
   const { cartItems, lastAddedAt } = useCart();
   const { user, token } = useAuth(); // Get user and token from Auth Context
   const location = useLocation();

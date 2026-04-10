@@ -3,8 +3,12 @@ import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import SellerSidebar from '../modules/seller/components/SellerSidebar';
 import NotificationBell from '../components/seller/NotificationBell';
+import { useSellerPushNotifications } from '../modules/seller/hooks/useSellerPushNotifications';
 
 const SellerLayout = () => {
+  // ✅ INITIALIZE PUSH NOTIFICATIONS - UNCONDITIONALLY
+  useSellerPushNotifications();
+  
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (

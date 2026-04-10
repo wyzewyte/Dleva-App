@@ -167,10 +167,19 @@ const SellerOrders = () => {
   const handleStatusChange = async (orderId, newStatus) => {
     try {
       await sellerOrders.updateOrderStatus(orderId, newStatus);
+      // ✅ FIXED: Only update UI after successful API response
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
     } catch (err) {
       const msg = err?.error || err?.message || 'Failed to update order status';
-      alert(msg);
+      console.error('[STATUS_UPDATE_ERROR]', { orderId, newStatus, error: err });
+      
+      // ✅ FIXED: More detailed error message
+      const fullMessage = err?.details?.message || err?.details?.reason || msg;
+      alert(`❌ ${fullMessage}\n\nPlease check:\n- Delivery address is set\n- Restaurant location is set\n- Riders are available`);
+      
+      // ✅ FIXED: Refresh orders to sync with backend state
+      // This ensures UI matches actual database state if anything changed
+      fetchOrders(true);
     }
   };
 

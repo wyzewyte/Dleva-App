@@ -16,6 +16,15 @@ from .serializers import (
     RiderOTPVerificationSerializer
 )
 from utils.twilio_service import TwilioService
+from utils.password_reset_service import create_password_reset_service
+
+# Initialize password reset service for riders
+# RiderOTP uses 'rider' field (not 'profile')
+rider_password_reset_service = create_password_reset_service(
+    RiderProfile, 
+    RiderOTP, 
+    profile_field_name='rider'
+)
 
 def normalize_phone_number(value):
     if value is None:
@@ -359,3 +368,85 @@ def get_document_status(rider):
         return 'approved'
     
     return 'not_uploaded'
+
+
+# ============================================================================
+# PASSWORD RESET ENDPOINTS (Phone OTP based) - Reusable for Buyers/Sellers
+# ============================================================================
+# Using PasswordResetOTPService for clean, reusable password reset flows
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password_rider(request):
+    """
+    Request password reset OTP for a rider
+    
+    Requires: phone_number (rider's phone)
+    Returns: OTP sent to phone (in DEBUG mode)
+    """
+    phone_number = request.data.get('phone_number')
+    result = rider_password_reset_service.request_password_reset(phone_number)
+    
+    # Check if successful
+    if not result.get('success', False):
+        return Response({'error': result.get('error', 'Failed to send code')}, status=result.get('code', status.HTTP_400_BAD_REQUEST))
+    
+    response = {
+        'message': result['message'],
+        'phone': result['phone'],
+        'expires_in_minutes': result.get('expires_in_minutes', 10)
+    }
+    
+    # Include debug OTP in development mode
+    if settings.DEBUG and 'debug_otp' in result:
+        response['debug_otp'] = result['debug_otp']
+    
+    return Response(response, status=result['code'])
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_reset_code_rider(request):
+    """
+    Verify OTP code for password reset
+    
+    Requires: phone_number, code (OTP)
+    Returns: Reset token for next step
+    """
+    phone_number = request.data.get('phone_number')
+    otp_code = request.data.get('code') or request.data.get('otp_code')
+    
+    result = rider_password_reset_service.verify_reset_code(phone_number, otp_code)
+    
+    if not result['success']:
+        return Response({'error': result['error']}, status=result['code'])
+    
+    return Response({
+        'message': result['message'],
+        'phone': phone_number,
+        'verified': result['verified']
+    }, status=result['code'])
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password_rider(request):
+    """
+    Reset rider password after OTP verification
+    
+    Requires: phone_number, code (OTP), password (new password)
+    Returns: Success message
+    """
+    phone_number = request.data.get('phone_number')
+    otp_code = request.data.get('code') or request.data.get('otp_code')
+    new_password = request.data.get('password')
+    
+    result = rider_password_reset_service.reset_password(phone_number, otp_code, new_password)
+    
+    if not result['success']:
+        return Response({'error': result['error']}, status=result['code'])
+    
+    return Response({
+        'message': result['message'],
+        'success': result['success']
+    }, status=result['code'])

@@ -181,7 +181,7 @@ class RealtimeService:
             
             # Get statistics
             active_deliveries = Order.objects.filter(
-                status__in=['assigned', 'arrived_at_pickup', 'released_by_seller', 'picked_up', 'on_the_way']
+                status__in=['assigned', 'arrived_at_pickup', 'picked_up', 'on_the_way', 'delivery_attempted']
             ).count()
             
             waiting_assignments = Order.objects.filter(

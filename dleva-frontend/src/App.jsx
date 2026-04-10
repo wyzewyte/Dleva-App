@@ -52,6 +52,9 @@ import { SellerNotificationsProvider } from './context/SellerNotificationsContex
 // Rider Pages
 import RiderLogin from './modules/rider/pages/auth/Login';
 import RiderRegister from './modules/rider/pages/auth/Register';
+import RiderForgotPassword from './modules/rider/pages/auth/ForgotPassword';
+import RiderVerifyResetCode from './modules/rider/pages/auth/VerifyResetCode';
+import RiderResetPassword from './modules/rider/pages/auth/ResetPassword';
 import VerificationSetup from './modules/rider/pages/VerificationSetup';
 import PhoneVerification from './modules/rider/pages/PhoneVerification';
 import DocumentVerification from './modules/rider/pages/DocumentVerification';
@@ -185,6 +188,9 @@ function App() {
             {/* Public Rider Auth Routes */}
             <Route path="login" element={<RiderLogin />} />
             <Route path="register" element={<RiderRegister />} />
+            <Route path="forgot-password" element={<RiderForgotPassword />} />
+            <Route path="verify-reset-code" element={<RiderVerifyResetCode />} />
+            <Route path="reset-password" element={<RiderResetPassword />} />
             <Route path="verification-setup" element={<VerificationSetup />} />
 
             {/* Protected Rider Pages */}

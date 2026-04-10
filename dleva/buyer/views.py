@@ -63,6 +63,35 @@ class ProfileView(APIView):
         try:
             buyer_profile, created = BuyerProfile.objects.get_or_create(user=request.user)
             
+            # 🔒 SECURITY: If phone is being updated, require OTP verification
+            new_phone = request.data.get('phone')
+            if new_phone and new_phone != buyer_profile.phone:
+                # Phone is being changed - verify OTP was verified
+                from .models import BuyerOTP
+                try:
+                    verified_otp = BuyerOTP.objects.filter(
+                        phone_number=new_phone,
+                        purpose='update_profile',
+                        is_verified=True,
+                        buyer=buyer_profile
+                    ).latest('created_at')
+                    
+                    # Check if OTP is still valid (within expiry window)
+                    from django.utils import timezone
+                    if verified_otp.expires_at < timezone.now():
+                        return Response(
+                            {'error': 'Phone verification code has expired. Please request a new one.'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    
+                    # OTP is valid, we can proceed - delete it after use
+                    verified_otp.delete()
+                except BuyerOTP.DoesNotExist:
+                    return Response(
+                        {'error': 'Phone number must be verified with OTP before update'},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            
             # Update User's name fields
             if 'name' in request.data:
                 name_parts = request.data.get('name', '').split(' ', 1)

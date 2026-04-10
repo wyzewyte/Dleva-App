@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import buyerProfile from '../../../services/buyerProfile';
 import { useAuth } from '../../../modules/auth/context/AuthContext';
 import { logError } from '../../../utils/errorHandler';
+import ProfileUpdateOTPModal from '../components/modals/ProfileUpdateOTPModal';
 import {
   BuyerCard,
   BuyerFeedbackState,
@@ -13,6 +14,7 @@ import {
   BuyerSecondaryButton,
   BuyerTextInput,
 } from '../components/ui/BuyerPrimitives';
+import BuyerPageLoading from '../components/ui/BuyerPageLoading';
 
 const ProfileModern = () => {
   const navigate = useNavigate();
@@ -23,6 +25,8 @@ const ProfileModern = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [pendingData, setPendingData] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -47,24 +51,39 @@ const ProfileModern = () => {
   }, [user]);
 
   const handleSave = async () => {
+    // Check if sensitive fields (phone number) have changed
+    const phoneChanged = formData.phone && formData.phone !== profile?.phone;
+
+    if (phoneChanged) {
+      // Require OTP verification for phone number changes
+      setPendingData(formData);
+      setShowOTPModal(true);
+      return;
+    }
+
+    // No sensitive changes, save directly
+    await performSave(formData);
+  };
+
+  const performSave = async (dataToSave) => {
     try {
       setIsSaving(true);
       setError(null);
       const payload = {
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        address: formData.address,
+        name: dataToSave.name,
+        email: dataToSave.email,
+        phone: dataToSave.phone,
+        address: dataToSave.address,
       };
 
-      if (formData.image instanceof File) payload.image = formData.image;
+      if (dataToSave.image instanceof File) payload.image = dataToSave.image;
 
       const updatedProfile = await buyerProfile.updateProfile(payload);
       setProfile(updatedProfile);
       setUser(updatedProfile);
       setIsEditing(false);
     } catch (err) {
-      logError(err, { context: 'ProfileModern.handleSave' });
+      logError(err, { context: 'ProfileModern.performSave' });
       setError(err.error || 'Failed to update your profile');
     } finally {
       setIsSaving(false);
@@ -82,13 +101,7 @@ const ProfileModern = () => {
   };
 
   if (loading) {
-    return (
-      <BuyerFeedbackState
-        type="loading"
-        title="Loading your profile"
-        message="Pulling in your details and preferences."
-      />
-    );
+    return <BuyerPageLoading variant="profile" />;
   }
 
   return (
@@ -234,6 +247,20 @@ const ProfileModern = () => {
           </div>
         </button>
       </BuyerCard>
+
+      {/* Profile Update OTP Verification Modal */}
+      <ProfileUpdateOTPModal
+        isOpen={showOTPModal}
+        phone={pendingData?.phone || formData.phone}
+        onVerified={() => {
+          setShowOTPModal(false);
+          performSave(pendingData);
+        }}
+        onClose={() => {
+          setShowOTPModal(false);
+          setPendingData(null);
+        }}
+      />
     </div>
   );
 };

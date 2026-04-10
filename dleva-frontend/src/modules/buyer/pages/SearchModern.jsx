@@ -17,6 +17,7 @@ import {
   BuyerSegmentedTabs,
   BuyerStatusBadge,
 } from '../components/ui/BuyerPrimitives';
+import BuyerPageLoading from '../components/ui/BuyerPageLoading';
 
 const STARTING_DELIVERY_FEE = 500;
 const SEARCH_DEBOUNCE_MS = 350;
@@ -469,6 +470,10 @@ const SearchModern = () => {
     !searchError &&
     restaurantResults.length === 0 &&
     menuItemResults.length === 0;
+
+  if (showLandingState && loadingRestaurants && loadingCategories) {
+    return <BuyerPageLoading variant="search" />;
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 pb-6">

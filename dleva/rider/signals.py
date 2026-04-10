@@ -37,41 +37,11 @@ def handle_order_delivery(sender, instance, created, update_fields, **kwargs):
     - Platform keeps 40% commission (stored in order.platform_commission)
     """
     
-    # Only process if status changed to delivered
-    if instance.status == 'delivered' and instance.rider:
-        # Check if transaction already exists for this order (to avoid duplicates)
-        transaction_exists = RiderTransaction.objects.filter(
-            order=instance,
-            transaction_type='delivery_earning'
-        ).exists()
-        
-        if not transaction_exists and instance.rider_earning:
-            rider_profile = instance.rider
-            rider_earning = instance.rider_earning
-            
-            # Create RiderTransaction with pre-calculated rider earning
-            transaction = RiderTransaction.objects.create(
-                rider=rider_profile,
-                order=instance,
-                amount=rider_earning,
-                transaction_type='delivery_earning',
-                status='completed'
-            )
-            
-            # Update RiderWallet with pre-calculated earning
-            wallet = rider_profile.wallet
-            wallet.available_balance += rider_earning
-            wallet.total_earned += rider_earning
-            wallet.save()
-            
-            # Increment total_deliveries
-            rider_profile.total_deliveries += 1
-            rider_profile.save()
-            
-            # Update delivered_at timestamp if not already set
-            if not instance.delivered_at:
-                instance.delivered_at = timezone.now()
-                instance.save(update_fields=['delivered_at'])
+    # Delivery completion is handled centrally in DeliveryService.verify_and_deliver.
+    # This signal only backfills delivered_at for legacy/admin updates.
+    if instance.status == 'delivered' and instance.rider and not instance.delivered_at:
+        instance.delivered_at = timezone.now()
+        instance.save(update_fields=['delivered_at'])
 
 
 # Update rider average rating when a new rating is created

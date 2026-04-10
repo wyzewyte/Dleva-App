@@ -5,7 +5,6 @@
 
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { trackingWebSocketService } from '../services/trackingWebSocketService';
-import { logError } from '../utils/errorHandler';
 
 const TrackingContext = createContext();
 
@@ -14,21 +13,30 @@ export const TrackingProvider = ({ children }) => {
   const [connectionStatus, setConnectionStatus] = useState({}); // Map of orderId -> connected/error/disconnected
   const [riderLocations, setRiderLocations] = useState({}); // Map of orderId -> { lat, lon, accuracy, timestamp, eta }
 
+  const upsertTrackedOrder = useCallback((orderId, orderData = {}) => {
+    setTrackedOrders((prev) => ({
+      ...prev,
+      [orderId]: {
+        ...(prev[orderId] || {}),
+        ...orderData,
+        isLive: prev[orderId]?.isLive || false,
+      },
+    }));
+
+    setConnectionStatus((prev) => ({
+      ...prev,
+      [orderId]: prev[orderId] || 'idle',
+    }));
+  }, []);
+
   /**
    * Subscribe to real-time order tracking
    */
   const subscribeToOrder = useCallback((orderId, initialOrderData = {}) => {
     console.log(`📡 Subscribing to order ${orderId} tracking`);
     
-    // Set initial state
-    setTrackedOrders(prev => ({
-      ...prev,
-      [orderId]: {
-        ...initialOrderData,
-        isLive: false,
-      },
-    }));
-    
+    upsertTrackedOrder(orderId, initialOrderData);
+
     setConnectionStatus(prev => ({
       ...prev,
       [orderId]: 'connecting',
@@ -135,7 +143,7 @@ export const TrackingProvider = ({ children }) => {
         return updated;
       });
     };
-  }, []);
+  }, [upsertTrackedOrder]);
 
   /**
    * Get order tracking data with live updates
@@ -166,6 +174,7 @@ export const TrackingProvider = ({ children }) => {
     // Methods
     subscribeToOrder,
     getOrderData,
+    upsertTrackedOrder,
   };
 
   return (

@@ -312,13 +312,17 @@ class OrderStatusConsumer(AsyncWebsocketConsumer):
             order = Order.objects.get(id=self.order_id)
             
             # Buyer can view their own orders
-            if order.user == self.user:
+            if order.buyer and order.buyer.user_id == self.user.id:
                 return True
             
             # Seller can view if it's at their restaurant
             if hasattr(self.user, 'seller_profile'):
-                if order.restaurant.owner == self.user:
+                if order.restaurant.seller_id == self.user.seller_profile.id:
                     return True
+
+            # Assigned rider can view the order stream
+            if order.rider and order.rider.user_id == self.user.id:
+                return True
             
             # Admin can view all
             if self.user.is_staff:

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BadgeCheck, Camera, ChevronRight, LifeBuoy, Loader2, LogOut, MapPin, Pencil, ShieldAlert, Truck, X } from 'lucide-react';
+import { BadgeCheck, Camera, ChevronRight, LifeBuoy, Loader2, LogOut, MapPin, Pencil, ShieldAlert, Star, Truck, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useRiderAuth } from '../context/RiderAuthContext';
 import riderSettings from '../services/riderSettings';
@@ -8,6 +8,7 @@ import RiderLocationManagement from './components/RiderLocationManagement';
 import BankDetailsForm from './components/BankDetailsForm';
 import ProfileForm from './components/ProfileForm';
 import VehicleInfo from './components/VehicleInfo';
+import FeedbackDisplay from '../components/FeedbackDisplay';
 import {
   RiderCard,
   RiderFormField,
@@ -90,6 +91,7 @@ const Settings = () => {
   const [profile, setProfile] = useState(null);
   const [verification, setVerification] = useState(null);
   const [bankDetails, setBankDetails] = useState(null);
+  const [performance, setPerformance] = useState(null);
   const [busyKey, setBusyKey] = useState('');
 
   const isBusy = (key) => busyKey === key;
@@ -107,10 +109,11 @@ const Settings = () => {
     if (!silent) setLoading(true);
     setError('');
     try {
-      const [profileRes, verificationRes, bankRes] = await Promise.allSettled([
+      const [profileRes, verificationRes, bankRes, performanceRes] = await Promise.allSettled([
         riderSettings.getProfile(),
         riderSettings.getVerificationStatus(),
         riderVerification.getBankDetails(),
+        riderSettings.getPerformanceMetrics(rider?.id),
       ]);
 
       if (profileRes.status !== 'fulfilled') throw profileRes.reason;
@@ -122,6 +125,7 @@ const Settings = () => {
       setProfile(nextProfile);
       setVerification(nextVerification);
       setBankDetails(bankRes.status === 'fulfilled' ? bankRes.value : null);
+      setPerformance(performanceRes.status === 'fulfilled' ? performanceRes.value : null);
       syncRiderRef.current({
         ...nextProfile,
         can_go_online: nextVerification?.can_go_online,
@@ -135,7 +139,7 @@ const Settings = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [rider?.id]);
 
   useEffect(() => {
     loadSettings().catch(() => {});
@@ -382,6 +386,20 @@ const Settings = () => {
 
           <section>
             <div className="mb-3 px-1">
+              <h3 className="text-xl font-bold text-dark">Performance</h3>
+            </div>
+            <RiderCard className="p-4 sm:p-5">
+              <SettingsRow
+                icon={<Star size={18} />}
+                title="Customer feedback"
+                subtitle={performance?.average_rating ? `${parseFloat(performance.average_rating).toFixed(1)} rating · ${performance.total_ratings} reviews` : 'No ratings yet'}
+                onClick={() => setActiveModal('feedback')}
+              />
+            </RiderCard>
+          </section>
+
+          <section>
+            <div className="mb-3 px-1">
               <div className="flex items-center gap-2">
                 <h3 className="text-xl font-bold text-dark">Verification status</h3>
                 {verificationBadge > 0 ? <div className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">{verificationBadge} pending</div> : null}
@@ -487,6 +505,10 @@ const Settings = () => {
 
       <SettingsModal open={activeModal === 'vehicle'} title="Vehicle details" subtitle="Keep your active delivery vehicle details simple and accurate." onClose={closeModal}>
         <VehicleInfo key={`${profile?.vehicle_type || ''}-${profile?.vehicle_plate_number || ''}`} profile={profile} loading={isBusy('vehicle')} onSave={saveVehicle} />
+      </SettingsModal>
+
+      <SettingsModal open={activeModal === 'feedback'} title="Customer Feedback" subtitle="See what customers say about your deliveries and driving" onClose={closeModal}>
+        <FeedbackDisplay performance={performance} loading={false} />
       </SettingsModal>
     </RiderPageShell>
   );

@@ -90,7 +90,14 @@ export function SellerNotificationsProvider({ children }) {
    */
   const connectWebSocket = useCallback(() => {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem('seller_access_token') || localStorage.getItem('authToken');
+
+      if (!token) {
+        console.warn('Seller notifications WebSocket skipped: missing seller token');
+        setIsConnected(false);
+        return;
+      }
+
       const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
       const wsUrl = `${wsScheme}://${window.location.host}/ws/notifications-seller/?token=${token}`;
 

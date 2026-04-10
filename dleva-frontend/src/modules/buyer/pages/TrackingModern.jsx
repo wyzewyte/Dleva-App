@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Clock3, MapPin, Navigation, RefreshCw, ShieldCheck, Store, Truck } from 'lucide-react';
+import { CheckCircle2, Clock3, MapPin, Navigation, Phone, RefreshCw, ShieldCheck, Store, Truck } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import buyerCheckout from '../../../services/buyerCheckout';
 import { useTracking } from '../../../context/TrackingContext';
@@ -7,6 +7,7 @@ import { getStatusLabel } from '../../../constants/statusLabels';
 import { formatCurrency } from '../../../utils/formatters';
 import { logError } from '../../../utils/errorHandler';
 import liveLocationService from '../../../services/liveLocationService';
+import EntityContactCard from '../../../components/shared/EntityContactCard';
 import {
   BuyerCard,
   BuyerFeedbackState,
@@ -14,6 +15,7 @@ import {
   BuyerPrimaryButton,
   BuyerStatusBadge,
 } from '../components/ui/BuyerPrimitives';
+import BuyerPageLoading from '../components/ui/BuyerPageLoading';
 
 const TRACK_STEPS = [
   { id: 'placed', title: 'Order placed', description: 'Your order has been received.' },
@@ -33,10 +35,39 @@ const getTrackStage = (status) => {
   return 'placed';
 };
 
+const RESTAURANT_CONTACT_STATUSES = ['pending', 'confirming', 'preparing', 'available_for_pickup', 'awaiting_rider', 'assigned', 'arrived_at_pickup'];
+const RIDER_CONTACT_STATUSES = ['picked_up', 'on_the_way', 'delivery_attempted'];
+const DELIVERED_CELEBRATION_STORAGE_KEY = 'buyer_delivered_celebrations';
+
+const getDeliveredCelebrationMap = () => {
+  try {
+    return JSON.parse(localStorage.getItem(DELIVERED_CELEBRATION_STORAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+};
+
+const hasSeenDeliveredCelebration = (orderId) => {
+  if (!orderId) return false;
+  return Boolean(getDeliveredCelebrationMap()[String(orderId)]);
+};
+
+const markDeliveredCelebrationSeen = (orderId) => {
+  if (!orderId) return;
+
+  try {
+    const currentMap = getDeliveredCelebrationMap();
+    currentMap[String(orderId)] = true;
+    localStorage.setItem(DELIVERED_CELEBRATION_STORAGE_KEY, JSON.stringify(currentMap));
+  } catch {
+    // Ignore storage errors and fall back to in-memory behavior.
+  }
+};
+
 const TrackingModern = () => {
   const { orderId } = useParams();
   const navigate = useNavigate();
-  const { subscribeToOrder, getOrderData } = useTracking();
+  const { subscribeToOrder, getOrderData, upsertTrackedOrder } = useTracking();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -52,9 +83,11 @@ const TrackingModern = () => {
         setLoading(true);
         const data = await buyerCheckout.getOrderDetails(orderId);
         setOrder(data);
+        upsertTrackedOrder(orderId, data);
         setError(null);
 
         if (data && !['delivered', 'cancelled'].includes(data.status)) {
+          if (unsubscribeRef.current) unsubscribeRef.current();
           unsubscribeRef.current = subscribeToOrder(orderId, data);
         }
       } catch (err) {
@@ -71,7 +104,7 @@ const TrackingModern = () => {
       if (unsubscribeRef.current) unsubscribeRef.current();
       if (liveLocationService.isActive()) liveLocationService.stopTracking();
     };
-  }, [orderId, subscribeToOrder]);
+  }, [orderId, subscribeToOrder, upsertTrackedOrder]);
 
   useEffect(() => {
     if (!orderId) return;
@@ -94,7 +127,7 @@ const TrackingModern = () => {
   useEffect(() => {
     if (!order || !orderId) return;
 
-    const isDeliveryActive = ['assigned', 'arrived_at_pickup', 'picked_up', 'on_the_way'].includes(order.status);
+    const isDeliveryActive = ['assigned', 'arrived_at_pickup', 'picked_up', 'on_the_way', 'delivery_attempted'].includes(order.status);
 
     if (isDeliveryActive && !liveLocationService.isActive()) {
       liveLocationService.startTracking(orderId, order.status).catch((err) => {
@@ -110,7 +143,7 @@ const TrackingModern = () => {
   }, [order, orderId]);
 
   useEffect(() => {
-    deliveredCelebrationShownRef.current = false;
+    deliveredCelebrationShownRef.current = hasSeenDeliveredCelebration(orderId);
     previousStatusRef.current = null;
     setShowDeliveredCelebration(false);
   }, [orderId]);
@@ -126,6 +159,7 @@ const TrackingModern = () => {
 
     if (becameDelivered && !deliveredCelebrationShownRef.current) {
       deliveredCelebrationShownRef.current = true;
+      markDeliveredCelebrationSeen(orderId);
       setShowDeliveredCelebration(true);
     }
 
@@ -137,6 +171,7 @@ const TrackingModern = () => {
       setRefreshing(true);
       const data = await buyerCheckout.getOrderDetails(orderId);
       setOrder(data);
+      upsertTrackedOrder(orderId, data);
       setError(null);
     } catch (err) {
       logError(err, { context: 'TrackingModern.handleRefresh' });
@@ -172,14 +207,34 @@ const TrackingModern = () => {
     };
   }, [order]);
 
+  const activeContact = useMemo(() => {
+    if (!order?.status) return null;
+
+    if (RESTAURANT_CONTACT_STATUSES.includes(order.status) && order.restaurant_phone) {
+      return {
+        role: 'Restaurant',
+        name: order.restaurant_name || 'Restaurant',
+        phone: order.restaurant_phone,
+        helperText: order.delivery_address || 'Contact the restaurant for order preparation or pickup updates.',
+        actionLabel: 'Call restaurant',
+      };
+    }
+
+    if (RIDER_CONTACT_STATUSES.includes(order.status) && order.rider_phone) {
+      return {
+        role: 'Rider',
+        name: order.rider_name || 'Assigned rider',
+        phone: order.rider_phone,
+        helperText: order.delivery_address || 'Contact the rider for delivery updates while your order is on the way.',
+        actionLabel: 'Call rider',
+      };
+    }
+
+    return null;
+  }, [order]);
+
   if (loading) {
-    return (
-      <BuyerFeedbackState
-        type="loading"
-        title="Loading your order"
-        message="Please wait while we pull in the latest order updates."
-      />
-    );
+    return <BuyerPageLoading variant="tracking" />;
   }
 
   if (error || !order) {
@@ -312,6 +367,17 @@ const TrackingModern = () => {
           ) : null}
         </BuyerCard>
 
+        {activeContact ? (
+          <EntityContactCard
+            label={activeContact.role}
+            title={activeContact.name}
+            description={activeContact.helperText}
+            phone={activeContact.phone}
+            icon={Phone}
+            actionLabel={activeContact.actionLabel}
+          />
+        ) : null}
+
         {order.rider_location ? (
           <BuyerCard className="p-5">
             <div className="mb-4 flex items-center gap-2">
@@ -391,12 +457,21 @@ const TrackingModern = () => {
               </p>
 
               <div className="mt-6 grid gap-3">
-                <BuyerPrimaryButton onClick={() => setShowDeliveredCelebration(false)} className="min-h-[46px]">
+                <BuyerPrimaryButton
+                  onClick={() => {
+                    markDeliveredCelebrationSeen(orderId);
+                    setShowDeliveredCelebration(false);
+                  }}
+                  className="min-h-[46px]"
+                >
                   Enjoy
                 </BuyerPrimaryButton>
                 <button
                   type="button"
-                  onClick={() => setShowDeliveredCelebration(false)}
+                  onClick={() => {
+                    markDeliveredCelebrationSeen(orderId);
+                    setShowDeliveredCelebration(false);
+                  }}
                   className="text-sm font-semibold text-muted transition-colors hover:text-dark"
                 >
                   Close

@@ -88,6 +88,12 @@ const BuyerLoginModern = () => {
           </div>
         </BuyerFormField>
 
+        <div className="text-right">
+          <Link to="/forgot-password" className="text-sm text-primary hover:underline font-medium">
+            Forgot Password?
+          </Link>
+        </div>
+
         <BuyerPrimaryButton type="submit" loading={isLoading}>
           Login
         </BuyerPrimaryButton>

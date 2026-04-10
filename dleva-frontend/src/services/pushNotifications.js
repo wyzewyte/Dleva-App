@@ -51,10 +51,27 @@ class PushNotificationsService {
     }
   }
 
+  hasValidFirebaseConfig() {
+    if (!this.firebaseConfig || !this.vapidKey) {
+      return false;
+    }
+
+    const requiredConfigKeys = [
+      'apiKey',
+      'authDomain',
+      'projectId',
+      'storageBucket',
+      'messagingSenderId',
+      'appId',
+    ];
+
+    return requiredConfigKeys.every((key) => Boolean(this.firebaseConfig[key]));
+  }
+
   async getMessaging() {
     if (this.messaging) return this.messaging;
 
-    if (!this.firebaseConfig || !this.vapidKey) {
+    if (!this.hasValidFirebaseConfig()) {
       console.warn('Firebase push notifications are not configured for this app');
       return null;
     }
@@ -134,11 +151,25 @@ class PushNotificationsService {
 
       if (this.getPermissionStatus() !== 'granted') return false;
 
-      const token = await this.fetchFirebaseToken();
+      const storedToken = this.getStoredToken();
+
+      let token = null;
+      try {
+        token = await this.fetchFirebaseToken();
+      } catch (error) {
+        console.warn('[pushNotifications] failed to fetch a fresh Firebase token, falling back to stored token if available', {
+          storageKey: this.storageKey,
+          error,
+        });
+        token = storedToken;
+      }
+
       if (!token) return false;
 
-      const storedToken = this.getStoredToken();
-      if (storedToken === token) return true;
+      if (storedToken === token) {
+        await this.syncToken(token, 'register');
+        return true;
+      }
 
       await this.syncToken(token, 'register');
       this.storeToken(token);

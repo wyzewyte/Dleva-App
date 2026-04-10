@@ -9,7 +9,16 @@ const api = axios.create({
 
 api.interceptors.request.use((config) => { 
   // List of public endpoints that don't need authentication
-  const publicEndpoints = ['/seller/register/', '/seller/login/', '/buyer/register/', '/buyer/login/', '/rider/register/', '/rider/login/', '/paystack/banks/', '/paystack/resolve-account/'];
+  const publicEndpoints = [
+    '/seller/register/', '/seller/login/', 
+    '/buyer/register/', '/buyer/login/', 
+    '/rider/register/', '/rider/login/', 
+    '/paystack/banks/', '/paystack/resolve-account/',
+    // Password reset endpoints (public)
+    '/rider/forgot-password/', '/rider/verify-reset-code/', '/rider/reset-password/',
+    '/buyer/forgot-password/', '/buyer/verify-reset-code/', '/buyer/reset-password/',
+    '/seller/forgot-password/', '/seller/verify-reset-code/', '/seller/reset-password/',
+  ];
   const isPublicEndpoint = publicEndpoints.some(endpoint => config.url?.includes(endpoint));
   
   // Only add auth header for non-public endpoints

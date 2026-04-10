@@ -295,6 +295,7 @@ class PushNotificationService:
                 'notification_type': notification.notification_type,
                 'order_id': str(notification.related_order_id) if notification.related_order_id else '',
                 'title': notification.title,
+                'user_role': 'rider',  # ✅ Add user role for Service Worker routing
             }
 
             if notification.data:

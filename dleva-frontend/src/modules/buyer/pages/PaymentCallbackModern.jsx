@@ -7,8 +7,8 @@ import { useCart } from '../context/CartContext';
 import {
   BuyerFeedbackState,
   BuyerPrimaryButton,
-  BuyerSecondaryButton,
 } from '../components/ui/BuyerPrimitives';
+import BuyerPageLoading from '../components/ui/BuyerPageLoading';
 
 const PaymentCallbackModern = () => {
   const navigate = useNavigate();
@@ -88,13 +88,7 @@ const PaymentCallbackModern = () => {
   }, [navigate, searchParams, setCartItems, user]);
 
   if (status === 'processing') {
-    return (
-      <BuyerFeedbackState
-        type="loading"
-        title="Processing payment"
-        message={message}
-      />
-    );
+    return <BuyerPageLoading variant="centered" />;
   }
 
   if (status === 'success') {

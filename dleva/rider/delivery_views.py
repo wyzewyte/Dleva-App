@@ -83,8 +83,19 @@ def release_order(request, order_id):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # TODO: Verify user is seller/owner of this restaurant
-        # For now, we'll just verify the code
+        try:
+            seller_profile = SellerProfile.objects.get(user=request.user)
+        except SellerProfile.DoesNotExist:
+            return Response(
+                {'error': 'Seller profile not found'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if order.restaurant.seller_id != seller_profile.id:
+            return Response(
+                {'error': 'Not allowed to release this order'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         
         result = DeliveryService.seller_release_order(order_id, pickup_code)
         return Response(result, status=status.HTTP_200_OK)
@@ -267,14 +278,14 @@ def verify_and_deliver(request, order_id):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        proof_photo = request.data.get('proof_photo_url', '')
+        proof_photo = request.FILES.get('proof_photo')
         
         # DeliveryService will validate rider profile and status transitions
         result = DeliveryService.verify_and_deliver(
             order_id,
             request.user.id,
             delivery_pin=delivery_pin,
-            proof_photo_url=proof_photo
+            proof_photo=proof_photo
         )
         return Response(result, status=status.HTTP_200_OK)
         
@@ -320,11 +331,29 @@ def cancel_delivery(request, order_id):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        user_type = request.data.get('user_type', 'rider').lower()
-        if user_type not in ['rider', 'seller', 'admin']:
+        if request.user.is_staff:
+            user_type = 'admin'
+        else:
+            user_type = None
+            try:
+                rider = RiderProfile.objects.get(user=request.user)
+                if order.rider_id == rider.id:
+                    user_type = 'rider'
+            except RiderProfile.DoesNotExist:
+                pass
+
+            if user_type is None:
+                try:
+                    seller_profile = SellerProfile.objects.get(user=request.user)
+                    if order.restaurant.seller_id == seller_profile.id:
+                        user_type = 'seller'
+                except SellerProfile.DoesNotExist:
+                    pass
+
+        if user_type is None:
             return Response(
-                {'error': 'user_type must be rider, seller, or admin'},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'Not authorized to cancel this order'},
+                status=status.HTTP_403_FORBIDDEN
             )
         
         reason = request.data.get('reason', '')

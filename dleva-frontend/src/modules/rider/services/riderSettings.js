@@ -139,6 +139,23 @@ const riderSettings = {
       };
     }
   },
+
+  /**
+   * Get rider's performance and ratings history
+   */
+  async getPerformanceMetrics(riderId) {
+    try {
+      const response = await api.get(
+        API_ENDPOINTS.RIDER.RIDER_PERFORMANCE(riderId)
+      );
+      return response.data;
+    } catch (error) {
+      throw {
+        error: extractErrorMessage(error, 'Failed to fetch performance metrics'),
+        status: error.response?.status,
+      };
+    }
+  },
 };
 
 export default riderSettings;

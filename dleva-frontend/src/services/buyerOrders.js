@@ -83,8 +83,8 @@ const buyerOrders = {
       const allOrders = Array.isArray(response.data) ? response.data : response.data.results || [];
       
       // ✅ Filter active orders on frontend
-      return allOrders.filter(order => 
-        ['pending', 'confirming', 'preparing', 'available_for_pickup', 'awaiting_rider', 'assigned', 'arrived_at_pickup', 'released_by_seller', 'picked_up', 'on_the_way'].includes(order.status)
+      return allOrders.filter(order =>
+        ['pending', 'confirming', 'preparing', 'available_for_pickup', 'awaiting_rider', 'assigned', 'arrived_at_pickup', 'picked_up', 'on_the_way', 'delivery_attempted'].includes(order.status)
       );
     } catch (error) {
       logError(error, { context: 'buyerOrders.getActiveOrders' });

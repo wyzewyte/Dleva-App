@@ -125,10 +125,12 @@ class Order(models.Model):
     final_assigned_at = models.DateTimeField(null=True, blank=True)
     currently_assigned_rider_id = models.IntegerField(null=True, blank=True)
     assignment_timeout_at = models.DateTimeField(null=True, blank=True)
+    assignment_timeout_retry_count = models.PositiveSmallIntegerField(default=0)
     
     # Delivery tracking fields (Phase 4)
     arrived_at_pickup = models.DateTimeField(null=True, blank=True)  # Timestamp when rider arrived
     picked_up_at = models.DateTimeField(null=True, blank=True)       # Timestamp when rider picked up
+    delivery_attempted_at = models.DateTimeField(null=True, blank=True)  # Last failed delivery attempt
     delivered_at = models.DateTimeField(null=True, blank=True)       # Timestamp of delivery
     confirmation_code = models.CharField(max_length=10, null=True, blank=True)  # Single code for pickup & delivery verification
     delivery_proof_photo = models.ImageField(upload_to='delivery_proofs/', null=True, blank=True)
@@ -197,6 +199,33 @@ class Payment(models.Model):
     class Meta:
         verbose_name = 'Payment'
         verbose_name_plural = 'Payments'
+        ordering = ['-created_at']
+
+
+class BuyerOTP(models.Model):
+    """OTP for phone number verification (registration, password reset, and profile updates)"""
+    PURPOSE_CHOICES = [
+        ('registration', 'Registration'),
+        ('password_reset', 'Password Reset'),
+        ('verify_phone', 'Verify Phone Number'),
+        ('update_profile', 'Update Profile'),
+    ]
+    
+    buyer = models.ForeignKey(BuyerProfile, on_delete=models.CASCADE, related_name='otps')
+    phone_number = models.CharField(max_length=20)
+    otp_code = models.CharField(max_length=6)
+    purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES, default='registration')
+    is_verified = models.BooleanField(default=False)
+    attempts = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    
+    def __str__(self):
+        return f"OTP for {self.phone_number} ({self.purpose})"
+    
+    class Meta:
+        verbose_name = 'Buyer OTP'
+        verbose_name_plural = 'Buyer OTPs'
         ordering = ['-created_at']
 
 
@@ -382,3 +411,68 @@ class WaitlistEntry(models.Model):
 
     def __str__(self):
         return f"{self.buyer.user.username} - {self.restaurant.name} (Position: {self.position})"
+
+
+class BuyerNotification(models.Model):
+    """
+    Stores buyer push notifications
+    Supports Firebase FCM and WebSocket delivery
+    """
+    NOTIFICATION_TYPE_CHOICES = [
+        ('order_confirmed', 'Order Confirmed'),
+        ('order_processing', 'Order Processing'),
+        ('order_ready', 'Order Ready'),
+        ('rider_assigned', 'Rider Assigned'),
+        ('rider_arrived_at_restaurant', 'Rider Arrived at Restaurant'),
+        ('order_picked_up', 'Order Picked Up'),
+        ('order_on_the_way', 'Order On The Way'),
+        ('delivery_attempted', 'Delivery Attempted'),
+        ('order_delivered', 'Order Delivered'),
+        ('promotion', 'Promotion'),
+        ('payment_failed', 'Payment Failed'),
+        ('support', 'Support Message'),
+    ]
+    
+    buyer = models.ForeignKey(
+        BuyerProfile,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        db_index=True
+    )
+    notification_type = models.CharField(
+        max_length=50,
+        choices=NOTIFICATION_TYPE_CHOICES,
+        db_index=True
+    )
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    related_order_id = models.IntegerField(null=True, blank=True, db_index=True)
+    data = models.JSONField(default=dict, help_text='Additional notification data')
+    
+    is_read = models.BooleanField(default=False, db_index=True)
+    is_sent = models.BooleanField(default=False)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'Buyer Notification'
+        verbose_name_plural = 'Buyer Notifications'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['buyer', 'is_read']),
+            models.Index(fields=['buyer', 'created_at']),
+            models.Index(fields=['notification_type']),
+        ]
+    
+    def __str__(self):
+        return f"[{self.notification_type}] {self.title}"
+    
+    def mark_as_read(self):
+        """Mark notification as read"""
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = timezone.now()
+            self.save(update_fields=['is_read', 'read_at'])

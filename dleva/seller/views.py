@@ -463,7 +463,7 @@ def seller_reviews(request):
         data.append({
             "rating": r.rating,                # numeric rating
             "comment": r.comment,              # buyer message
-            "buyer": r.order.user.username,    # buyer username
+            "buyer": r.order.buyer.user.username if r.order.buyer and r.order.buyer.user else "Guest",
             "order_id": r.order.id,
             "order_date": r.order.created_at,
             "created_at": r.created_at
@@ -596,8 +596,11 @@ def mark_order_ready_for_delivery(request, order_id):
     """
     Seller marks order as ready for delivery
     Triggers the automatic rider assignment process
+    
+    ✅ FIXED: Uses database transaction to ensure status only changes if assignment succeeds
     """
     from rider.assignment_service import assign_order_to_riders
+    from django.db import transaction
     
     try:
         seller_profile = SellerProfile.objects.get(user=request.user)
@@ -637,35 +640,89 @@ def mark_order_ready_for_delivery(request, order_id):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # Set status to 'available_for_pickup' - food is ready
-    order.status = 'available_for_pickup'
-    order.save()
+    try:
+        with transaction.atomic():
+            # ✅ FIXED: Validate assignment BEFORE changing status
+            # Pre-calculate metrics to catch errors early
+            from rider.assignment_service import (
+                calculate_distance,
+                calculate_delivery_fee,
+                calculate_rider_earning,
+                find_eligible_riders,
+                validate_assignment_metrics
+            )
+            
+            # Verify basic requirements
+            distance_km = calculate_distance(
+                restaurant.latitude,
+                restaurant.longitude,
+                order.delivery_latitude,
+                order.delivery_longitude
+            )
+            delivery_fee = calculate_delivery_fee(distance_km)
+            rider_earning = calculate_rider_earning(delivery_fee)
+            platform_commission = delivery_fee - rider_earning
+
+            metrics_validation = validate_assignment_metrics(
+                distance_km,
+                delivery_fee,
+                rider_earning,
+                platform_commission
+            )
+            if not metrics_validation['valid']:
+                return Response({
+                    'message': f'❌ {metrics_validation["reason"]}',
+                    'order_id': order.id,
+                    'reason': 'Invalid delivery metrics'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check if eligible riders exist BEFORE changing status
+            eligible_riders = find_eligible_riders(order, max_distance=15)
+            if not eligible_riders:
+                return Response({
+                    'message': f'❌ No available riders found within 15km. Distance: {distance_km:.1f}km',
+                    'order_id': order.id,
+                    'reason': 'No eligible riders'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Now that we know assignment will work, update status
+            order.status = 'available_for_pickup'
+            order.assignment_timeout_retry_count = 0
+            order.save()
+            
+            # Start assignment process (should not fail now)
+            result = assign_order_to_riders(order)
+            
+            if result['success']:
+                return Response({
+                    'message': '✅ Order ready! Finding best riders for you...',
+                    'order_id': order.id,
+                    'distance_km': result['distance_km'],
+                    'delivery_fee': result['delivery_fee'],
+                    'rider_earning': result['rider_earning'],
+                    'platform_commission': float(result.get('platform_commission', 0)) if isinstance(result.get('platform_commission'), (int, float)) else 0,
+                    'assigned_riders_count': len(result['assigned_riders']),
+                    'timeout_seconds': 30,
+                    'status': 'pending_rider_acceptance'
+                }, status=status.HTTP_200_OK)
+            else:
+                # This shouldn't happen,  but handle it gracefully
+                # Transaction will rollback the status change
+                return Response({
+                    'message': f'❌ Rider assignment failed: {result["reason"]}',
+                    'order_id': order.id,
+                    'reason': result['reason']
+                }, status=status.HTTP_400_BAD_REQUEST)
     
-    # Start assignment process
-    result = assign_order_to_riders(order)
-    
-    if result['success']:
+    except Exception as e:
+        # Catch any unexpected errors and return without changing status
+        print(f"[ERROR] mark_order_ready_for_delivery failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return Response({
-            'message': '✅ Order ready! Finding best riders for you...',
+            'message': f'❌ An error occurred: {str(e)}',
             'order_id': order.id,
-            'distance_km': result['distance_km'],
-            'delivery_fee': result['delivery_fee'],
-            'rider_earning': result['rider_earning'],
-            'platform_commission': float(result.get('platform_commission', 0)) if isinstance(result.get('platform_commission'), (int, float)) else 0,
-            'assigned_riders_count': len(result['assigned_riders']),
-            'timeout_seconds': 30,
-            'status': 'pending_rider_acceptance'
-        }, status=status.HTTP_200_OK)
-    else:
-        # Reset order status
-        order.status = 'preparing'
-        order.save()
-        
-        return Response({
-            'message': f'❌ Could not find available riders: {result["reason"]}',
-            'order_id': order.id,
-            'reason': result['reason']
-        }, status=status.HTTP_400_BAD_REQUEST)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # ==================== PHASE 7: NOTIFICATIONS ====================

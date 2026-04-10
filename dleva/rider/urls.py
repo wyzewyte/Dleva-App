@@ -11,6 +11,11 @@ urlpatterns = [
     path('resend-registration-otp/', auth_views.resend_registration_otp, name='resend-registration-otp'),
     path('verify-phone-otp/', auth_views.verify_phone_otp, name='verify-phone-otp'),
     
+    # ==================== PASSWORD RESET ====================
+    path('forgot-password/', auth_views.forgot_password_rider, name='forgot-password'),
+    path('verify-reset-code/', auth_views.verify_reset_code_rider, name='verify-reset-code'),
+    path('reset-password/', auth_views.reset_password_rider, name='reset-password'),
+    
     # ==================== PROFILE ====================
     path('profile/', views.ProfileView.as_view(), name='profile'),
     path('profile/update/', views.ProfileView.as_view(), name='profile-update'),

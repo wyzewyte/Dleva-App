@@ -137,6 +137,8 @@ class OrderSerializer(serializers.ModelSerializer):
     buyer_name = serializers.CharField(source='buyer.user.get_full_name', read_only=True)
     rider_id = serializers.IntegerField(source='rider.id', read_only=True)
     rider_name = serializers.CharField(source='rider.user.get_full_name', read_only=True)
+    restaurant_phone = serializers.CharField(source='restaurant.seller.phone', read_only=True)
+    rider_phone = serializers.CharField(source='rider.phone_number', read_only=True)
     subtotal = serializers.SerializerMethodField()
     
     
@@ -147,7 +149,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'total_price', 'delivery_fee', 'delivery_address', 
             'delivery_latitude', 'delivery_longitude',
             'status', 'payment_method', 'is_rated', 'items',
-            'rider_id', 'rider_name',
+            'rider_id', 'rider_name', 'restaurant_phone', 'rider_phone',
             'subtotal', 'confirmation_code', 'created_at', 'updated_at'
         ]
     

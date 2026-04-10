@@ -33,68 +33,62 @@ const BuyerOrderCard = ({
     ? createdAt.toLocaleTimeString('en-NG', { hour: 'numeric', minute: '2-digit' })
     : null;
 
+  // Get first item name(s) and restaurant
+  const firstItems = (order.items || []).slice(0, 1).map(item => item.menu_item?.name || item.name || 'Item').join(', ');
+  const restaurantName = order.restaurant_name || order.restaurant?.name || 'Restaurant';
+  const itemAndRestaurant = firstItems && restaurantName ? `${firstItems} from ${restaurantName}` : restaurantName;
+  
+  // Truncate with ellipsis if too long (around 50 chars)
+  const displayText = itemAndRestaurant.length > 50 ? itemAndRestaurant.substring(0, 47) + '...' : itemAndRestaurant;
+
   return (
     <BuyerCard className="p-4 sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Order #{order.id}</p>
-          <h3 className="mt-1 truncate text-[1.05rem] font-semibold text-dark">
-            {order.restaurant_name || order.restaurant?.name || 'Restaurant'}
-          </h3>
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted">
-            <span>{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
-            <span className="inline-flex items-center gap-1">
-              <Clock3 size={12} />
-              {orderDate}{orderTime ? `, ${orderTime}` : ''}
-            </span>
-          </div>
-        </div>
-        <BuyerStatusBadge status={order.status}>{statusInfo.label}</BuyerStatusBadge>
+{/* Row 1: Order ID only */}
+      <div className="flex items-start mb-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Order #{order.id}</p>
       </div>
 
-      {Array.isArray(order.items) && order.items.length > 0 && (
-        <div className="mt-4 rounded-[16px] border border-gray-100 bg-gray-50/80 px-4 py-3">
-          <div className="space-y-1.5">
-            {order.items.slice(0, compact ? 1 : 2).map((item, index) => (
-              <p key={`${order.id}-item-${index}`} className="text-sm text-dark">
-                {item.menu_item?.name || item.name || 'Item'} x{item.quantity || 1}
-              </p>
-            ))}
-            {order.items.length > (compact ? 1 : 2) && (
-              <p className="text-xs font-medium text-muted">
-                +{order.items.length - (compact ? 1 : 2)} more item{order.items.length - (compact ? 1 : 2) === 1 ? '' : 's'}
-              </p>
-            )}
+      {/* Row 2: Item + Date/Time/Count (left) | Price & Status (right) */}
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-dark line-clamp-2 break-words mb-1">
+            {displayText}
+          </h3>
+          <div className="flex items-center gap-2 text-xs text-muted flex-wrap">
+            <Clock3 size={12} />
+            <span>{orderDate}{orderTime ? `, ${orderTime}` : ''}</span>
+            <span className="text-gray-300">•</span>
+            <span>{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
           </div>
         </div>
-      )}
-
-      <div className="mt-4 flex items-end justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Total</p>
-          <p className="mt-1 text-lg font-bold text-dark">{formatCurrency(order.total_price || order.total || 0)}</p>
+        <div className="text-right shrink-0">
+          <p className="text-sm font-bold text-dark">{formatCurrency(order.total_price || order.total || 0)}</p>
+          <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-md mt-1 ${statusInfo.bgColor} ${statusInfo.color}`}>
+            {statusInfo.label}
+          </span>
         </div>
+      </div>
 
-        <div className="flex min-w-[180px] flex-col gap-2 sm:min-w-[220px]">
-          {primaryActionLabel && onPrimaryAction && (
-            <BuyerPrimaryButton
-              onClick={() => onPrimaryAction(order)}
-              className="min-h-[44px] py-2.5"
-              icon={actionIconMap[primaryActionLabel.toLowerCase()] || <Truck size={16} />}
-            >
-              {primaryActionLabel}
-            </BuyerPrimaryButton>
-          )}
-          {secondaryActionLabel && onSecondaryAction && (
-            <BuyerSecondaryButton
-              onClick={() => onSecondaryAction(order)}
-              className="min-h-[44px] py-2.5"
-              icon={actionIconMap[secondaryActionLabel.toLowerCase()] || <Receipt size={16} />}
-            >
-              {secondaryActionLabel}
-            </BuyerSecondaryButton>
-          )}
-        </div>
+      {/* Action Buttons - Same Row, Space Between */}
+      <div className="flex gap-2 justify-between">
+        {primaryActionLabel && onPrimaryAction && (
+          <BuyerPrimaryButton
+            onClick={() => onPrimaryAction(order)}
+            className="flex-1 !min-h-fit px-4 py-2.5 text-xs"
+            icon={actionIconMap[primaryActionLabel.toLowerCase()] || <Truck size={12} />}
+          >
+            {primaryActionLabel}
+          </BuyerPrimaryButton>
+        )}
+        {secondaryActionLabel && onSecondaryAction && (
+          <BuyerSecondaryButton
+            onClick={() => onSecondaryAction(order)}
+            className="flex-1 !min-h-fit px-3 py-1.5 text-xs"
+            icon={actionIconMap[secondaryActionLabel.toLowerCase()] || <Receipt size={12} />}
+          >
+            {secondaryActionLabel}
+          </BuyerSecondaryButton>
+        )}
       </div>
     </BuyerCard>
   );

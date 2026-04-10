@@ -5,6 +5,7 @@ Handles SMS sending for phone verification and OTP delivery
 
 from twilio.rest import Client
 from decouple import config
+from django.conf import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -49,9 +50,12 @@ class TwilioService:
         Returns:
             dict: Response with success status and message
         """
+        # 🔧 DEBUG MODE: Always print OTP to console for local development
+        if settings.DEBUG:
+            cls._print_otp_console(phone_number, otp_code, purpose)
+        
         if not cls.is_configured():
             logger.warning("⚠️ Twilio not configured, OTP will be printed to console only")
-            cls._print_otp_console(phone_number, otp_code, purpose)
             return {
                 'success': False,
                 'error': 'Twilio not configured',
@@ -96,9 +100,8 @@ class TwilioService:
             logger.error(f"❌ Failed to send OTP SMS: {str(e)}")
             logger.error(f"   Error type: {type(e).__name__}")
             
-            # Fall back to console mode if network fails
-            logger.warning("⚠️ Falling back to console mode (test mode)")
-            cls._print_otp_console(phone_number, otp_code, purpose)
+            # Note: OTP is already printed to console in DEBUG mode above
+            logger.warning("⚠️ SMS delivery failed, OTP should be visible in console (DEBUG mode)")
             
             return {
                 'success': False,

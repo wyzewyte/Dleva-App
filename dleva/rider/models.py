@@ -291,6 +291,13 @@ class RiderOrder(models.Model):
         verbose_name = 'Rider Order'
         verbose_name_plural = 'Rider Orders'
         ordering = ['-assigned_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['order', 'rider'],
+                condition=Q(status='assigned_pending'),
+                name='unique_pending_rider_assignment',
+            ),
+        ]
 
 
 class RiderBankDetails(models.Model):
@@ -352,17 +359,23 @@ class RiderServiceArea(models.Model):
 
 
 class RiderOTP(models.Model):
-    """OTP for phone number verification"""
+    """OTP for phone number verification (registration and password reset)"""
+    PURPOSE_CHOICES = [
+        ('registration', 'Registration'),
+        ('password_reset', 'Password Reset'),
+    ]
+    
     rider = models.ForeignKey(RiderProfile, on_delete=models.CASCADE, related_name='otps')
     phone_number = models.CharField(max_length=20)
     otp_code = models.CharField(max_length=6)
+    purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES, default='registration')  # ✅ NEW
     is_verified = models.BooleanField(default=False)
     attempts = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     
     def __str__(self):
-        return f"OTP for {self.phone_number}"
+        return f"OTP for {self.phone_number} ({self.purpose})"
     
     class Meta:
         verbose_name = 'Rider OTP'

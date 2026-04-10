@@ -439,7 +439,7 @@ def list_rider_orders(request):
     else:
         # Default: Only show ACTIVE orders (currently being worked on)
         # Exclude completed orders: delivered, cancelled, delivery_attempted
-        active_statuses = ['assigned', 'arrived_at_pickup', 'picked_up', 'on_the_way']
+        active_statuses = ['assigned', 'arrived_at_pickup', 'picked_up', 'on_the_way', 'delivery_attempted']
         orders = Order.objects.filter(
             rider=rider,
             status__in=active_statuses

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck, ArrowLeft } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import api from '../../../../services/axios';
 import {
   BuyerAuthPanel,
   BuyerFeedbackState,
@@ -25,21 +26,22 @@ const VerifyCodeModern = () => {
     setSuccess('');
 
     try {
-      const response = await fetch('/api/buyer/verify-reset-code/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code }),
+      const response = await api.post('/buyer/verify-reset-code/', {
+        phone_number: phone,
+        code,
       });
-      const data = await response.json();
 
-      if (response.ok) {
+      if (response.status === 200) {
         setSuccess('Code verified. You can now reset your password.');
         setTimeout(() => navigate('/reset-password', { state: { phone, code } }), 800);
-      } else {
-        setError(data.detail || 'Invalid code.');
       }
-    } catch {
-      setError('Network error.');
+    } catch (err) {
+      const errorMessage = 
+        err.response?.data?.error || 
+        err.response?.data?.message || 
+        err.response?.data?.detail ||
+        'Invalid code. Please try again.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -49,6 +51,8 @@ const VerifyCodeModern = () => {
     <BuyerAuthPanel
       title="Verify Code"
       icon={<ShieldCheck size={24} />}
+      showBack
+      onBack={() => navigate('/forgot-password')}
     >
       <form className="space-y-4" onSubmit={handleSubmit}>
         {error ? <BuyerFeedbackState type="error" title="Could not verify code" message={error} /> : null}

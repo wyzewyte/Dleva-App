@@ -35,11 +35,44 @@ const sellerOrders = {
       }
     } catch (error) {
       logError(error, { context: 'sellerOrders.updateOrderStatus', orderId, status });
-      // Prefer server-provided message or fall back to Axios/message
+      
+      // ✅ IMPROVED: Extract all available error details for frontend display
       const serverData = error.response?.data;
-      const serverMsg = serverData?.message || serverData?.error || serverData?.detail;
-      const message = serverMsg || error.message || 'Failed to update order status';
-      throw { error: message, status: error.response?.status || error.status, details: serverData };
+      const statusCode = error.response?.status || error.status;
+      
+      // Build detailed error message
+      let errorMessage = 'Failed to update order status';
+      
+      if (serverData?.message) {
+        errorMessage = serverData.message;
+      } else if (serverData?.error) {
+        errorMessage = serverData.error;
+      } else if (serverData?.detail) {
+        errorMessage = serverData.detail;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // Add status code context for debugging
+      if (statusCode === 400 && status === 'available_for_pickup') {
+        errorMessage += '\n(Possible causes: No eligible riders, missing location, order in wrong status)';
+      } else if (statusCode === 500) {
+        errorMessage += '\n(Server error - please try again)';
+      }
+      
+      console.error('[SELECT_ORDERS_ERROR]', {
+        orderId,
+        status,
+        statusCode,
+        serverData,
+        message: errorMessage
+      });
+      
+      throw {
+        error: errorMessage,
+        status: statusCode,
+        details: serverData
+      };
     }
   },
 };

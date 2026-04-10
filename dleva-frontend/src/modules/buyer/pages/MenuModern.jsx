@@ -15,6 +15,7 @@ import {
   BuyerSegmentedTabs,
   BuyerStatusBadge,
 } from '../components/ui/BuyerPrimitives';
+import BuyerPageLoading from '../components/ui/BuyerPageLoading';
 
 const FALLBACK_DELIVERY_FEE = 500;
 
@@ -99,13 +100,7 @@ const MenuModern = () => {
   }, [activeCategory, filteredItems, menuItems, searchQuery]);
 
   if (loading) {
-    return (
-      <BuyerFeedbackState
-        type="loading"
-        title="Loading menu"
-        message="Pulling in restaurant details and available menu items."
-      />
-    );
+    return <BuyerPageLoading variant="menu" />;
   }
 
   if (error || !restaurant) {

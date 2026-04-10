@@ -10,6 +10,7 @@ class TrackingWebSocketService {
     this.connections = {}; // Map of orderId -> WebSocket connection
     this.listeners = {}; // Map of orderId -> callback functions
     this.reconnectAttempts = {}; // Track reconnection attempts
+    this.manuallyClosed = {}; // Map of orderId -> boolean
     this.maxReconnectAttempts = 5;
     this.reconnectDelay = 3000; // 3 seconds
   }
@@ -32,6 +33,11 @@ class TrackingWebSocketService {
    * @param {function} onError - Callback for errors
    */
   connectToOrder(orderId, onUpdate, onError) {
+    if (this.connections[orderId]) {
+      this.disconnect(orderId);
+    }
+
+    this.manuallyClosed[orderId] = false;
     const wsUrl = this.getWebSocketUrl(`/ws/order/status/${orderId}/`);
     
     try {
@@ -66,7 +72,12 @@ class TrackingWebSocketService {
       ws.onclose = () => {
         console.log(`⏹️ Disconnected from order ${orderId} tracking`);
         delete this.connections[orderId];
-        
+
+        if (this.manuallyClosed[orderId]) {
+          delete this.manuallyClosed[orderId];
+          return;
+        }
+
         // Attempt reconnection
         this.attemptReconnect(orderId, onUpdate, onError);
       };
@@ -111,9 +122,11 @@ class TrackingWebSocketService {
     
     if (ws) {
       console.log(`Disconnecting from order ${orderId}`);
+      this.manuallyClosed[orderId] = true;
       ws.close();
       delete this.connections[orderId];
       delete this.listeners[orderId];
+      delete this.reconnectAttempts[orderId];
     }
   }
 

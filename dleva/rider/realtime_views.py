@@ -311,17 +311,17 @@ def subscribe_to_order(request, order_id):
         )
     
     # Privacy check
-    if order.user != request.user and not request.user.is_staff:
-        if not hasattr(request.user, 'seller_profile'):
-            return Response(
-                {'error': 'Not authorized to view this order'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        if order.restaurant.owner != request.user:
-            return Response(
-                {'error': 'Not authorized to view this order'},
-                status=status.HTTP_403_FORBIDDEN
-            )
+    is_buyer = bool(order.buyer and order.buyer.user_id == request.user.id)
+    is_seller = bool(
+        hasattr(request.user, 'seller_profile') and
+        order.restaurant.seller_id == request.user.seller_profile.id
+    )
+    is_rider = bool(order.rider and order.rider.user_id == request.user.id)
+    if not (request.user.is_staff or is_buyer or is_seller or is_rider):
+        return Response(
+            {'error': 'Not authorized to view this order'},
+            status=status.HTTP_403_FORBIDDEN
+        )
     
     return Response({
         'status': 'ready',

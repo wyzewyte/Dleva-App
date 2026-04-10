@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { KeyRound, Phone } from 'lucide-react';
+import { KeyRound, Phone, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import api from '../../../../services/axios';
 import {
   BuyerAuthPanel,
   BuyerFeedbackState,
@@ -23,21 +24,21 @@ const ForgotPasswordModern = () => {
     setSuccess('');
 
     try {
-      const response = await fetch('/api/buyer/forgot-password/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
+      const response = await api.post('/buyer/forgot-password/', {
+        phone_number: phone,
       });
-      const data = await response.json();
 
-      if (response.ok) {
+      if (response.status === 200) {
         setSuccess('A verification code has been sent to your phone.');
         setTimeout(() => navigate('/verify-code', { state: { phone } }), 800);
-      } else {
-        setError(data.detail || 'Failed to send code.');
       }
-    } catch {
-      setError('Network error.');
+    } catch (err) {
+      const errorMessage = 
+        err.response?.data?.error || 
+        err.response?.data?.message || 
+        err.response?.data?.detail ||
+        'Failed to send code. Please try again.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -47,6 +48,8 @@ const ForgotPasswordModern = () => {
     <BuyerAuthPanel
       title="Forgot Password"
       icon={<KeyRound size={24} />}
+      showBack
+      onBack={() => navigate('/login')}
     >
       <form className="space-y-4" onSubmit={handleSubmit}>
         {error ? <BuyerFeedbackState type="error" title="Could not send code" message={error} /> : null}

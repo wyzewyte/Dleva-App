@@ -14,6 +14,7 @@ import { useOrder } from '../context/OrderContext';
 import { useStatusUpdateListener } from '../hooks/useOrderWebSocket';
 import toast from '../../../services/toast';
 import { formatCurrency } from '../../../utils/formatters';
+import EntityContactCard from '../../../components/shared/EntityContactCard';
 import {
   RiderCard,
   RiderFeedbackState,
@@ -351,27 +352,14 @@ const OrderDetails = () => {
               </div>
             </RiderCard>
 
-            <RiderCard className="p-5">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <User size={18} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Buyer</p>
-                  <p className="mt-2 text-sm font-semibold text-dark">{order?.buyer?.name || order?.buyer_name || 'Buyer'}</p>
-                  <p className="mt-1 text-sm leading-relaxed text-muted">{order?.delivery_address || 'Delivery address unavailable'}</p>
-                  {order?.buyer?.phone ? (
-                    <a
-                      href={`tel:${order.buyer.phone}`}
-                      className="mt-4 inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-dark transition-colors hover:bg-gray-50"
-                    >
-                      <Phone size={15} />
-                      Call buyer
-                    </a>
-                  ) : null}
-                </div>
-              </div>
-            </RiderCard>
+            <EntityContactCard
+              label="Buyer"
+              title={order?.buyer?.name || order?.buyer_name || 'Buyer'}
+              description={order?.delivery_address || 'Delivery address unavailable'}
+              phone={order?.buyer?.phone}
+              icon={User}
+              actionLabel="Call buyer"
+            />
 
             <RiderCard className="p-5">
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Delivery summary</p>

@@ -12,6 +12,7 @@ import {
   BuyerPageHeader,
   BuyerPrimaryButton,
 } from '../components/ui/BuyerPrimitives';
+import BuyerPageLoading from '../components/ui/BuyerPageLoading';
 
 const OrderHistoryModern = () => {
   const navigate = useNavigate();
@@ -41,17 +42,22 @@ const OrderHistoryModern = () => {
 
   const handleRatingSubmit = async (ratingData) => {
     try {
-      await buyerRatings.submitOrderFeedback({
+      const results = await buyerRatings.submitOrderFeedback({
         orderId: selectedOrder.id,
         restaurantRating: ratingData.restaurantRating,
         riderRating: ratingData.riderRating,
-        comment: ratingData.comment,
+        restaurantComment: ratingData.restaurantComment,
+        riderComment: ratingData.riderComment,
       });
-      setOrders((previous) => previous.map((order) => (
-        order.id === selectedOrder.id ? { ...order, is_rated: true } : order
-      )));
-      setIsRatingOpen(false);
-      setSelectedOrder(null);
+      
+      // Check for individual rating errors
+      if (results.restaurantError) {
+        logError({ error: results.restaurantError }, { context: 'OrderHistoryModern.handleRatingSubmit - restaurant' });
+      }
+      if (results.riderError) {
+        logError({ error: results.riderError }, { context: 'OrderHistoryModern.handleRatingSubmit - rider' });
+      }
+      // Don't close modal or update order status - modal shows success and stays open
     } catch (err) {
       logError(err, { context: 'OrderHistoryModern.handleRatingSubmit' });
       setError('Failed to submit rating');
@@ -59,13 +65,7 @@ const OrderHistoryModern = () => {
   };
 
   if (loading) {
-    return (
-      <BuyerFeedbackState
-        type="loading"
-        title="Loading your order history"
-        message="We are gathering your completed deliveries and reorder details."
-      />
-    );
+    return <BuyerPageLoading variant="orders" />;
   }
 
   return (
@@ -101,9 +101,9 @@ const OrderHistoryModern = () => {
               order={order}
               primaryActionLabel="View Details"
               onPrimaryAction={(selectedOrder) => navigate(`/tracking/${selectedOrder.id}`)}
-              secondaryActionLabel={order.status === 'delivered' && !order.is_rated ? 'Rate Order' : null}
+              secondaryActionLabel={order.status === 'delivered' ? 'Rate Order' : null}
               onSecondaryAction={
-                order.status === 'delivered' && !order.is_rated
+                order.status === 'delivered'
                   ? (selectedOrder) => {
                       setSelectedOrder(selectedOrder);
                       setIsRatingOpen(true);

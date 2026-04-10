@@ -9,7 +9,12 @@ from rest_framework import status
 
 from buyer.models import Order
 from rider.models import RiderProfile, RiderOrder
-from rider.assignment_service import assign_order_to_riders, handle_rider_acceptance, handle_rider_rejection
+from rider.assignment_service import (
+    assign_order_to_riders,
+    handle_rider_acceptance,
+    handle_rider_rejection,
+    process_assignment_timeout,
+)
 from django.utils import timezone
 
 
@@ -77,6 +82,20 @@ def get_available_orders(request):
             {'message': 'Rider profile not found'},
             status=status.HTTP_404_NOT_FOUND
         )
+
+    expired_order_ids = list(
+        RiderOrder.objects.filter(
+            rider=rider,
+            status='assigned_pending',
+            order__status='awaiting_rider',
+            order__assignment_timeout_at__lte=timezone.now(),
+        ).values_list('order_id', flat=True).distinct()
+    )
+    for expired_order_id in expired_order_ids:
+        try:
+            process_assignment_timeout(Order.objects.get(id=expired_order_id))
+        except Order.DoesNotExist:
+            continue
     
     # Get pending assignments for this rider with optimized queries
     pending_assignments = RiderOrder.objects.filter(
@@ -85,15 +104,14 @@ def get_available_orders(request):
     ).select_related('order', 'order__restaurant', 'order__buyer', 'order__buyer__user').prefetch_related('order__items')
     
     orders_data = []
+    seen_order_ids = set()
     
     for assignment in pending_assignments:
         order = assignment.order
-        
-        # Check if assignment has timed out
-        if order.assignment_timeout_at and timezone.now() > order.assignment_timeout_at:
-            assignment.status = 'timeout'
-            assignment.save()
+
+        if order.id in seen_order_ids:
             continue
+        seen_order_ids.add(order.id)
         
         # Get buyer name
         buyer_name = 'Guest'
@@ -164,13 +182,12 @@ def accept_delivery_order(request, order_id):
         )
     
     # Check if rider has pending assignment for this order
-    try:
-        assignment = RiderOrder.objects.get(
-            order_id=order_id,
-            rider=rider,
-            status='assigned_pending'
-        )
-    except RiderOrder.DoesNotExist:
+    assignment_exists = RiderOrder.objects.filter(
+        order_id=order_id,
+        rider=rider,
+        status='assigned_pending'
+    ).exists()
+    if not assignment_exists:
         return Response(
             {'message': 'No pending assignment for this order'},
             status=status.HTTP_404_NOT_FOUND
@@ -209,13 +226,12 @@ def reject_delivery_order(request, order_id):
         )
     
     # Check if rider has pending assignment for this order
-    try:
-        assignment = RiderOrder.objects.get(
-            order_id=order_id,
-            rider=rider,
-            status='assigned_pending'
-        )
-    except RiderOrder.DoesNotExist:
+    assignment_exists = RiderOrder.objects.filter(
+        order_id=order_id,
+        rider=rider,
+        status='assigned_pending'
+    ).exists()
+    if not assignment_exists:
         return Response(
             {'message': 'No pending assignment for this order'},
             status=status.HTTP_404_NOT_FOUND
