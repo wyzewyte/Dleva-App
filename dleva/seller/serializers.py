@@ -83,7 +83,7 @@ class SellerProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = SellerProfile
         fields = ['id', 'username', 'first_name', 'last_name', 'email', 'business_type', 'restaurant_name', 'address', 'phone', 'latitude', 'longitude',
-                  'image', 'created_at']
+                  'image', 'cloudinary_image_id', 'cloudinary_image_url', 'created_at']
         
 class SellerMenuItemSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
@@ -91,13 +91,13 @@ class SellerMenuItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MenuItem
-        fields = ['id', 'name', 'description', 'price', 'available', 'category', 'category_name', 'image', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'price', 'available', 'category', 'category_name', 'image', 'cloudinary_image_id', 'cloudinary_image_url', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 class RestaurantSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Restaurant
-        fields = ['name', 'description', 'is_active', 'image', 'address', 'latitude', 'longitude']
+        fields = ['name', 'description', 'is_active', 'image', 'cloudinary_image_id', 'cloudinary_image_url', 'address', 'latitude', 'longitude']
         
     def update(self, instance, validated_data):
         # ✅ Ensure is_active is handled properly

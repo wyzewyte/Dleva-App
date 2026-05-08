@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #e8f5e9; padding: 20px; border-radius: 5px; }
+        .rider-box { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .label { font-weight: bold; color: #2e7d32; }
+        .footer { color: #999; font-size: 12px; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚴 Order Picked Up!</h1>
+        </div>
+        
+        <p>Hi {{ seller_name }},</p>
+        
+        <p>Excellent! The rider has picked up order #{{ order_id }} and is heading to the customer.</p>
+        
+        <div class="rider-box">
+            <p><span class="label">Order ID:</span> #{{ order_id }}</p>
+            <p><span class="label">Customer:</span> {{ buyer_name }}</p>
+            <p><span class="label">Rider Name:</span> {{ rider_name }}</p>
+            <p><span class="label">Rider Phone:</span> {{ rider_phone }}</p>
+            <p><span class="label">Pickup Time:</span> {{ pickup_time }}</p>
+        </div>
+        
+        <p>The order is now on its way to the customer. You'll receive a notification once it's delivered.</p>
+        
+        <p>Thank you for your great service!</p>
+        
+        <p>Best regards,<br>The Dleva Team</p>
+        
+        <div class="footer">
+            <p>© 2026 Dleva. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

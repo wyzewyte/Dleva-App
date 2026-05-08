@@ -62,7 +62,8 @@ class RiderRegistrationSerializer(serializers.Serializer):
             account_status='pending_documents',
             verification_status='pending',
             is_verified=False,
-            phone_verified=False
+            phone_verified=False,
+            email_verified=False
         )
         
         return {
@@ -270,6 +271,7 @@ class RiderVerificationStatusSerializer(serializers.Serializer):
     documents_approved = serializers.BooleanField()
     bank_details_added = serializers.BooleanField()
     bank_details_verified = serializers.BooleanField()
+    location_set = serializers.BooleanField()
     profile_completion_percent = serializers.IntegerField()
     is_online = serializers.BooleanField()
 

@@ -24,15 +24,16 @@ const buyerCheckout = {
   },
 
   // ✅ SECURE FLOW: Initialize payment WITHOUT creating order
-  initializePayment: async (amount) => {
+  initializePayment: async (checkoutData) => {
     try {
-      // ✅ Send amount directly, no order_id needed
+      // Backend recalculates the payable amount from menu prices and delivery coordinates.
       const response = await api.post(API_ENDPOINTS.PAYMENT.INITIALIZE, {
-        amount: amount,
+        ...checkoutData,
+        cartItems: checkoutData.items || checkoutData.cartItems || [],
       });
       return response.data.data;
     } catch (error) {
-      logError(error, { context: 'buyerCheckout.initializePayment', amount });
+      logError(error, { context: 'buyerCheckout.initializePayment' });
       throw error.response?.data || { error: 'Failed to initialize payment' };
     }
   },

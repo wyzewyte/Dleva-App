@@ -594,7 +594,7 @@ class RiderOrdersConsumer(AsyncWebsocketConsumer):
             # 1. Online and available
             # 2. Verified (documents, bank details)
             # 3. Not suspended
-            # 4. Within service area (optional: distance check)
+            # 4. Close enough for this delivery (optional distance check)
             
             if not rider.is_online:
                 return False

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #fff3e0; padding: 20px; border-radius: 5px; }
+        .delivery-box { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .label { font-weight: bold; color: #f57c00; }
+        .earning { font-size: 24px; font-weight: bold; color: #f57c00; }
+        .footer { color: #999; font-size: 12px; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 New Delivery for You!</h1>
+        </div>
+        
+        <p>Hi {{ rider_name }},</p>
+        
+        <p>Congratulations! A new delivery has been assigned to you. Head to the restaurant to pick up the order!</p>
+        
+        <div class="delivery-box">
+            <p><span class="label">Order ID:</span> #{{ order_id }}</p>
+            <p><span class="label">Restaurant:</span> {{ restaurant_name }}</p>
+            <p><span class="label">Pickup Address:</span> {{ pickup_address }}</p>
+            <p><span class="label">Delivery Address:</span> {{ delivery_address }}</p>
+            <p><span class="label">Distance:</span> {{ distance_km }} km</p>
+            <p class="earning">Your Earning: ₦{{ rider_earning }}</p>
+            <p><span class="label">Assigned At:</span> {{ assigned_time }}</p>
+        </div>
+        
+        <p><strong>📍 Next Steps:</strong></p>
+        <ol>
+            <li>Head to {{ restaurant_name }}</li>
+            <li>Pick up the order</li>
+            <li>Deliver to the customer</li>
+            <li>Collect confirmation</li>
+        </ol>
+        
+        <p>Your earnings will be added to your account balance upon successful delivery.</p>
+        
+        <p>Best regards,<br>The Dleva Team</p>
+        
+        <div class="footer">
+            <p>© 2026 Dleva. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

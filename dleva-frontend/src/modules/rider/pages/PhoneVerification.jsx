@@ -69,8 +69,8 @@ const PhoneVerification = () => {
     clearFeedback();
 
     try {
-      const response = await riderSettings.requestPhoneOtp(phone);
-      setMessage(response?.debug_otp ? `${SETTINGS_SUCCESS.OTP_SENT} (${response.debug_otp})` : SETTINGS_SUCCESS.OTP_SENT);
+      await riderSettings.requestPhoneOtp(phone);
+      setMessage(SETTINGS_SUCCESS.OTP_SENT);
       setStep('verify');
       setResendTimer(OTP_CONFIG.RESEND_TIMER);
     } catch (err) {
@@ -115,8 +115,8 @@ const PhoneVerification = () => {
     clearFeedback();
 
     try {
-      const response = await riderSettings.resendPhoneOtp(phone);
-      setMessage(response?.debug_otp ? `${SETTINGS_SUCCESS.OTP_RESENT} (${response.debug_otp})` : SETTINGS_SUCCESS.OTP_RESENT);
+      await riderSettings.resendPhoneOtp(phone);
+      setMessage(SETTINGS_SUCCESS.OTP_RESENT);
       setResendTimer(OTP_CONFIG.RESEND_TIMER);
       setOtp('');
     } catch (err) {

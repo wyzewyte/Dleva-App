@@ -92,7 +92,7 @@ const OnlineToggle = ({ isOnline, onToggle }) => {
       {/* Info Text */}
       <p className="text-xs text-muted mt-4">
         {isOnline
-          ? 'You will receive notifications for new orders in your service area.'
+          ? 'You will receive notifications for delivery requests near your saved location.'
           : 'Turn on to start receiving delivery requests.'}
       </p>
     </div>

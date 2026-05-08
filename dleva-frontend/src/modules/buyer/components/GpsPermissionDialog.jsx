@@ -97,9 +97,9 @@ const GpsPermissionDialog = ({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
         {/* Header */}
-        <div className="bg-blue-50 border-b border-blue-100 p-6">
+        <div className="bg-accent-light border-b border-accent p-6">
           <div className="flex items-center gap-3">
-            <MapPin className="text-blue-600" size={28} />
+            <MapPin className="text-accent" size={28} />
             <div>
               <h2 className="text-lg font-bold text-dark">Share Your Location?</h2>
               <p className="text-sm text-muted">Helps rider find you easily</p>
@@ -116,11 +116,11 @@ const GpsPermissionDialog = ({
               <p className="text-sm text-red-700">{errorMessage}</p>
             </div>
           ) : (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
-              <p className="text-sm text-blue-900">
+            <div className="bg-accent-light border border-accent rounded-lg p-4 space-y-2">
+              <p className="text-sm text-accent">
                 <strong>Better Delivery Experience:</strong>
               </p>
-              <ul className="text-sm text-blue-800 space-y-1 ml-4 list-disc">
+              <ul className="text-sm text-accent space-y-1 ml-4 list-disc">
                 <li>Rider can locate you quickly</li>
                 <li>Real-time tracking of delivery</li>
                 <li>Accurate drop-off location</li>

@@ -1,0 +1,17 @@
+{% autoescape off %}
+Hi {{ buyer_name }},
+
+Your order is out for delivery!
+
+Order Details:
+- Order ID: {{ order_id }}
+- Restaurant: {{ restaurant_name }}
+- Rider: {{ rider_name }}
+- Rider Phone: {{ rider_phone }}
+- Delivery Location: {{ delivery_address }}
+
+Your rider is on the way with your food. Please ensure you are available at your delivery location.
+
+Best regards,
+The Dleva Team
+{% endautoescape %}

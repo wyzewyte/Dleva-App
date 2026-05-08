@@ -171,47 +171,35 @@ const riderVerification = {
     return { valid: true };
   },
 
-  // Get available service areas
-  async getAvailableServiceAreas() {
+  async getLocationSetup() {
     try {
-      const response = await api.get(API_ENDPOINTS.RIDER.VERIFICATION.SERVICE_AREAS_AVAILABLE);
+      const response = await api.get(API_ENDPOINTS.RIDER.VERIFICATION.LOCATION_SETUP);
       return response.data;
     } catch (error) {
       throw {
-        error: extractErrorMessage(error, 'Failed to fetch service areas'),
+        error: extractErrorMessage(error, 'Failed to fetch rider location'),
         status: error.response?.status || error.status,
       };
     }
   },
 
-  // Get rider's selected service areas
-  async getRiderServiceAreas() {
+  async saveLocationSetup(location) {
     try {
-      const response = await api.get(API_ENDPOINTS.RIDER.VERIFICATION.SERVICE_AREAS_GET);
-      return response.data;
-    } catch (error) {
-      throw {
-        error: extractErrorMessage(error, 'Failed to fetch your service areas'),
-        status: error.response?.status || error.status,
-      };
-    }
-  },
-
-  // Set/update rider's service areas
-  async setServiceAreas(serviceAreas) {
-    try {
-      if (!serviceAreas || serviceAreas.length === 0) {
-        throw { error: 'At least one service area must be selected', status: 400 };
+      if (!location?.address || location?.latitude == null || location?.longitude == null) {
+        throw { error: 'Choose a valid location before saving', status: 400 };
       }
 
-      const response = await api.post(API_ENDPOINTS.RIDER.VERIFICATION.SERVICE_AREAS_SET, {
-        service_areas: serviceAreas, // Array of area codes
+      const response = await api.post(API_ENDPOINTS.RIDER.VERIFICATION.LOCATION_SETUP, {
+        address: location.address,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        accuracy: location.accuracy || 0,
       });
 
       return response.data;
     } catch (error) {
       throw {
-        error: extractErrorMessage(error, 'Failed to save service areas'),
+        error: extractErrorMessage(error, 'Failed to save rider location'),
         status: error.response?.status || error.status,
       };
     }

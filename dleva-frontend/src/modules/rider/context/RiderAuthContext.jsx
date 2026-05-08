@@ -94,6 +94,8 @@ export const RiderAuthProvider = ({ children }) => {
           ...profile,
           can_go_online: verification?.can_go_online ?? profile?.can_go_online ?? false,
           phone_verified: verification?.phone_verified ?? profile?.phone_verified,
+          email_verified: verification?.email_verified ?? profile?.email_verified,
+          location_set: verification?.location_set ?? profile?.location_set,
           verification_status: verification?.verification_status ?? profile?.verification_status,
           account_status: verification?.account_status ?? profile?.account_status,
           is_online: verification?.is_online ?? profile?.is_online,
@@ -164,6 +166,8 @@ export const RiderAuthProvider = ({ children }) => {
         ...profile,
         can_go_online: verification?.can_go_online ?? profile?.can_go_online ?? false,
         phone_verified: verification?.phone_verified ?? profile?.phone_verified,
+        email_verified: verification?.email_verified ?? profile?.email_verified,
+        location_set: verification?.location_set ?? profile?.location_set,
         verification_status: verification?.verification_status ?? profile?.verification_status,
         account_status: verification?.account_status ?? profile?.account_status,
         is_online: verification?.is_online ?? profile?.is_online,
@@ -203,6 +207,11 @@ export const RiderAuthProvider = ({ children }) => {
         localStorage.setItem('rider_access_token', token);
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         setToken(token);
+      }
+
+      if (response.rider) {
+        setRider(response.rider);
+        localStorage.setItem('rider_profile', JSON.stringify(response.rider));
       }
 
       return response;
@@ -283,6 +292,8 @@ export const RiderAuthProvider = ({ children }) => {
         ...profile,
         can_go_online: verification?.can_go_online ?? profile?.can_go_online ?? false,
         phone_verified: verification?.phone_verified ?? profile?.phone_verified,
+        email_verified: verification?.email_verified ?? profile?.email_verified,
+        location_set: verification?.location_set ?? profile?.location_set,
         verification_status: verification?.verification_status ?? profile?.verification_status,
         account_status: verification?.account_status ?? profile?.account_status,
         is_online: verification?.is_online ?? profile?.is_online,

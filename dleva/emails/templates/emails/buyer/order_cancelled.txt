@@ -1,0 +1,22 @@
+{% autoescape off %}
+Hi {{ buyer_name }},
+
+Your order has been cancelled.
+
+Order Details:
+- Order ID: {{ order_id }}
+- Restaurant: {{ restaurant_name }}
+- Original Total: ₦{{ total_price }}
+
+Refund Status:
+- Refund Amount: ₦{{ refund_amount }}
+- Status: {{ refund_status }}
+- Expected in 3-5 business days
+
+If you have any questions about this cancellation or refund, please contact our support team.
+
+Reason for cancellation: {{ cancellation_reason }}
+
+Best regards,
+The Dleva Team
+{% endautoescape %}

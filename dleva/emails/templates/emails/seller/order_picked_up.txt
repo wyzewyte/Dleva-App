@@ -1,0 +1,16 @@
+{% autoescape off %}
+Hi {{ seller_name }},
+
+The rider has picked up order #{{ order_id }}!
+
+Order Details:
+- Order ID: {{ order_id }}
+- Customer: {{ buyer_name }}
+- Rider Name: {{ rider_name }}
+- Rider Phone: {{ rider_phone }}
+
+The order is now on its way to the customer. You'll be notified once it's delivered.
+
+Best regards,
+The Dleva Team
+{% endautoescape %}

@@ -1,0 +1,17 @@
+{% autoescape off %}
+Hi {{ seller_name }},
+
+Your payout has been processed!
+
+Payout Details:
+- Payout ID: {{ payout_id }}
+- Amount: ₦{{ amount }}
+- Status: {{ status }}
+- Bank: {{ bank_name }}
+- Account Number: {{ account_number }}
+
+The funds should arrive in your account within 3-5 business days.
+
+Best regards,
+The Dleva Team
+{% endautoescape %}

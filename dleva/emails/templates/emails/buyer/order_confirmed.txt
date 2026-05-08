@@ -1,0 +1,17 @@
+{% autoescape off %}
+Hi {{ buyer_name }},
+
+Your order has been confirmed!
+
+Order Details:
+- Order ID: {{ order_id }}
+- Restaurant: {{ restaurant_name }}
+- Total Amount: ₦{{ total_price }}
+- Delivery Fee: ₦{{ delivery_fee }}
+- Estimated Delivery: {{ estimated_delivery_time }}
+
+Your order is being prepared by the restaurant. We'll notify you when it's ready for pickup and on the way.
+
+Best regards,
+The Dleva Team
+{% endautoescape %}

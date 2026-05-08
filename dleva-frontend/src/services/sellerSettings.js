@@ -60,7 +60,7 @@ const sellerSettings = {
   // Update payout details
   updatePayoutDetails: async (data) => {
     try {
-      const response = await api.post(API_ENDPOINTS.SELLER.PAYOUT_DETAILS, data);
+      const response = await api.patch(API_ENDPOINTS.SELLER.PAYOUT_DETAILS, data);
       return response.data;
     } catch (error) {
       logError(error, { context: 'sellerSettings.updatePayoutDetails' });

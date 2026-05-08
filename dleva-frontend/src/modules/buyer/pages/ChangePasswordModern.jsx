@@ -22,14 +22,15 @@ const PasswordField = ({ label, value, onChange, visible, onToggle, icon: Icon }
         value={value}
         onChange={onChange}
         placeholder="••••••••"
-        className="pr-12"
+        inputClassName="pr-12"
       />
       <button
         type="button"
         onClick={onToggle}
-        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-600"
+        aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+        className="absolute right-3 top-1/2 z-10 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-white hover:text-accent"
       >
-        {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+        {visible ? <EyeOff size={17} /> : <Eye size={17} />}
       </button>
     </div>
   </BuyerFormField>

@@ -3,7 +3,11 @@ from django.dispatch import receiver
 from django.utils import timezone
 from .models import RiderProfile, RiderWallet, RiderTransaction, RiderRating
 from buyer.models import Order
+from emails.notifications import send_rider_new_delivery_assigned_email, send_rider_delivery_completed_email
 from decimal import Decimal
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # Auto-create RiderWallet when RiderProfile is created
@@ -42,6 +46,13 @@ def handle_order_delivery(sender, instance, created, update_fields, **kwargs):
     if instance.status == 'delivered' and instance.rider and not instance.delivered_at:
         instance.delivered_at = timezone.now()
         instance.save(update_fields=['delivered_at'])
+    
+    # Send delivery completed email when order is delivered
+    if instance.status == 'delivered' and instance.rider:
+        try:
+            send_rider_delivery_completed_email(instance)
+        except Exception as e:
+            logger.error(f"Error sending delivery completed email: {str(e)}")
 
 
 # Update rider average rating when a new rating is created

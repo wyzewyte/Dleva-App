@@ -13,16 +13,16 @@ import { formatCurrency } from '../../../utils/formatters';
 
 const EmptyCartIllustration = () => (
   <svg viewBox="0 0 200 160" className="w-44 h-44 mx-auto" fill="none">
-    <ellipse cx="100" cy="148" rx="55" ry="8" fill="#E8F5E9" />
-    <path d="M60 75 L68 130 H132 L140 75 Z" fill="#A5D6A7" />
-    <path d="M60 75 L68 130 H100 V75 Z" fill="#81C784" />
-    <path d="M58 72 Q100 60 142 72 L140 76 Q100 64 60 76 Z" fill="#66BB6A" />
+    <ellipse cx="100" cy="148" rx="55" ry="8" fill="#FFF3E0" />
+    <path d="M60 75 L68 130 H132 L140 75 Z" fill="#FFB562" />
+    <path d="M60 75 L68 130 H100 V75 Z" fill="#F47B00" />
+    <path d="M58 72 Q100 60 142 72 L140 76 Q100 64 60 76 Z" fill="#D96E00" />
     <path d="M82 72 Q80 52 88 48 Q96 44 100 50" stroke="#388E3C" strokeWidth="4" strokeLinecap="round" fill="none" />
     <path d="M118 72 Q120 52 112 48 Q104 44 100 50" stroke="#388E3C" strokeWidth="4" strokeLinecap="round" fill="none" />
     <path d="M72 85 Q76 80 82 83" stroke="white" strokeWidth="2.5" strokeLinecap="round" opacity="0.6" />
-    <circle cx="75" cy="65" r="2" fill="#C8E6C9" opacity="0.8" />
-    <circle cx="68" cy="58" r="1.5" fill="#C8E6C9" opacity="0.6" />
-    <circle cx="82" cy="60" r="1" fill="#C8E6C9" opacity="0.5" />
+    <circle cx="75" cy="65" r="2" fill="#FFF3E0" opacity="0.8" />
+    <circle cx="68" cy="58" r="1.5" fill="#FFF3E0" opacity="0.6" />
+    <circle cx="82" cy="60" r="1" fill="#FFF3E0" opacity="0.5" />
   </svg>
 );
 

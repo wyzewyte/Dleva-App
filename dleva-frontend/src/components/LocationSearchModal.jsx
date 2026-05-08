@@ -103,7 +103,7 @@ const LocationSearchModal = () => {
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             autoFocus
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
           />
         </div>
 
@@ -111,7 +111,7 @@ const LocationSearchModal = () => {
         <div className="max-h-96 overflow-y-auto">
           {loading && (
             <div className="p-6 text-center text-gray-500">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
               <p className="mt-2">Searching...</p>
             </div>
           )}
@@ -129,7 +129,7 @@ const LocationSearchModal = () => {
                   key={`${result.latitude}-${result.longitude}`}
                   className={`p-4 cursor-pointer transition ${
                     index === selectedIndex
-                      ? 'bg-blue-50 border-l-4 border-blue-500'
+                      ? 'bg-accent-light border-l-4 border-accent'
                       : 'hover:bg-gray-50'
                   }`}
                   onClick={() => handleSelectLocation(result)}

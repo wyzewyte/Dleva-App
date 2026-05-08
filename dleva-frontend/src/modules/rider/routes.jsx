@@ -18,7 +18,7 @@ import Contact from '../pages/Contact';
 import PhoneVerification from '../pages/PhoneVerification';
 import DocumentVerification from '../pages/DocumentVerification';
 import BankDetailsVerification from '../pages/BankDetailsVerification';
-import ServiceAreaVerification from '../pages/ServiceAreaVerification';
+import LocationSetup from '../pages/LocationSetup';
 import VerificationSetup from '../pages/VerificationSetup';
 
 export const riderRoutes = [
@@ -52,7 +52,7 @@ export const riderRoutes = [
   },
   {
     path: '/rider/verification-location',
-    element: <ServiceAreaVerification />,
+    element: <LocationSetup />,
   },
   {
     path: '/rider/deliveries',

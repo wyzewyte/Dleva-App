@@ -42,6 +42,11 @@ class PushNotificationService:
             'sound': False,
             'priority': 'normal',
         },
+        'rating': {
+            'title': 'New Rating Received',
+            'sound': False,
+            'priority': 'normal',
+        },
         'payout': {
             'title': 'Payout Approved',
             'sound': True,
@@ -195,6 +200,31 @@ class PushNotificationService:
             message=message,
             data={'type': 'suspended'},
             sound=True,
+        )
+
+    @staticmethod
+    def send_new_rating(rider_id, rating, comment='', order_id=None, buyer_name='Customer'):
+        """
+        Send notification when rider receives a new buyer rating.
+        """
+        preview = (comment or '').strip()
+        if preview:
+            preview = preview[:50] + ('...' if len(preview) > 50 else '')
+            message = f'New {rating} star rating from {buyer_name}: "{preview}"'
+        else:
+            message = f'New {rating} star rating from {buyer_name}'
+
+        PushNotificationService.send_notification(
+            rider_id=rider_id,
+            notification_type='rating',
+            title='New Rating',
+            message=message,
+            data={
+                'rating': str(rating),
+                'comment': comment or '',
+                'buyer_name': buyer_name,
+            },
+            order_id=order_id,
         )
     
 

@@ -21,6 +21,13 @@ const extractErrorMessage = (error, defaultMsg = 'Request failed') => {
   return data.error || data.message || defaultMsg;
 };
 
+const withoutDebugOtp = (data) => {
+  if (!data || typeof data !== 'object') return data;
+
+  const { debug_otp, ...safeData } = data;
+  return safeData;
+};
+
 const riderSettings = {
   /**
    * Get rider profile
@@ -28,7 +35,7 @@ const riderSettings = {
   async getProfile() {
     try {
       const response = await api.get(API_ENDPOINTS.RIDER.PROFILE);
-      return response.data;
+      return withoutDebugOtp(response.data);
     } catch (error) {
       throw {
         error: extractErrorMessage(error, 'Failed to fetch profile'),
@@ -62,7 +69,7 @@ const riderSettings = {
         payload.phone_number = phoneNumber;
       }
       const response = await api.post(API_ENDPOINTS.RIDER.VERIFY_PHONE_OTP, payload);
-      return response.data;
+      return withoutDebugOtp(response.data);
     } catch (error) {
       throw {
         error: extractErrorMessage(error, 'Failed to verify phone'),
@@ -79,7 +86,7 @@ const riderSettings = {
       const response = await api.post(API_ENDPOINTS.RIDER.REQUEST_PHONE_OTP, {
         phone_number: phoneNumber,
       });
-      return response.data;
+      return withoutDebugOtp(response.data);
     } catch (error) {
       throw {
         error: extractErrorMessage(error, 'Failed to request OTP'),
@@ -96,7 +103,7 @@ const riderSettings = {
       const response = await api.post(API_ENDPOINTS.RIDER.RESEND_PHONE_OTP, {
         phone_number: phoneNumber,
       });
-      return response.data;
+      return withoutDebugOtp(response.data);
     } catch (error) {
       throw {
         error: extractErrorMessage(error, 'Failed to resend OTP'),

@@ -4,6 +4,13 @@ from . import views, auth_views
 urlpatterns = [
     # ==================== AUTH ====================
     path('register/', auth_views.register_buyer, name='register'),
+    
+    # ==================== PHONE & EMAIL OTP VERIFICATION ====================
+    path('request-phone-otp/', auth_views.request_phone_otp, name='request-phone-otp'),
+    path('verify-phone-otp/', auth_views.verify_phone_otp, name='verify-phone-otp'),
+    path('request-email-otp/', auth_views.request_email_otp, name='request-email-otp'),
+    path('verify-email-otp/', auth_views.verify_email_otp, name='verify-email-otp'),
+    
     path('login/', auth_views.login_buyer, name='login'),
     path('logout/', views.logout_buyer, name='logout'),
     

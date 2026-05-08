@@ -301,13 +301,13 @@ const TrackingModern = () => {
           <div className="flex items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <ShieldCheck size={16} className="text-primary" />
+                <ShieldCheck size={16} className="text-accent" />
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted">Confirmation code</p>
               </div>
               <p className="mt-1 text-sm text-muted">Share this with the rider at delivery.</p>
             </div>
-            <div className="inline-flex rounded-[16px] border border-primary/15 bg-primary/5 px-4 py-2.5">
-              <span className="text-xl font-bold tracking-[0.35em] text-primary">{order.confirmation_code}</span>
+            <div className="inline-flex rounded-[16px] border border-accent/15 bg-accent/5 px-4 py-2.5">
+              <span className="text-xl font-bold tracking-[0.35em] text-accent">{order.confirmation_code}</span>
             </div>
           </div>
         </BuyerCard>
@@ -315,7 +315,7 @@ const TrackingModern = () => {
 
       <BuyerCard className="p-5">
         <div className="mb-4 flex items-center gap-2">
-          <Truck size={18} className="text-primary" />
+          <Truck size={18} className="text-accent" />
           <h3 className="text-lg font-semibold text-dark">Order progress</h3>
         </div>
 
@@ -330,14 +330,14 @@ const TrackingModern = () => {
                   <span
                     className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold ${
                       isCompleted
-                        ? 'border-primary bg-primary text-white'
-                        : 'border-gray-200 bg-white text-muted'
+                        ? 'border-accent bg-accent text-white'
+                        : 'border-accent/25 bg-accent/10 text-accent'
                     }`}
                   >
                     {index + 1}
                   </span>
                   {index !== TRACK_STEPS.length - 1 ? (
-                    <span className={`mt-2 block h-12 w-px ${isCompleted ? 'bg-primary/30' : 'bg-gray-200'}`} />
+                    <span className={`mt-2 block h-12 w-px ${isCompleted ? 'bg-accent/30' : 'bg-gray-200'}`} />
                   ) : null}
                 </div>
 
@@ -354,7 +354,7 @@ const TrackingModern = () => {
       <div className="grid gap-5 lg:grid-cols-2">
         <BuyerCard className="p-5">
           <div className="mb-4 flex items-center gap-2">
-            <MapPin size={18} className="text-primary" />
+            <MapPin size={18} className="text-accent" />
             <h3 className="text-lg font-semibold text-dark">Delivery details</h3>
           </div>
           <p className="text-sm leading-relaxed text-dark">{order.delivery_address || 'No delivery address provided.'}</p>
@@ -375,13 +375,14 @@ const TrackingModern = () => {
             phone={activeContact.phone}
             icon={Phone}
             actionLabel={activeContact.actionLabel}
+            iconClassName="bg-accent/10 text-accent"
           />
         ) : null}
 
         {order.rider_location ? (
           <BuyerCard className="p-5">
             <div className="mb-4 flex items-center gap-2">
-              <Navigation size={18} className="text-primary" />
+              <Navigation size={18} className="text-accent" />
               <h3 className="text-lg font-semibold text-dark">Live rider location</h3>
             </div>
             <div className="space-y-2 text-sm text-dark">
@@ -397,7 +398,7 @@ const TrackingModern = () => {
 
       <BuyerCard className="p-5">
         <div className="mb-4 flex items-center gap-2">
-          <Store size={18} className="text-primary" />
+          <Store size={18} className="text-accent" />
           <h3 className="text-lg font-semibold text-dark">Order summary</h3>
         </div>
 
@@ -442,7 +443,7 @@ const TrackingModern = () => {
               <span className="absolute right-10 top-10 h-2 w-2 rounded-full bg-amber-300 animate-pulse" />
               <span className="absolute left-12 top-20 h-1.5 w-1.5 rounded-full bg-rose-300 animate-pulse" />
               <span className="absolute right-16 top-24 h-2.5 w-2.5 rounded-full bg-sky-300 animate-pulse" />
-              <span className="absolute bottom-16 left-10 h-2 w-2 rounded-full bg-primary/30 animate-pulse" />
+              <span className="absolute bottom-16 left-10 h-2 w-2 rounded-full bg-accent/30 animate-pulse" />
               <span className="absolute bottom-20 right-12 h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
             </div>
 

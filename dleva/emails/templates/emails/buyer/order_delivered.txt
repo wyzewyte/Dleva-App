@@ -1,0 +1,18 @@
+{% autoescape off %}
+Hi {{ buyer_name }},
+
+Your order has been delivered!
+
+Order Details:
+- Order ID: {{ order_id }}
+- Restaurant: {{ restaurant_name }}
+- Total Amount: ₦{{ total_price }}
+- Delivery Rider: {{ rider_name }}
+
+Thank you for ordering from Dleva. We hope you enjoy your meal!
+
+Please rate your experience to help us improve our service.
+
+Best regards,
+The Dleva Team
+{% endautoescape %}

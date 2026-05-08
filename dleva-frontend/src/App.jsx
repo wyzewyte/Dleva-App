@@ -42,9 +42,10 @@ import SellerMenu from './modules/seller/pages/Menu';
 import SellerOrders from './modules/seller/pages/Orders';
 import SellerHistory from './modules/seller/pages/History';  // ✅ ADD THIS
 import SellerSettings from './modules/seller/pages/Settings';
-import SellerNotificationsPage from './pages/seller/NotificationsPage';
+import SellerNotificationsPage from './modules/seller/pages/Notifications';
 import SellerLogin from './modules/seller/pages/auth/Login';
 import SellerRegister from './modules/seller/pages/auth/Register';
+import SellerLocationSetup from './modules/seller/pages/auth/LocationSetup';
 
 // Seller Context/Providers
 import { SellerNotificationsProvider } from './context/SellerNotificationsContext';
@@ -59,7 +60,7 @@ import VerificationSetup from './modules/rider/pages/VerificationSetup';
 import PhoneVerification from './modules/rider/pages/PhoneVerification';
 import DocumentVerification from './modules/rider/pages/DocumentVerification';
 import BankDetailsVerification from './modules/rider/pages/BankDetailsVerification';
-import ServiceAreaVerification from './modules/rider/pages/ServiceAreaVerification';
+import RiderLocationSetup from './modules/rider/pages/LocationSetup';
 import RiderDashboard from './modules/rider/pages/Dashboard';
 import RiderEarnings from './modules/rider/pages/Earnings';
 import RiderProfileSettings from './modules/rider/pages/Settings';
@@ -173,6 +174,7 @@ function App() {
             <Route path="orders" element={<SellerOrders />} />
             <Route path="history" element={<SellerHistory />} />  {/* ✅ ADD THIS */}
             <Route path="settings" element={<SellerSettings />} />
+            <Route path="setup-location" element={<SellerLocationSetup />} />
             <Route path="notifications" element={<SellerNotificationsPage />} />
           </Route>
 
@@ -201,7 +203,7 @@ function App() {
               <Route path="verification-phone" element={<PhoneVerification />} />
               <Route path="verification-documents" element={<DocumentVerification />} />
               <Route path="verification-bank" element={<BankDetailsVerification />} />
-              <Route path="verification-location" element={<ServiceAreaVerification />} />
+              <Route path="verification-location" element={<RiderLocationSetup />} />
               
               {/* Order Pages - Phase 2 */}
               <Route path="available-orders" element={<Navigate to="/rider/deliveries?tab=pending" replace />} />
@@ -250,5 +252,3 @@ function App() {
 }
 
 export default App;
-
-

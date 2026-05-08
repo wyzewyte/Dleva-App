@@ -9,11 +9,15 @@ from django.db import transaction
 from datetime import timedelta
 from decimal import Decimal
 import math
+import logging
 
 from rider.models import RiderProfile, RiderOrder
 from rider.realtime_service import RealtimeService
 from buyer.models import Order
 from seller.models import Restaurant
+from emails.notifications import send_rider_new_delivery_assigned_email
+
+logger = logging.getLogger(__name__)
 
 MAX_ASSIGNMENT_DISTANCE_KM = Decimal('999.99')
 MAX_ASSIGNMENT_AMOUNT = Decimal('9999.99')
@@ -44,42 +48,37 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
 def calculate_delivery_fee(distance_km):
     """
-    Calculate delivery fee based on distance
+    Calculate delivery fee based on distance and active pricing config
     
-    Rules:
-    - Distance ≤ 3 km → ₦300
-    - 3 to 6 km → ₦400 + ₦100 per km
-    - Above 6 km → ₦1000 + ₦150 per km
+    Uses DeliveryPricingConfig model - all values configurable from Django admin
+    Calculation:
+      extra_km = max(0, distance - base_distance_km)
+      buyer_fee = buyer_base_fee + (extra_km × buyer_per_km_rate)
     """
-    distance = float(distance_km)
-    
-    if distance <= 3:
-        base_fee = Decimal('500.00')
-    elif distance <= 6:
-        base_fee = Decimal('600.00')
-        extra_km = distance - 3
-        extra_fee = Decimal(str(extra_km * 100))
-        return base_fee + extra_fee
-    else:
-        base_fee = Decimal('1000.00')
-        extra_km = distance - 6
-        extra_fee = Decimal(str(extra_km * 150))
-        return base_fee + extra_fee
-    
-    return base_fee
+    from rider.models import DeliveryPricingConfig
+    config = DeliveryPricingConfig.get_active_config()
+    return Decimal(str(config.calculate_buyer_fee(distance_km)))
 
 
 def calculate_rider_earning(delivery_fee):
     """
-    Calculate rider earning from delivery fee
+    Calculate rider earning based on active pricing config
     
-    Simple split:
-    - Rider gets 60% of delivery fee
-    - Platform keeps 40% commission
+    Uses DeliveryPricingConfig model for precise distance-based calculation
+    Instead of percentage, uses: rider_base_pay + per_km_rate
     
-    Minimum earning: ₦250
+    Note: delivery_fee parameter is kept for backward compatibility but is not used
+    The actual earning is calculated from distance via the config
+    
+    For the actual rider earning per order, use:
+      order.distance_km → config.calculate_rider_pay(order.distance_km)
     """
-    rider_earning = delivery_fee * Decimal('0.60')
+    from rider.models import DeliveryPricingConfig
+    from decimal import Decimal
+    
+    # Legacy fallback: if distance is unknown, use percentage-based earning
+    # (This maintains backward compatibility during transition)
+    rider_earning = Decimal(str(delivery_fee)) * Decimal('0.60')
     minimum_earning = Decimal('250.00')
     
     if rider_earning < minimum_earning:
@@ -370,9 +369,12 @@ def assign_order_to_riders(
         order.delivery_longitude
     )
     
-    # Calculate delivery fee
+    # Calculate fees using active pricing config
+    from rider.models import DeliveryPricingConfig
+    config = DeliveryPricingConfig.get_active_config()
+    
     delivery_fee = calculate_delivery_fee(distance_km)
-    rider_earning = calculate_rider_earning(delivery_fee)
+    rider_earning = Decimal(str(config.calculate_rider_pay(distance_km)))
     platform_commission = delivery_fee - rider_earning
 
     metrics_validation = validate_assignment_metrics(
@@ -615,6 +617,12 @@ def handle_rider_acceptance(order_id, rider_id):
         'final_assigned_at',
         'currently_assigned_rider_id',
     ])
+
+    # Send delivery assigned email to rider
+    try:
+        send_rider_new_delivery_assigned_email(order)
+    except Exception as e:
+        logger.error(f"Error sending delivery assigned email: {str(e)}")
 
     # Mark all other pending rider assignments as rejected with timestamp.
     RiderOrder.objects.filter(

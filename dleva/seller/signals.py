@@ -9,6 +9,7 @@ from django.utils import timezone
 from buyer.models import Order
 from seller.models import SellerProfile
 from seller.notification_service import SellerPushNotificationService
+from emails.notifications import send_seller_new_order_received_email, send_seller_order_picked_up_email
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,11 +24,21 @@ def notify_seller_on_new_order(sender, instance, created, **kwargs):
     - WebSocket notification (instant, if seller connected)
     - FCM push notification (if seller has FCM token)
     - Database persistence (always)
+    
+    NOTE: Only notifies if items have been created (items.count() > 0)
     """
     if created and instance.restaurant and instance.restaurant.seller:
         # Only notify if order is not cancelled
         if instance.status not in ['cancelled', 'rejected']:
             seller = instance.restaurant.seller
+            
+            # Wait for items to be created before notifying
+            # (items are created after the signal fires)
+            items_count = instance.items.count()
+            if items_count == 0:
+                # Items not created yet, will be notified explicitly from views.py
+                logger.info(f"[SIGNAL] Order #{instance.id} created, waiting for items before notifying seller")
+                return
             
             try:
                 # Send notification to seller
@@ -38,12 +49,19 @@ def notify_seller_on_new_order(sender, instance, created, **kwargs):
                 print(f"Seller: {seller.restaurant_name}")
                 print(f"Order #{instance.id}")
                 print(f"Customer: {instance.buyer.user.first_name or 'Guest'}")
-                print(f"Items: {instance.items.count()}")
+                print(f"Items: {items_count}")
                 print(f"Total: ₦{instance.total_price}")
                 print(f"{'='*70}\n")
                 
             except Exception as e:
                 logger.error(f"Error sending order notification to seller {seller.id}: {str(e)}")
+        
+        # Send new order email to seller
+        try:
+            if instance.restaurant and instance.restaurant.seller:
+                send_seller_new_order_received_email(instance)
+        except Exception as e:
+            logger.error(f"Error sending new order email to seller: {str(e)}")
 
 
 @receiver(post_save, sender=Order)
@@ -97,3 +115,18 @@ def notify_seller_on_order_cancellation(sender, instance, update_fields, **kwarg
                 
             except Exception as e:
                 logger.error(f"Error sending cancellation notification: {str(e)}")
+
+
+@receiver(post_save, sender=Order)
+def notify_seller_on_order_picked_up(sender, instance, update_fields, **kwargs):
+    """
+    When rider picks up order, notify seller
+    """
+    # Check if status was just changed to picked_up
+    if update_fields and 'status' in update_fields and instance.status == 'picked_up':
+        if instance.restaurant and instance.restaurant.seller:
+            try:
+                # Send order picked up email to seller
+                send_seller_order_picked_up_email(instance)
+            except Exception as e:
+                logger.error(f"Error sending order picked up email: {str(e)}")

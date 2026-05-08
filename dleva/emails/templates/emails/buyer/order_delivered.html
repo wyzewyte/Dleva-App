@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #e8f5e9; padding: 20px; border-radius: 5px; }
+        .order-box { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .label { font-weight: bold; color: #2e7d32; }
+        .footer { color: #999; font-size: 12px; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 Order Delivered!</h1>
+        </div>
+        
+        <p>Hi {{ buyer_name }},</p>
+        
+        <p>Your order has been successfully delivered! We hope you're enjoying your meal.</p>
+        
+        <div class="order-box">
+            <p><span class="label">Order ID:</span> #{{ order_id }}</p>
+            <p><span class="label">Restaurant:</span> {{ restaurant_name }}</p>
+            <p><span class="label">Delivery Rider:</span> {{ rider_name }}</p>
+            <p><span class="label">Total Amount:</span> ₦{{ total_price }}</p>
+        </div>
+        
+        <p><strong>📝 Help us improve!</strong> Please rate your experience with the restaurant and your rider. Your feedback helps us provide better service.</p>
+        
+        <p>Thank you for ordering with Dleva!</p>
+        
+        <p>Best regards,<br>The Dleva Team</p>
+        
+        <div class="footer">
+            <p>© 2026 Dleva. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

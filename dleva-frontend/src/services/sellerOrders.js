@@ -7,7 +7,11 @@ const sellerOrders = {
   getOrders: async () => {
     try {
       const response = await api.get(API_ENDPOINTS.SELLER.ORDERS);
-      return Array.isArray(response.data) ? response.data : response.data.results || [];
+      const orders = Array.isArray(response.data) ? response.data : response.data.results || [];
+      return {
+        orders,
+        serverTime: response.data?.server_time || null,
+      };
     } catch (error) {
       logError(error, { context: 'sellerOrders.getOrders' });
       throw error.response?.data || { error: 'Failed to fetch orders' };

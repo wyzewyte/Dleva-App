@@ -423,6 +423,7 @@ const Settings = () => {
                 ['Phone number', verification.phone_verified],
                 ['Documents', verification.documents_approved],
                 ['Bank details', verification.bank_details_verified ?? verification.bank_details_added],
+                ['Location', verification.location_set],
               ].map(([label, complete]) => (
                 <div key={label} className="flex items-center justify-between border-b border-gray-100 px-1 py-4 last:border-b-0">
                   <span className="text-base font-semibold text-dark">{label}</span>

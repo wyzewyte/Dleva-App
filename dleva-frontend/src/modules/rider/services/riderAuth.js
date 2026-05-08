@@ -32,6 +32,14 @@ const extractErrorMessage = (error, defaultMsg = 'Request failed') => {
   return data.error || data.message || defaultMsg;
 };
 
+const withoutDebugOtp = (data) => {
+  if (!data || typeof data !== 'object') return data;
+
+  const safeData = { ...data };
+  delete safeData.debug_otp;
+  return safeData;
+};
+
 const riderAuth = {
   /**
    * Register a new rider
@@ -67,7 +75,7 @@ const riderAuth = {
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       }
       
-      return response.data;
+      return withoutDebugOtp(response.data);
     } catch (error) {
       throw {
         error: extractErrorMessage(error, 'Registration failed'),
@@ -125,10 +133,32 @@ const riderAuth = {
       const response = await api.post(API_ENDPOINTS.RIDER.REQUEST_PHONE_OTP, {
         phone_number,
       });
-      return response.data;
+      return withoutDebugOtp(response.data);
     } catch (error) {
       throw {
         error: extractErrorMessage(error, 'Failed to send OTP'),
+        status: error.response?.status || error.status,
+      };
+    }
+  },
+
+  /**
+   * Request email OTP during signup
+   */
+  async requestEmailOTP(email, rider_name = 'Rider') {
+    try {
+      if (!email) {
+        throw { error: 'Email is required', status: 400 };
+      }
+
+      const response = await api.post(API_ENDPOINTS.RIDER.REQUEST_EMAIL_OTP, {
+        email,
+        rider_name,
+      });
+      return withoutDebugOtp(response.data);
+    } catch (error) {
+      throw {
+        error: extractErrorMessage(error, 'Failed to send email OTP'),
         status: error.response?.status || error.status,
       };
     }
@@ -145,11 +175,11 @@ const riderAuth = {
       
       const response = await api.post(API_ENDPOINTS.RIDER.VERIFY_PHONE_OTP, {
         phone_number,
-        otp,
+        otp_code: otp,
       });
 
       if (response.data.access) {
-        localStorage.setItem('seller_access_token', response.data.access);
+        localStorage.setItem('rider_access_token', response.data.access);
         api.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
       }
 
@@ -163,12 +193,34 @@ const riderAuth = {
   },
 
   /**
+   * Verify email OTP during signup
+   */
+  async verifyEmailOTP(email, otp) {
+    try {
+      if (!email || !otp) {
+        throw { error: 'Email and OTP are required', status: 400 };
+      }
+
+      const response = await api.post(API_ENDPOINTS.RIDER.VERIFY_EMAIL_OTP, {
+        email,
+        otp_code: otp,
+      });
+      return withoutDebugOtp(response.data);
+    } catch (error) {
+      throw {
+        error: extractErrorMessage(error, 'Email OTP verification failed'),
+        status: error.response?.status || error.status,
+      };
+    }
+  },
+
+  /**
    * Fetch current rider profile
    */
   async getProfile() {
     try {
       const response = await api.get(API_ENDPOINTS.RIDER.PROFILE);
-      return response.data;
+      return withoutDebugOtp(response.data);
     } catch (error) {
       throw {
         error: extractErrorMessage(error, 'Failed to fetch profile'),

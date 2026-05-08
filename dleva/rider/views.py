@@ -8,9 +8,10 @@ from django.utils import timezone
 from django.db.models import Q
 from django.db import IntegrityError
 from datetime import datetime
+from decimal import Decimal
 from utils.paystack_service import PaystackService
 
-from .models import RiderProfile, RiderDocument, RiderBankDetails, RiderOTP, RiderWallet, RiderTransaction, RiderServiceArea
+from .models import RiderProfile, RiderDocument, RiderBankDetails, RiderOTP, RiderWallet, RiderTransaction
 from .serializers import (
     RiderProfileSerializer, RiderProfileUpdateSerializer, 
     RiderDocumentUploadSerializer, RiderBankDetailsSerializer,
@@ -92,6 +93,7 @@ def verification_status(request):
     bank_details_record = getattr(rider, 'bank_details', None)
     bank_details_verified = bool(bank_details_record and bank_details_record.verified)
     bank_details_added = bank_details_verified
+    location_set = bool(rider.address and rider.current_latitude is not None and rider.current_longitude is not None)
     
     # ✅ Get all documents with their individual statuses (for frontend to verify ALL are approved)
     all_documents = rider.documents.all()
@@ -114,10 +116,19 @@ def verification_status(request):
         'account_status': rider.account_status,
         'verification_status': rider.verification_status,
         'phone_verified': phone_verified,
+        'email_verified': rider.email_verified,
         'documents_approved': documents_approved,
         'documents': documents,  # ✅ NEW: Include detailed documents array
         'bank_details_added': bank_details_added,
         'bank_details_verified': bank_details_verified,
+        'location_set': location_set,
+        'location': {
+            'address': rider.address,
+            'latitude': rider.current_latitude,
+            'longitude': rider.current_longitude,
+            'accuracy': rider.location_accuracy,
+            'updated_at': rider.last_location_update.isoformat() if rider.last_location_update else None,
+        } if location_set else None,
         'profile_completion_percent': rider.profile_completion_percent,
         'can_go_online': can_go_online(rider),
         'blocked_reasons': blocked_reasons,
@@ -691,11 +702,14 @@ def can_go_online(rider):
     # Phase 6: Check suspension/deactivation status
     if rider.account_status in ['suspended', 'deactivated']:
         return False
+
+    location_set = bool(rider.address and rider.current_latitude is not None and rider.current_longitude is not None)
     
     # ✅ MVP AUTO-APPROVAL: If all 3 user steps are complete, auto-approve
     all_user_steps_complete = (
         rider.phone_verified and
         rider.documents.filter(status='approved').exists() and
+        location_set and
         hasattr(rider, 'bank_details') and
         rider.bank_details is not None and
         rider.bank_details.verified and
@@ -713,6 +727,7 @@ def can_go_online(rider):
     return (
         rider.phone_verified and
         rider.documents.filter(status='approved').exists() and
+        location_set and
         hasattr(rider, 'bank_details') and
         rider.bank_details is not None and
         rider.bank_details.verified and
@@ -745,6 +760,9 @@ def get_blocked_reasons(rider):
     
     if not rider.documents.filter(status='approved').exists():
         reasons.append('Documents not approved')
+
+    if not rider.address or rider.current_latitude is None or rider.current_longitude is None:
+        reasons.append('Location not set')
     
     if not hasattr(rider, 'bank_details') or rider.bank_details is None:
         reasons.append('Bank details not added')
@@ -821,9 +839,12 @@ def estimate_delivery_fee(request):
             float(restaurant.latitude), float(restaurant.longitude)
         )
         
-        # Calculate fees
+        # Calculate fees using active pricing config
+        from rider.models import DeliveryPricingConfig
+        config = DeliveryPricingConfig.get_active_config()
+        
         delivery_fee = calculate_delivery_fee(distance)
-        rider_earning = calculate_rider_earning(delivery_fee)
+        rider_earning = Decimal(str(config.calculate_rider_pay(distance)))
         platform_commission = delivery_fee - rider_earning
         
         return Response({
@@ -840,114 +861,132 @@ def estimate_delivery_fee(request):
         )
 
 
-# ==================== SERVICE AREAS ====================
-
 @api_view(['GET'])
 @permission_classes([AllowAny])
-def get_available_service_areas(request):
-    """Get list of all available service areas/zones"""
-    try:
-        areas = [
-            {'code': 'lekki', 'name': 'Lekki', 'icon': '📍'},
-            {'code': 'ikoyi', 'name': 'Ikoyi', 'icon': '📍'},
-            {'code': 'vi', 'name': 'Victoria Island', 'icon': '📍'},
-            {'code': 'yaba', 'name': 'Yaba', 'icon': '📍'},
-            {'code': 'ikeja', 'name': 'Ikeja', 'icon': '📍'},
-            {'code': 'surulere', 'name': 'Surulere', 'icon': '📍'},
-            {'code': 'mushin', 'name': 'Mushin', 'icon': '📍'},
-            {'code': 'apapa', 'name': 'Apapa', 'icon': '📍'},
-            {'code': 'bariga', 'name': 'Bariga', 'icon': '📍'},
-            {'code': 'mainland', 'name': 'Mainland', 'icon': '📍'},
-        ]
-        return Response(areas, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response(
-            {'error': str(e)},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def get_rider_service_areas(request):
-    """Get rider's currently selected service areas"""
-    try:
-        rider = request.user.rider_profile
-        service_areas = RiderServiceArea.objects.filter(rider=rider, is_selected=True)
-        data = [
-            {
-                'id': area.id,
-                'area_code': area.area_code,
-                'area_name': area.area_name,
-                'added_at': area.added_at,
-            }
-            for area in service_areas
-        ]
-        return Response(data, status=status.HTTP_200_OK)
-    except RiderProfile.DoesNotExist:
-        return Response(
-            {'error': 'Rider profile not found'},
-            status=status.HTTP_404_NOT_FOUND
-        )
-    except Exception as e:
-        return Response(
-            {'error': str(e)},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def set_rider_service_areas(request):
-    """Set/update rider's service areas"""
-    try:
-        rider = request.user.rider_profile
-        selected_areas = request.data.get('service_areas', [])  # List of area codes
-        
-        if not selected_areas:
-            return Response(
-                {'error': 'At least one service area must be selected'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Map of area codes to names
-        area_names = {
-            'lekki': 'Lekki',
-            'ikoyi': 'Ikoyi',
-            'vi': 'Victoria Island',
-            'yaba': 'Yaba',
-            'ikeja': 'Ikeja',
-            'surulere': 'Surulere',
-            'mushin': 'Mushin',
-            'apapa': 'Apapa',
-            'bariga': 'Bariga',
-            'mainland': 'Mainland',
+def get_delivery_pricing_config(request):
+    """
+    Get the active delivery pricing configuration
+    
+    Returns:
+    {
+        "buyer_base_fee": 500,
+        "buyer_per_km_rate": 100,
+        "rider_base_pay": 300,
+        "rider_per_km_rate": 60,
+        "base_distance_km": 3,
+        "platform_margin_example": {
+            "distance_km": 5,
+            "buyer_fee": 700,
+            "rider_pay": 420,
+            "platform_margin": 280
         }
+    }
+    """
+    try:
+        from rider.models import DeliveryPricingConfig
+        config = DeliveryPricingConfig.get_active_config()
         
-        # Clear existing service areas
-        RiderServiceArea.objects.filter(rider=rider).delete()
-        
-        # Add selected service areas
-        created_areas = []
-        for area_code in selected_areas:
-            if area_code in area_names:
-                area = RiderServiceArea.objects.create(
-                    rider=rider,
-                    area_code=area_code,
-                    area_name=area_names[area_code],
-                    is_selected=True
-                )
-                created_areas.append({
-                    'id': area.id,
-                    'area_code': area.area_code,
-                    'area_name': area.area_name,
-                })
+        # Example calculation for 5 km distance
+        example_distance = 5.0
+        buyer_fee_example = config.calculate_buyer_fee(example_distance)
+        rider_pay_example = config.calculate_rider_pay(example_distance)
+        margin_example = config.calculate_platform_margin(example_distance)
         
         return Response({
-            'message': f'Selected {len(created_areas)} service area(s)',
-            'service_areas': created_areas
-        }, status=status.HTTP_201_CREATED)
+            'buyer_base_fee': float(config.buyer_base_fee),
+            'buyer_per_km_rate': float(config.buyer_per_km_rate),
+            'rider_base_pay': float(config.rider_base_pay),
+            'rider_per_km_rate': float(config.rider_per_km_rate),
+            'base_distance_km': float(config.base_distance_km),
+            'platform_margin_example': {
+                'distance_km': example_distance,
+                'buyer_fee': buyer_fee_example,
+                'rider_pay': rider_pay_example,
+                'platform_margin': margin_example
+            }
+        }, status=status.HTTP_200_OK)
     
+    except Exception as e:
+        return Response(
+            {'error': str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def rider_location_setup(request):
+    """Get or save the rider's location for delivery matching."""
+    try:
+        rider = request.user.rider_profile
+
+        if request.method == 'GET':
+            location_set = bool(rider.address and rider.current_latitude is not None and rider.current_longitude is not None)
+            return Response({
+                'location_set': location_set,
+                'location': {
+                    'address': rider.address,
+                    'latitude': rider.current_latitude,
+                    'longitude': rider.current_longitude,
+                    'accuracy': rider.location_accuracy,
+                    'updated_at': rider.last_location_update.isoformat() if rider.last_location_update else None,
+                } if location_set else None,
+            }, status=status.HTTP_200_OK)
+
+        address = str(request.data.get('address') or '').strip()
+        latitude = request.data.get('latitude')
+        longitude = request.data.get('longitude')
+        accuracy = request.data.get('accuracy') or 0
+
+        if not address or latitude in [None, ''] or longitude in [None, '']:
+            return Response(
+                {'error': 'Address, latitude, and longitude are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            latitude = Decimal(str(latitude))
+            longitude = Decimal(str(longitude))
+            accuracy = float(accuracy or 0)
+        except Exception:
+            return Response(
+                {'error': 'Latitude and longitude must be valid numbers'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if latitude < Decimal('-90') or latitude > Decimal('90') or longitude < Decimal('-180') or longitude > Decimal('180'):
+            return Response(
+                {'error': 'Location coordinates are out of range'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        rider.address = address
+        rider.current_latitude = latitude
+        rider.current_longitude = longitude
+        rider.location_accuracy = accuracy
+        rider.last_location_update = timezone.now()
+        rider.calculate_profile_completion()
+        rider.save(update_fields=[
+            'address',
+            'current_latitude',
+            'current_longitude',
+            'location_accuracy',
+            'last_location_update',
+            'profile_completion_percent',
+        ])
+
+        return Response({
+            'message': 'Location saved successfully.',
+            'location_set': True,
+            'location': {
+                'address': rider.address,
+                'latitude': rider.current_latitude,
+                'longitude': rider.current_longitude,
+                'accuracy': rider.location_accuracy,
+                'updated_at': rider.last_location_update.isoformat() if rider.last_location_update else None,
+            }
+        }, status=status.HTTP_200_OK)
+
     except RiderProfile.DoesNotExist:
         return Response(
             {'error': 'Rider profile not found'},

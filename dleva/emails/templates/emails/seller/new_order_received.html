@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #fff3e0; padding: 20px; border-radius: 5px; }
+        .order-box { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .label { font-weight: bold; color: #f57c00; }
+        .action-button { background-color: #ff9800; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 10px 0; }
+        .footer { color: #999; font-size: 12px; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 New Order Received!</h1>
+        </div>
+        
+        <p>Hi {{ seller_name }},</p>
+        
+        <p>Great news! You have a new order. Start preparing immediately to keep your customer happy!</p>
+        
+        <div class="order-box">
+            <p><span class="label">Order ID:</span> #{{ order_id }}</p>
+            <p><span class="label">Customer:</span> {{ buyer_name }}</p>
+            <p><span class="label">Order Total:</span> ₦{{ total_price }}</p>
+            <p><span class="label">Delivery Fee:</span> ₦{{ delivery_fee }}</p>
+            <p><span class="label">Number of Items:</span> {{ item_count }}</p>
+            <p><span class="label">Order Placed:</span> {{ order_time }}</p>
+        </div>
+        
+        <p><strong>✅ Order Items:</strong></p>
+        <ul>
+            {% for item in order_items %}
+            <li>{{ item.name }} x {{ item.quantity }}</li>
+            {% endfor %}
+        </ul>
+        
+        <p><strong>📍 Delivery Address:</strong> {{ delivery_address }}</p>
+        
+        <p>Start preparing this order to ensure timely delivery. You'll receive a notification once the rider picks up the order.</p>
+        
+        <p>Best regards,<br>The Dleva Team</p>
+        
+        <div class="footer">
+            <p>© 2026 Dleva. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

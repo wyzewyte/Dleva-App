@@ -9,25 +9,25 @@ from seller.models import Restaurant, MenuItem
 
 class BuyerProfileSerializer(serializers.ModelSerializer):
     name = serializers.SerializerMethodField()
-    email = serializers.SerializerMethodField()
     image = serializers.SerializerMethodField()
+    initials = serializers.SerializerMethodField()
     
     class Meta:
         model = BuyerProfile
-        fields = ['id', 'name', 'email', 'phone', 'address', 'latitude', 'longitude', 'image']
+        fields = ['id', 'name', 'email', 'phone', 'address', 'latitude', 'longitude', 'image', 'initials']
     
     def get_name(self, obj):
         full_name = obj.user.get_full_name()
         return full_name if full_name.strip() else obj.user.username
-    
-    def get_email(self, obj):
-        return obj.user.email
 
     def get_image(self, obj):
         request = self.context.get('request')
         if obj.image and hasattr(obj.image, 'url'):
             return request.build_absolute_uri(obj.image.url) if request else obj.image.url
         return None
+
+    def get_initials(self, obj):
+        return obj.get_initials()
 
 
 class RestaurantSerializer(serializers.ModelSerializer):
@@ -140,6 +140,11 @@ class OrderSerializer(serializers.ModelSerializer):
     restaurant_phone = serializers.CharField(source='restaurant.seller.phone', read_only=True)
     rider_phone = serializers.CharField(source='rider.phone_number', read_only=True)
     subtotal = serializers.SerializerMethodField()
+    food_subtotal = serializers.SerializerMethodField()
+    restaurant_commission_amount = serializers.SerializerMethodField()
+    restaurant_earnings = serializers.SerializerMethodField()
+    has_restaurant_rating = serializers.SerializerMethodField()
+    has_rider_rating = serializers.SerializerMethodField()
     
     
     class Meta:
@@ -150,7 +155,9 @@ class OrderSerializer(serializers.ModelSerializer):
             'delivery_latitude', 'delivery_longitude',
             'status', 'payment_method', 'is_rated', 'items',
             'rider_id', 'rider_name', 'restaurant_phone', 'rider_phone',
-            'subtotal', 'confirmation_code', 'created_at', 'updated_at'
+            'subtotal', 'food_subtotal', 'restaurant_commission_amount', 'restaurant_earnings',
+            'has_restaurant_rating', 'has_rider_rating',
+            'confirmation_code', 'created_at', 'updated_at'
         ]
     
     def get_subtotal(self, obj):
@@ -160,6 +167,36 @@ class OrderSerializer(serializers.ModelSerializer):
             for item in obj.items.all()
         )
         return subtotal
+    
+    def get_food_subtotal(self, obj):
+        """Food subtotal (excluding delivery fee)"""
+        return float(obj.total_price - obj.delivery_fee)
+    
+    def get_restaurant_commission_amount(self, obj):
+        """Commission amount deducted from food subtotal"""
+        from seller.models import RestaurantCommissionConfig
+        from decimal import Decimal
+        
+        config = RestaurantCommissionConfig.get_active_config()
+        food_subtotal = Decimal(str(obj.total_price - obj.delivery_fee))
+        commission = config.calculate_commission_amount(food_subtotal)
+        return float(commission)
+
+    def get_has_restaurant_rating(self, obj):
+        return obj.has_restaurant_rating()
+
+    def get_has_rider_rating(self, obj):
+        return obj.has_rider_rating()
+    
+    def get_restaurant_earnings(self, obj):
+        """Amount restaurant earns after commission deduction"""
+        from seller.models import RestaurantCommissionConfig
+        from decimal import Decimal
+        
+        config = RestaurantCommissionConfig.get_active_config()
+        food_subtotal = Decimal(str(obj.total_price - obj.delivery_fee))
+        earnings = config.calculate_restaurant_earnings(food_subtotal)
+        return float(earnings)
 
 
 class PaymentSerializer(serializers.ModelSerializer):

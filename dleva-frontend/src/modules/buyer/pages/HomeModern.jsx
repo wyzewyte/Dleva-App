@@ -120,7 +120,10 @@ const HomeModern = () => {
           const dismissed = JSON.parse(localStorage.getItem('dismissed_rating_orders') || '[]');
           const isRecent = timestamp ? (new Date() - new Date(timestamp)) / (1000 * 60 * 60) < 24 : false;
 
-          if (latest.status === 'delivered' && isRecent && !dismissed.includes(latest.id)) {
+          const needsRestaurantRating = !latest.has_restaurant_rating;
+          const needsRiderRating = Boolean(latest.rider_id) && !latest.has_rider_rating;
+
+          if (latest.status === 'delivered' && isRecent && (needsRestaurantRating || needsRiderRating) && !dismissed.includes(latest.id)) {
             setUnratedOrder(latest);
           }
         }

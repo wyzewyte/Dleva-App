@@ -21,10 +21,16 @@ const buyerRatings = {
   // Submit rating for rider
   rateRider: async (orderId, rating, comment = '') => {
     try {
-      const response = await api.post(API_ENDPOINTS.RATINGS.SUBMIT_RIDER(orderId), {
-        rating,
-        comment,
-      });
+      const response = await api.post(
+        API_ENDPOINTS.RATINGS.SUBMIT_RIDER(orderId),
+        {
+          rating,
+          comment,
+        },
+        {
+          authRole: 'buyer',
+        }
+      );
       return response.data;
     } catch (error) {
       logError(error, { context: 'buyerRatings.rateRider', orderId });

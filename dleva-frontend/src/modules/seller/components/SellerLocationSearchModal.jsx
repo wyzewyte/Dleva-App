@@ -6,18 +6,25 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, Loader2, AlertCircle, MapPin, X, Navigation } from 'lucide-react';
+import { Search, Loader2, AlertCircle, MapPin, X, Navigation, ChevronRight } from 'lucide-react';
 import addressSearchService from '../../../services/addressSearchService';
 import { logError } from '../../../utils/errorHandler';
 
-const SellerLocationSearchModal = ({ isOpen, onClose, onLocationSelected }) => {
+const SellerLocationSearchModal = ({
+  isOpen,
+  onClose,
+  onLocationSelected,
+  isModal = true,
+  confirmLabel = 'Confirm Location',
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState(null);
   const [error, setError] = useState(null);
-  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [saveLoading, setSaveLoading] = useState(false);
   const searchInputRef = useRef(null);
 
   // Handle GPS location detection
@@ -48,20 +55,15 @@ const SellerLocationSearchModal = ({ isOpen, onClose, onLocationSelected }) => {
       const addressData = await addressSearchService.reverseGeocode(latitude, longitude);
 
       if (addressData && addressData.display_name) {
-        // Call parent callback with location
-        onLocationSelected({
+        // Set selected location for confirmation
+        setSelectedLocation({
           address: addressData.display_name,
           latitude,
           longitude,
         });
-
-        // Reset and close
         setSearchQuery('');
         setResults([]);
         setError(null);
-        setGpsError(null);
-        setSelectedIndex(-1);
-        onClose();
       } else {
         setGpsError('Could not find address for your location. Please search manually.');
       }
@@ -85,7 +87,6 @@ const SellerLocationSearchModal = ({ isOpen, onClose, onLocationSelected }) => {
   const handleSearchChange = (e) => {
     const query = e.target.value;
     setSearchQuery(query);
-    setSelectedIndex(-1);
 
     // Clear results if query is empty
     if (!query.trim()) {
@@ -120,19 +121,17 @@ const SellerLocationSearchModal = ({ isOpen, onClose, onLocationSelected }) => {
         return;
       }
 
-      // Call the parent callback with location data
-      onLocationSelected({
+      // Set selected location instead of immediately calling callback
+      setSelectedLocation({
         address,
         latitude,
         longitude,
       });
 
-      // Reset and close
+      // Clear search
       setSearchQuery('');
       setResults([]);
       setError(null);
-      setSelectedIndex(-1);
-      onClose();
     } catch (err) {
       logError(err, { context: 'SellerLocationSearchModal.handleSelectResult' });
       setError('Failed to confirm location. Please try again.');
@@ -142,22 +141,6 @@ const SellerLocationSearchModal = ({ isOpen, onClose, onLocationSelected }) => {
   // Handle keyboard navigation
   const handleKeyDown = (e) => {
     switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        setSelectedIndex(prev => 
-          prev < results.length - 1 ? prev + 1 : prev
-        );
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setSelectedIndex(prev => (prev > 0 ? prev - 1 : -1));
-        break;
-      case 'Enter':
-        e.preventDefault();
-        if (selectedIndex >= 0) {
-          handleSelectResult(results[selectedIndex]);
-        }
-        break;
       case 'Escape':
         e.preventDefault();
         onClose();
@@ -176,116 +159,163 @@ const SellerLocationSearchModal = ({ isOpen, onClose, onLocationSelected }) => {
 
   if (!isOpen) return null;
 
+  const handleConfirmLocation = async () => {
+    if (!selectedLocation) return;
+
+    setSaveLoading(true);
+    try {
+      const saved = await onLocationSelected(selectedLocation);
+      if (saved === false) return;
+      setSearchQuery('');
+      setResults([]);
+      setError(null);
+      setGpsError(null);
+      setSelectedLocation(null);
+      onClose();
+    } catch (err) {
+      logError(err, { context: 'SellerLocationSearchModal.handleConfirmLocation' });
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const clearSelectedLocation = () => {
+    setSelectedLocation(null);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      {/* Modal Container */}
-      <div
-        className="w-full sm:w-[500px] max-h-[600px] bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-5 sm:zoom-in-95 duration-300"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div
+      className={
+        isModal
+          ? 'fixed inset-0 z-50 bg-surface flex flex-col sm:bg-black sm:bg-opacity-50 sm:items-center sm:justify-center sm:p-4'
+          : 'min-h-screen bg-bg flex flex-col'
+      }
+    >
+      <div className="bg-surface w-full flex-1 flex flex-col sm:flex-none sm:max-w-lg sm:rounded-2xl sm:shadow-lg sm:overflow-hidden overflow-hidden">
+        
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-200 p-4">
-          {/* GPS Button */}
-          <div className="mb-3">
+        <div className="flex items-center justify-between px-5 pt-5 pb-4">
+          <h1 className="text-xl font-bold text-dark">Store location</h1>
+          {isModal && (
             <button
-              onClick={handleUseCurrentLocation}
-              disabled={gpsLoading}
-              className="w-full flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-400 text-white px-4 py-2.5 rounded-lg font-medium transition-colors"
+              onClick={onClose}
+              className="w-9 h-9 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
             >
-              {gpsLoading ? (
-                <>
-                  <Loader2 className="animate-spin" size={18} />
-                  <span>Getting your location...</span>
-                </>
-              ) : (
-                <>
-                  <Navigation size={18} />
-                  <span>Use Current Location</span>
-                </>
-              )}
+              <X size={18} className="text-dark" />
             </button>
-          </div>
-
-          {/* GPS Error */}
-          {gpsError && (
-            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg flex gap-2">
-              <AlertCircle className="text-red-600 shrink-0" size={18} style={{ marginTop: '2px' }} />
-              <p className="text-sm text-red-700">{gpsError}</p>
-            </div>
           )}
+        </div>
 
-          {/* Search Input */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3.5 text-gray-400" size={18} />
+        {/* Scrollable Body */}
+        <div className="px-5 pb-6 flex-1 overflow-y-auto space-y-1 sm:max-h-[80vh]">
+          
+          {/* Search Bar */}
+          <div className="relative mb-3">
+            <div className="flex items-center gap-3 px-4 py-3 bg-gray-100 rounded-xl">
+              {loading ? (
+                <Loader2 size={18} className="text-muted animate-spin flex-shrink-0" />
+              ) : (
+                <Search size={18} className="text-muted flex-shrink-0" />
+              )}
               <input
                 ref={searchInputRef}
                 type="text"
+                placeholder="Enter store address"
                 value={searchQuery}
                 onChange={handleSearchChange}
                 onKeyDown={handleKeyDown}
-                placeholder="Search for your store location..."
-                className="w-full pl-10 pr-4 py-2 bg-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 font-medium"
+                className="flex-1 bg-transparent text-sm text-dark placeholder-muted focus:outline-none"
               />
+              {searchQuery.length > 0 && (
+                <button
+                  onClick={() => { setSearchQuery(''); setResults([]); }}
+                  className="text-muted hover:text-dark transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
-            <button
-              onClick={onClose}
-              className="p-1 hover:bg-gray-100 rounded-lg transition-colors text-gray-500"
-            >
-              <X size={20} />
-            </button>
+
+            {/* Search Results Dropdown */}
+            {searchQuery && results.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
+                {results.map((result, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleSelectResult(result)}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      <MapPin size={16} className="text-primary mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-dark truncate">
+                          {result.display_name}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {error && searchQuery && (
+              <div className="flex items-center gap-2 text-red-600 text-xs mt-2 px-1">
+                <AlertCircle size={14} />
+                {error}
+              </div>
+            )}
           </div>
-        </div>
 
-        {/* Content */}
-        <div className="overflow-y-auto max-h-[500px]">
-          {/* Loading State */}
-          {loading && (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="animate-spin text-primary" size={32} />
+          {/* Divider */}
+          <div className="h-px bg-gray-100 mx-1" />
+
+          {/* Use Current Location */}
+          <button
+            onClick={handleUseCurrentLocation}
+            disabled={gpsLoading}
+            className="w-full flex items-center gap-4 px-1 py-3.5 hover:bg-gray-50 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+              {gpsLoading ? (
+                <Loader2 size={20} className="text-primary animate-spin" />
+              ) : (
+                <Navigation size={20} className="text-primary" />
+              )}
+            </div>
+            <span className="text-sm font-semibold text-primary">
+              {gpsLoading ? 'Getting location...' : 'Use your current location'}
+            </span>
+          </button>
+
+          {gpsError && (
+            <div className="flex items-start gap-3 mx-1 p-3 bg-red-50 rounded-lg border border-red-200">
+              <AlertCircle size={15} className="text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-600">{gpsError}</p>
             </div>
           )}
 
-          {/* Error State */}
-          {error && !loading && (
-            <div className="p-4 flex gap-3 bg-red-50 border-b border-red-200">
-              <AlertCircle className="text-red-600 shrink-0 mt-0.5" size={20} />
-              <p className="text-sm text-red-700">{error}</p>
+          {/* Divider */}
+          <div className="h-px bg-gray-100 mx-1" />
+
+          {/* Results Section */}
+          {!selectedLocation && searchQuery && results.length === 0 && !loading && (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <MapPin className="text-gray-300 mb-2" size={32} />
+              <p className="text-gray-500 font-medium text-sm">No locations found</p>
             </div>
           )}
 
-          {/* Empty State */}
-          {!loading && results.length === 0 && searchQuery && !error && (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <MapPin className="text-gray-300 mb-2" size={40} />
-              <p className="text-gray-500 font-medium">No locations found</p>
-              <p className="text-sm text-gray-400">Try searching with a different address</p>
-            </div>
-          )}
-
-          {/* Results List */}
-          {results.length > 0 && (
-            <div className="divide-y divide-gray-100">
+          {!selectedLocation && results.length > 0 && (
+            <div className="pt-1 space-y-0">
               {results.map((result, index) => (
                 <button
-                  key={`${result.latitude}-${result.longitude}`}
+                  key={index}
                   onClick={() => handleSelectResult(result)}
-                  className={`w-full text-left p-4 flex gap-3 transition-colors ${
-                    selectedIndex === index
-                      ? 'bg-primary/10 border-l-4 border-primary'
-                      : 'hover:bg-gray-50'
-                  }`}
+                  className="w-full flex items-start gap-4 px-1 py-3.5 hover:bg-gray-50 rounded-xl transition-colors text-left"
                 >
-                  <MapPin
-                    className={selectedIndex === index ? 'text-primary' : 'text-gray-400'}
-                    size={20}
-                    style={{ flexShrink: 0, marginTop: '2px' }}
-                  />
+                  <MapPin size={20} className="text-dark flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-dark truncate">
-                      {result.display_name?.split(',')[0]}
-                    </p>
-                    <p className="text-sm text-gray-500 truncate">
+                    <p className="text-sm font-semibold text-dark leading-snug">
                       {result.display_name}
                     </p>
                   </div>
@@ -294,13 +324,49 @@ const SellerLocationSearchModal = ({ isOpen, onClose, onLocationSelected }) => {
             </div>
           )}
 
-          {/* Idle State */}
-          {!loading && results.length === 0 && !searchQuery && (
-            <div className="flex flex-col items-center justify-center py-12 text-center p-4">
-              <MapPin className="text-gray-300 mb-2" size={40} />
-              <p className="text-gray-600 font-medium">Find your store location</p>
-              <p className="text-sm text-gray-400">Enter your address to search</p>
-            </div>
+          {/* Selected Location Confirmation Banner */}
+          {selectedLocation && (
+            <>
+              <div className="h-px bg-gray-100 mx-1" />
+              <div className="mx-1 mt-2 p-4 bg-primary bg-opacity-5 border border-primary border-opacity-20 rounded-xl">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
+                    <MapPin size={16} className="text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted font-semibold uppercase tracking-wide">Selected</p>
+                    <p className="text-sm font-bold text-dark leading-snug mt-0.5">
+                      {selectedLocation.address}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={clearSelectedLocation}
+                  className="mt-3 text-xs text-primary font-semibold hover:text-primary-hover transition-colors"
+                >
+                  Change Location
+                </button>
+              </div>
+
+              {/* Confirm Button */}
+              <button
+                onClick={handleConfirmLocation}
+                disabled={saveLoading}
+                className="w-full mt-3 bg-primary text-white font-bold py-4 rounded-xl hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+              >
+                {saveLoading ? (
+                  <>
+                    <Loader2 className="animate-spin" size={18} />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    {confirmLabel}
+                    <ChevronRight size={18} />
+                  </>
+                )}
+              </button>
+            </>
           )}
         </div>
       </div>

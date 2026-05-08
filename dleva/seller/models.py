@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from decimal import Decimal, ROUND_HALF_UP
 
 class MenuItemCategory(models.Model):
     """Platform-managed categories for menu items (Appetizers, Mains, Desserts, etc.)"""
@@ -35,6 +36,9 @@ class SellerProfile (models.Model):
     latitude = models.DecimalField(max_digits=10, decimal_places=8, blank=True, null=True, help_text="Restaurant latitude (for future use)")
     longitude = models.DecimalField(max_digits=10, decimal_places=8, blank=True, null=True, help_text="Restaurant longitude (for future use)")
     image = models.ImageField(upload_to='seller_images/', blank=True, null=True)
+    # Cloudinary fields for seller profile image
+    cloudinary_image_id = models.CharField(max_length=500, blank=True, null=True, help_text="Cloudinary public ID for seller profile image")
+    cloudinary_image_url = models.URLField(blank=True, null=True, help_text="Cloudinary secure URL for seller profile image")
     
     # Phase 7: Push Notifications
     fcm_token = models.CharField(max_length=500, blank=True, null=True, db_index=True, help_text="Firebase Cloud Messaging token for push notifications")
@@ -50,6 +54,35 @@ class SellerProfile (models.Model):
         if hasattr(self, 'restaurant'):
             self.restaurant_name = self.restaurant.name
             self.save()
+
+
+class SellerOTP(models.Model):
+    """OTP for seller phone, email, and password reset flows."""
+    PURPOSE_CHOICES = [
+        ('registration', 'Registration'),
+        ('password_reset', 'Password Reset'),
+        ('verify_phone', 'Verify Phone Number'),
+        ('update_profile', 'Update Profile'),
+    ]
+
+    seller = models.ForeignKey(SellerProfile, on_delete=models.CASCADE, related_name='otps', null=True, blank=True)
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True, db_index=True)
+    otp_code = models.CharField(max_length=6)
+    purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES, default='registration')
+    is_verified = models.BooleanField(default=False)
+    attempts = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+
+    def __str__(self):
+        destination = self.email or self.phone_number or 'unknown destination'
+        return f"OTP for {destination} ({self.purpose})"
+
+    class Meta:
+        verbose_name = 'Seller OTP'
+        verbose_name_plural = 'Seller OTPs'
+        ordering = ['-created_at']
     
 
 class Restaurant(models.Model):
@@ -58,6 +91,9 @@ class Restaurant(models.Model):
     description = models.TextField(blank=True, null=True)
     address = models.CharField(max_length=255)
     image = models.ImageField(upload_to='restaurant_images/', blank=True, null=True)
+    # Cloudinary fields for restaurant image
+    cloudinary_image_id = models.CharField(max_length=500, blank=True, null=True, help_text="Cloudinary public ID for restaurant image")
+    cloudinary_image_url = models.URLField(blank=True, null=True, help_text="Cloudinary secure URL for restaurant image")
     delivery_fee = models.DecimalField(max_digits=6, decimal_places=2, default=0)
     delivery_time = models.CharField(max_length=50, default='30-45 mins', blank=True)
     is_active = models.BooleanField(default=True)
@@ -81,6 +117,9 @@ class MenuItem(models.Model):
     price = models.DecimalField(max_digits=8, decimal_places=2)
     available = models.BooleanField(default=True)
     image = models.ImageField(upload_to='menu_image/', blank=True, null=True)
+    # Cloudinary fields for menu item image
+    cloudinary_image_id = models.CharField(max_length=500, blank=True, null=True, help_text="Cloudinary public ID for menu item image")
+    cloudinary_image_url = models.URLField(blank=True, null=True, help_text="Cloudinary secure URL for menu item image")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -89,6 +128,109 @@ class MenuItem(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.restaurant.name}"
+
+
+class RestaurantCommissionConfig(models.Model):
+    """Commission deducted from restaurant food subtotal after customer payment."""
+
+    PAYOUT_SCHEDULE_CHOICES = [
+        ('weekly', 'Weekly'),
+        ('biweekly', 'Bi-weekly'),
+        ('monthly', 'Monthly'),
+    ]
+
+    restaurant = models.OneToOneField(
+        Restaurant,
+        on_delete=models.CASCADE,
+        related_name='commission_config',
+        null=True,
+        blank=True,
+        help_text='Leave blank for global default configuration',
+    )
+    commission_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal('10.00'),
+        db_column='commission_percentage',
+        help_text='Commission percentage deducted from food orders (e.g., 10 = 10%)',
+    )
+    payout_schedule = models.CharField(
+        max_length=20,
+        choices=PAYOUT_SCHEDULE_CHOICES,
+        default='weekly',
+        help_text='How often restaurants are paid out',
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Restaurant Commission Config'
+        verbose_name_plural = 'Restaurant Commission Configs'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['restaurant']),
+            models.Index(fields=['is_active']),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(commission_percent__gte=0),
+                name='restaurant_commission_percent_non_negative',
+            ),
+        ]
+
+    def __str__(self):
+        scope = self.restaurant.name if self.restaurant else 'Global default'
+        return f"{scope} - {self.commission_percent}% commission"
+
+    def clean(self):
+        super().clean()
+        if self.commission_percent is not None and self.commission_percent < 0:
+            from django.core.exceptions import ValidationError
+            raise ValidationError({'commission_percent': 'Commission percent cannot be negative.'})
+
+    def save(self, *args, **kwargs):
+        if self.is_active and self.restaurant is None:
+            RestaurantCommissionConfig.objects.filter(
+                restaurant__isnull=True,
+                is_active=True,
+            ).exclude(pk=self.pk).update(is_active=False)
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_active_config(cls, restaurant=None):
+        if restaurant is not None:
+            restaurant_config = cls.objects.filter(
+                restaurant=restaurant,
+                is_active=True,
+            ).first()
+            if restaurant_config:
+                return restaurant_config
+
+        config = cls.objects.filter(
+            restaurant__isnull=True,
+            is_active=True,
+        ).first()
+        if config:
+            return config
+
+        return cls.objects.create(
+            restaurant=None,
+            commission_percent=Decimal('10.00'),
+            payout_schedule='weekly',
+            is_active=True,
+        )
+
+    def calculate_commission_amount(self, food_subtotal):
+        food_subtotal = Decimal(str(food_subtotal or 0))
+        commission = food_subtotal * (self.commission_percent / Decimal('100'))
+        return commission.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    def calculate_restaurant_earnings(self, food_subtotal):
+        food_subtotal = Decimal(str(food_subtotal or 0))
+        earnings = food_subtotal - self.calculate_commission_amount(food_subtotal)
+        return earnings.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
 
 class Payout(models.Model):
     STATUS_CHOICES = [

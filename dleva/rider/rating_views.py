@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from buyer.models import Order
 from rider.models import RiderProfile
+from rider.notification_service import PushNotificationService
 from rider.performance_service import PerformanceService, PerformanceError
 
 
@@ -109,12 +110,21 @@ def submit_rider_rating(request, order_id):
     
     # Submit rating
     try:
+        buyer_name = request.user.get_full_name().strip() or request.user.username or 'Customer'
         result = PerformanceService.submit_rating(
             order_id=order.id,
             rider_id=order.rider.id,  # ✅ RiderProfile ID (needed for RiderRating FK)
             user_id=request.user.id,
             rating=rating,
             comment=comment
+        )
+
+        PushNotificationService.send_new_rating(
+            rider_id=order.rider.id,
+            rating=rating,
+            comment=comment,
+            order_id=order.id,
+            buyer_name=buyer_name,
         )
         return Response(result, status=status.HTTP_201_CREATED)
     

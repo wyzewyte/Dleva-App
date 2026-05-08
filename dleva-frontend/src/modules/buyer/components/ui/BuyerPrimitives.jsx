@@ -186,7 +186,7 @@ export const BuyerSearchField = ({
   return (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-[20px] border border-gray-200 bg-gray-50 px-4 py-3.5',
+        'flex items-center gap-3 rounded-[20px] border border-transparent bg-gray-50 px-4 py-3.5',
         onClick && 'cursor-pointer',
         className
       )}
@@ -313,12 +313,16 @@ export const BuyerFeedbackState = ({ type = 'info', title, message, action, clas
   );
 };
 
-export const BuyerEmptyState = ({ icon, title, description, action, secondaryAction, className }) => {
+export const BuyerEmptyState = ({ icon, illustration, title, description, action, secondaryAction, className }) => {
   return (
     <BuyerCard className={cn('px-6 py-10 text-center', className)}>
-      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-        {icon}
-      </div>
+      {illustration ? (
+        <div className="mb-4">{illustration}</div>
+      ) : (
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          {icon}
+        </div>
+      )}
       <h3 className="text-lg font-bold text-dark">{title}</h3>
       {description ? <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted">{description}</p> : null}
       <div className="mx-auto mt-6 flex max-w-sm flex-col gap-3">

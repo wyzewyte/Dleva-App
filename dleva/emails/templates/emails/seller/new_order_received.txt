@@ -1,0 +1,17 @@
+{% autoescape off %}
+Hi {{ seller_name }},
+
+🎉 You have a new order!
+
+Order Details:
+- Order ID: {{ order_id }}
+- Customer Name: {{ buyer_name }}
+- Order Total: ₦{{ total_price }}
+- Delivery Fee: ₦{{ delivery_fee }}
+- Items: {{ item_count }} item(s)
+
+Please prepare this order as soon as possible. The customer is waiting!
+
+Best regards,
+The Dleva Team
+{% endautoescape %}

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #ffebee; padding: 20px; border-radius: 5px; }
+        .order-box { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .refund-box { background-color: #e8f5e9; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .label { font-weight: bold; }
+        .footer { color: #999; font-size: 12px; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>❌ Order Cancelled</h1>
+        </div>
+        
+        <p>Hi {{ buyer_name }},</p>
+        
+        <p>Your order has been cancelled.</p>
+        
+        <div class="order-box">
+            <p><span class="label">Order ID:</span> #{{ order_id }}</p>
+            <p><span class="label">Restaurant:</span> {{ restaurant_name }}</p>
+            <p><span class="label">Original Total:</span> ₦{{ total_price }}</p>
+            <p><span class="label">Cancellation Reason:</span> {{ cancellation_reason }}</p>
+        </div>
+        
+        <div class="refund-box">
+            <h3>💰 Refund Information</h3>
+            <p><span class="label">Refund Amount:</span> ₦{{ refund_amount }}</p>
+            <p><span class="label">Status:</span> {{ refund_status }}</p>
+            <p><span class="label">Expected Timeline:</span> 3-5 business days</p>
+        </div>
+        
+        <p>If you have any questions about this cancellation or your refund, please don't hesitate to contact our support team.</p>
+        
+        <p>We hope to serve you again soon!</p>
+        
+        <p>Best regards,<br>The Dleva Team</p>
+        
+        <div class="footer">
+            <p>© 2026 Dleva. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -29,7 +29,7 @@ const LocationSelector = () => {
       className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition min-h-[44px] max-w-[200px]"
       title={currentLocation?.address || 'Click to set location'}
     >
-      <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-red-500 flex-shrink-0" />
+      <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-accent flex-shrink-0" />
       <span className="text-xs sm:text-sm font-medium truncate">
         {displayAddress}
       </span>

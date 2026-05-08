@@ -1,4 +1,4 @@
-import { ArrowRight, Banknote, CheckCircle2, FileText, Smartphone } from 'lucide-react';
+import { ArrowRight, Banknote, CheckCircle2, FileText, MapPin, Smartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import useRiderVerificationStatus from '../hooks/useRiderVerificationStatus';
 import {
@@ -30,6 +30,13 @@ const STEPS = [
     description: 'Add the payout account that receives rider earnings.',
     path: '/rider/verification-bank',
     icon: Banknote,
+  },
+  {
+    id: 'location',
+    title: 'Location setup',
+    description: 'Set the location Dleva should use for matching delivery requests.',
+    path: '/rider/verification-location',
+    icon: MapPin,
   },
 ];
 
@@ -63,7 +70,7 @@ const VerificationSetup = () => {
           </RiderCard>
 
           <div className="space-y-4">
-            {[1, 2, 3].map((step) => (
+            {[1, 2, 3, 4].map((step) => (
               <RiderCard key={step} className="p-5 sm:p-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex items-start gap-4">
@@ -88,14 +95,34 @@ const VerificationSetup = () => {
     phone: Boolean(status?.phone_verified),
     documents: Boolean(status?.documents_approved),
     bank: Boolean(status?.bank_details_verified ?? status?.bank_details_added),
+    location: Boolean(status?.location_set),
   };
 
-  const completedCoreCount = [stepState.phone, stepState.documents, stepState.bank].filter(Boolean).length;
+  const completedCoreCount = [stepState.phone, stepState.documents, stepState.bank, stepState.location].filter(Boolean).length;
   const allCoreStepsCompleted =
     Boolean(status?.can_go_online) ||
     Boolean(status?.verification_status === 'approved') ||
     Boolean(status?.account_status === 'approved') ||
     completedCoreCount === STEPS.length;
+
+  const getStepBadge = (step) => {
+    const complete = stepState[step.id];
+    if (complete) {
+      return { status: 'approved', label: 'Complete' };
+    }
+
+    if (step.id === 'documents') {
+      const documentStatuses = Object.values(status?.documents || {}).map((document) => document?.status);
+      if (documentStatuses.includes('rejected')) {
+        return { status: 'rejected', label: 'Needs update' };
+      }
+      if (documentStatuses.includes('pending')) {
+        return { status: 'pending', label: 'Pending review' };
+      }
+    }
+
+    return { status: 'offline', label: step.optional ? 'Optional' : 'Not started' };
+  };
 
   return (
     <RiderPageShell maxWidth="max-w-4xl" withBottomNavSpacing={false}>
@@ -111,15 +138,15 @@ const VerificationSetup = () => {
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">Progress</p>
           <div className="mt-3 flex items-end justify-between gap-4">
             <div>
-              <p className="text-4xl font-bold text-dark">{completedCoreCount}/3</p>
-              <p className="mt-2 text-sm text-muted">Core verification steps completed.</p>
+              <p className="text-4xl font-bold text-dark">{completedCoreCount}/{STEPS.length}</p>
+              <p className="mt-2 text-sm text-muted">Verification steps completed.</p>
             </div>
             <RiderStatusBadge status={status?.can_go_online ? 'approved' : 'pending'}>
-              {status?.can_go_online ? 'Ready to work' : 'Still blocked'}
+              {status?.can_go_online ? 'Ready to work' : 'Verification in progress'}
             </RiderStatusBadge>
           </div>
           <div className="mt-5 h-2 rounded-full bg-gray-100">
-            <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${(completedCoreCount / 3) * 100}%` }} />
+            <div className="h-2 rounded-full bg-primary transition-all" style={{ width: `${(completedCoreCount / STEPS.length) * 100}%` }} />
           </div>
           {allCoreStepsCompleted ? (
             <div className="mt-5 flex justify-start">
@@ -137,6 +164,7 @@ const VerificationSetup = () => {
         <div className="space-y-4">
           {STEPS.map((step) => {
             const complete = stepState[step.id];
+            const badge = getStepBadge(step);
             return (
               <RiderCard key={step.id} className="p-5 sm:p-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -147,8 +175,8 @@ const VerificationSetup = () => {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-lg font-bold text-dark">{step.title}</h2>
-                        <RiderStatusBadge status={complete ? 'approved' : step.optional ? 'offline' : 'pending'}>
-                          {complete ? 'Complete' : step.optional ? 'Optional' : 'Pending'}
+                        <RiderStatusBadge status={badge.status}>
+                          {badge.label}
                         </RiderStatusBadge>
                       </div>
                       <p className="mt-2 text-sm leading-relaxed text-muted">{step.description}</p>

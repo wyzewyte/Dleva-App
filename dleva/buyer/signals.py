@@ -7,6 +7,12 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from buyer.models import Order
 from buyer.notification_service import BuyerPushNotificationService
+from emails.notifications import (
+    send_buyer_order_confirmed_email,
+    send_buyer_order_out_for_delivery_email,
+    send_buyer_order_delivered_email,
+    send_buyer_order_cancelled_email,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -36,6 +42,12 @@ def notify_buyer_on_order_confirmed(sender, instance, created, update_fields, **
             print(f"[NOTIFICATION] ✅ Order Confirmed - Buyer #{instance.buyer.id}, Order #{instance.id}")
         except Exception as e:
             logger.error(f"Error sending order_confirmed notification: {str(e)}")
+        
+        # Send order confirmed email
+        try:
+            send_buyer_order_confirmed_email(instance)
+        except Exception as e:
+            logger.error(f"Error sending order confirmed email: {str(e)}")
 
 
 @receiver(post_save, sender=Order)
@@ -139,6 +151,12 @@ def notify_buyer_on_order_on_the_way(sender, instance, created, update_fields, *
             print(f"[NOTIFICATION] 🚗 On the Way - Buyer #{instance.buyer.id}, Order #{instance.id}")
         except Exception as e:
             logger.error(f"Error sending on_the_way notification: {str(e)}")
+        
+        # Send order out for delivery email
+        try:
+            send_buyer_order_out_for_delivery_email(instance)
+        except Exception as e:
+            logger.error(f"Error sending order out for delivery email: {str(e)}")
 
 
 @receiver(post_save, sender=Order)
@@ -159,6 +177,12 @@ def notify_buyer_on_order_delivered(sender, instance, created, update_fields, **
             print(f"[NOTIFICATION] ✅ Order Delivered - Buyer #{instance.buyer.id}, Order #{instance.id}")
         except Exception as e:
             logger.error(f"Error sending order_delivered notification: {str(e)}")
+        
+        # Send order delivered email
+        try:
+            send_buyer_order_delivered_email(instance)
+        except Exception as e:
+            logger.error(f"Error sending order delivered email: {str(e)}")
 
 
 @receiver(post_save, sender=Order)
@@ -179,6 +203,15 @@ def notify_buyer_on_order_cancelled(sender, instance, created, update_fields, **
             print(f"[NOTIFICATION] ❌ Order Cancelled - Buyer #{instance.buyer.id}, Order #{instance.id}")
         except Exception as e:
             logger.error(f"Error sending order_cancelled notification: {str(e)}")
+        
+        # Send order cancelled email
+        try:
+            # Extract cancellation reason and refund amount from order
+            reason = getattr(instance, 'cancellation_reason', 'No reason provided')
+            refund_amount = instance.total_price if instance.payment and instance.payment.status == 'completed' else 0
+            send_buyer_order_cancelled_email(instance, reason, refund_amount)
+        except Exception as e:
+            logger.error(f"Error sending order cancelled email: {str(e)}")
 
 
 STATUS_NOTIFICATION_MAP = {

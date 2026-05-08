@@ -1,14 +1,22 @@
+import { AlertCircle, ArrowRight, ChefHat, Eye, EyeOff, Lock, Mail, Phone, Store, User } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, Store, Phone, Loader2, ChefHat, AlertCircle, User } from 'lucide-react';
 import sellerAuth from '../../../../services/sellerAuth';
+import toast from '../../../../services/toast';
+import {
+  SellerAuthPanel,
+  SellerFormField,
+  SellerPrimaryButton,
+  SellerTextInput,
+} from '../../components/ui/SellerPrimitives';
 
 const Register = () => {
   const navigate = useNavigate();
+  const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  
+  const [otpCode, setOtpCode] = useState('');
   const [formData, setFormData] = useState({
     username: '',
     firstName: '',
@@ -17,242 +25,225 @@ const Register = () => {
     phone: '',
     restaurantName: '',
     password: '',
-    businessType: 'student_vendor'
+    businessType: 'student_vendor',
   });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const getErrorMessage = (err, fallback) => err.error || err.detail || err.message || fallback;
+
+  const pauseForToast = () => new Promise((resolve) => {
+    window.setTimeout(resolve, 700);
+  });
+
+  const payload = () => ({
+    username: formData.username.trim(),
+    first_name: formData.firstName.trim(),
+    last_name: formData.lastName.trim(),
+    email: formData.email.trim(),
+    password: formData.password,
+    phone: formData.phone.trim(),
+    restaurant_name: formData.restaurantName.trim(),
+    business_type: formData.businessType,
+  });
+
+  const handleRequestPhoneOTP = async (event) => {
+    event.preventDefault();
     setIsLoading(true);
     setError('');
 
-    // Validation
-    if (!formData.username.trim()) {
-      setError('Username is required');
-      setIsLoading(false);
-      return;
-    }
-    
-    if (!formData.firstName.trim()) {
-      setError('First name is required');
-      setIsLoading(false);
-      return;
-    }
-    
-    if (!formData.lastName.trim()) {
-      setError('Last name is required');
-      setIsLoading(false);
-      return;
-    }
-    
-    if (!formData.restaurantName.trim()) {
-      setError('Restaurant name is required');
+    const data = payload();
+    if (!data.username || !data.first_name || !data.last_name || !data.restaurant_name || !data.email || !data.phone || !data.password) {
+      setError('All fields are required.');
       setIsLoading(false);
       return;
     }
 
     try {
-      await sellerAuth.register({
-        username: formData.username,
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        email: formData.email,
-        password: formData.password,
-        phone: formData.phone,
-        restaurant_name: formData.restaurantName,
-        business_type: formData.businessType,
-      });
-      
-      navigate('/seller/dashboard');
+      await sellerAuth.requestPhoneOTP(data.phone);
+      setOtpCode('');
+      setCurrentStep(2);
     } catch (err) {
-      setError(err.error || 'Registration failed. Please try again.');
+      setError(getErrorMessage(err, 'Failed to send phone verification code.'));
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleVerifyPhoneOTP = async (event) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const data = payload();
+      await sellerAuth.verifyPhoneOTP(data.phone, otpCode);
+      toast.success('Phone number verified.');
+      await pauseForToast();
+      setOtpCode('');
+      setCurrentStep(3);
+      await sellerAuth.requestEmailOTP(data.email, data.restaurant_name);
+      toast.success('Email verification code sent.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Invalid phone verification code.'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyEmailAndRegister = async (event) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const data = payload();
+      await sellerAuth.verifyEmailOTP(data.email, otpCode);
+      toast.success('Email verified.');
+      await pauseForToast();
+      await sellerAuth.register(data);
+      toast.success('Seller account created. Set your store location.');
+      await pauseForToast();
+      navigate('/seller/setup-location', { replace: true });
+    } catch (err) {
+      setError(getErrorMessage(err, 'Registration failed. Please try again.'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const title = currentStep === 1
+    ? 'Create your seller account'
+    : currentStep === 2
+      ? 'Verify phone number'
+      : 'Verify email address';
+
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-8 border border-gray-100">
-        
-        <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold text-dark">Join Dleva</h1>
-            <p className="text-gray-500 text-sm">Start selling food to students today.</p>
+    <SellerAuthPanel
+      title={title}
+      subtitle="Sign up to become a Dleva seller."
+      icon={<ChefHat size={36} />}
+      footer={
+        currentStep === 1 ? (
+          <span>
+            Already have an account?{' '}
+            <Link to="/seller/login" className="font-bold text-primary hover:underline">
+              Login here
+            </Link>
+          </span>
+        ) : null
+      }
+    >
+      {error ? (
+        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertCircle size={18} className="mt-0.5 shrink-0" />
+          <span>{error}</span>
         </div>
+      ) : null}
 
-        {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-                <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
-                <p className="text-sm text-red-600 font-medium">{error}</p>
+      {currentStep === 1 ? (
+        <form onSubmit={handleRequestPhoneOTP} className="space-y-4">
+          <SellerFormField label="Business type">
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { id: 'student_vendor', label: 'Student vendor', icon: ChefHat },
+                { id: 'restaurant', label: 'Restaurant', icon: Store },
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setFormData((previous) => ({ ...previous, businessType: option.id }))}
+                  className={`rounded-2xl border px-4 py-4 text-left transition-colors ${
+                    formData.businessType === option.id
+                      ? 'border-primary bg-primary/5 text-primary'
+                      : 'border-gray-200 bg-[#fbfbfa] text-muted hover:text-dark'
+                  }`}
+                >
+                  <option.icon size={20} />
+                  <p className="mt-3 text-sm font-bold">{option.label}</p>
+                </button>
+              ))}
             </div>
-        )}
+          </SellerFormField>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* --- 1. BUSINESS TYPE SELECTOR (Simple & Visual) --- */}
-            <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">I am a...</label>
-                <div className="grid grid-cols-2 gap-3">
-                    {/* Option A: Student Vendor */}
-                    <div 
-                        onClick={() => setFormData({...formData, businessType: 'student_vendor'})}
-                        className={`cursor-pointer border rounded-xl p-3 flex flex-col items-center justify-center transition-all ${formData.businessType === 'student_vendor' ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 hover:bg-gray-50 text-gray-500'}`}
-                    >
-                        <ChefHat size={24} className="mb-1" />
-                        <span className="text-xs font-bold">Student Vendor</span>
-                    </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SellerFormField label="Username">
+              <SellerTextInput icon={User} value={formData.username} onChange={(event) => setFormData((previous) => ({ ...previous, username: event.target.value }))} placeholder="mama_fash" required />
+            </SellerFormField>
+            <SellerFormField label="Email address">
+              <SellerTextInput icon={Mail} type="email" value={formData.email} onChange={(event) => setFormData((previous) => ({ ...previous, email: event.target.value }))} placeholder="seller@example.com" required />
+            </SellerFormField>
+            <SellerFormField label="First name">
+              <SellerTextInput icon={User} value={formData.firstName} onChange={(event) => setFormData((previous) => ({ ...previous, firstName: event.target.value }))} placeholder="Fashola" required />
+            </SellerFormField>
+            <SellerFormField label="Last name">
+              <SellerTextInput icon={User} value={formData.lastName} onChange={(event) => setFormData((previous) => ({ ...previous, lastName: event.target.value }))} placeholder="Adebayo" required />
+            </SellerFormField>
+            <SellerFormField label={formData.businessType === 'restaurant' ? 'Restaurant name' : 'Business / kitchen name'} className="sm:col-span-2">
+              <SellerTextInput icon={Store} value={formData.restaurantName} onChange={(event) => setFormData((previous) => ({ ...previous, restaurantName: event.target.value }))} placeholder={formData.businessType === 'restaurant' ? 'Mama Fash Restaurant' : 'Mama Fash Kitchen'} required />
+            </SellerFormField>
+            <SellerFormField label="Phone number" className="sm:col-span-2">
+              <SellerTextInput icon={Phone} value={formData.phone} onChange={(event) => setFormData((previous) => ({ ...previous, phone: event.target.value }))} placeholder="+234 801 234 5678" required />
+            </SellerFormField>
+            <SellerFormField label="Create password" className="sm:col-span-2">
+              <div className="relative">
+                <SellerTextInput
+                  icon={Lock}
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(event) => setFormData((previous) => ({ ...previous, password: event.target.value }))}
+                  placeholder="Create a strong password"
+                  required
+                />
+                <button type="button" onClick={() => setShowPassword((previous) => !previous)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-dark">
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </SellerFormField>
+          </div>
 
-                    {/* Option B: Restaurant */}
-                    <div 
-                        onClick={() => setFormData({...formData, businessType: 'restaurant'})}
-                        className={`cursor-pointer border rounded-xl p-3 flex flex-col items-center justify-center transition-all ${formData.businessType === 'restaurant' ? 'border-primary bg-primary/5 text-primary' : 'border-gray-200 hover:bg-gray-50 text-gray-500'}`}
-                    >
-                        <Store size={24} className="mb-1" />
-                        <span className="text-xs font-bold">Restaurant</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* --- 2. USERNAME --- */}
-            <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Username</label>
-                <div className="relative">
-                    <User className="absolute left-3 top-3 text-gray-400" size={18} />
-                    <input 
-                        type="text" 
-                        required
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                        placeholder="e.g. chef_mama"
-                        value={formData.username}
-                        onChange={(e) => setFormData({...formData, username: e.target.value})}
-                    />
-                </div>
-            </div>
-
-            {/* --- 3. FIRST NAME --- */}
-            <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">First Name</label>
-                <div className="relative">
-                    <User className="absolute left-3 top-3 text-gray-400" size={18} />
-                    <input 
-                        type="text" 
-                        required
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                        placeholder="e.g. Zainab"
-                        value={formData.firstName}
-                        onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-                    />
-                </div>
-            </div>
-
-            {/* --- 4. LAST NAME --- */}
-            <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Last Name</label>
-                <div className="relative">
-                    <User className="absolute left-3 top-3 text-gray-400" size={18} />
-                    <input 
-                        type="text" 
-                        required
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                        placeholder="e.g. Ibrahim"
-                        value={formData.lastName}
-                        onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-                    />
-                </div>
-            </div>
-
-            {/* --- 5. RESTAURANT NAME --- */}
-            <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-                    {formData.businessType === 'restaurant' ? 'Restaurant Name' : 'Business / Kitchen Name'}
-                </label>
-                <div className="relative">
-                    <Store className="absolute left-3 top-3 text-gray-400" size={18} />
-                    <input 
-                        type="text" 
-                        required
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                        placeholder={formData.businessType === 'restaurant' ? "e.g. Meddys Buka" : "e.g. Tunde's Kitchen"}
-                        value={formData.restaurantName}
-                        onChange={(e) => setFormData({...formData, restaurantName: e.target.value})}
-                    />
-                </div>
-            </div>
-
-            {/* --- 6. EMAIL --- */}
-            <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email Address</label>
-                <div className="relative">
-                    <Mail className="absolute left-3 top-3 text-gray-400" size={18} />
-                    <input 
-                        type="email" 
-                        required
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                        placeholder="name@business.com"
-                        value={formData.email}
-                        onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    />
-                </div>
-            </div>
-
-             {/* --- 7. PHONE --- */}
-             <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone Number</label>
-                <div className="relative">
-                    <Phone className="absolute left-3 top-3 text-gray-400" size={18} />
-                    <input 
-                        type="tel" 
-                        required
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                        placeholder="080..."
-                        value={formData.phone}
-                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    />
-                </div>
-            </div>
-
-            {/* --- 8. PASSWORD --- */}
-            <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Create Password</label>
-                <div className="relative">
-                    <Lock className="absolute left-3 top-3 text-gray-400" size={18} />
-                    <input 
-                        type={showPassword ? "text" : "password"} 
-                        required
-                        className="w-full pl-10 pr-12 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
-                        placeholder="••••••••"
-                        value={formData.password}
-                        onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    />
-                    <button 
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
-                    >
-                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                </div>
-            </div>
-
-            <button 
-                type="submit" 
-                disabled={isLoading}
-                className="w-full bg-primary text-white font-bold py-3.5 rounded-xl hover:bg-primary-hover active:scale-95 transition-all shadow-lg shadow-primary/20 mt-2 disabled:opacity-70"
-            >
-                {isLoading ? <Loader2 size={20} className="animate-spin mx-auto" /> : 'Create Account'}
-            </button>
+          <SellerPrimaryButton type="submit" loading={isLoading} icon={!isLoading ? <ArrowRight size={16} /> : null}>
+            Continue to verification
+          </SellerPrimaryButton>
         </form>
-
-        <div className="mt-8 text-center border-t border-gray-100 pt-6">
-            <p className="text-sm text-gray-500">
-                Already have an account?{' '}
-                <Link to="/seller/login" className="font-bold text-primary hover:underline">
-                    Login Here
-                </Link>
+      ) : (
+        <form className="space-y-4" onSubmit={currentStep === 2 ? handleVerifyPhoneOTP : handleVerifyEmailAndRegister}>
+          <div className="rounded-2xl border border-primary/10 bg-primary/5 p-4 text-sm text-dark">
+            <p className="font-bold">Verification code sent</p>
+            <p className="mt-1 text-muted">
+              Enter the code sent to {currentStep === 2 ? formData.phone : formData.email}.
             </p>
-        </div>
+          </div>
 
-      </div>
-    </div>
+          <SellerFormField label="Verification code">
+            <SellerTextInput
+              value={otpCode}
+              onChange={(event) => setOtpCode(event.target.value)}
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="000000"
+              required
+            />
+          </SellerFormField>
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              className="rounded-2xl border border-gray-200 px-4 py-3 text-sm font-bold text-muted hover:text-dark"
+              disabled={isLoading}
+              onClick={() => {
+                setError('');
+                setOtpCode('');
+                setCurrentStep(currentStep === 2 ? 1 : 2);
+              }}
+            >
+              Back
+            </button>
+            <SellerPrimaryButton type="submit" loading={isLoading}>
+              Verify
+            </SellerPrimaryButton>
+          </div>
+        </form>
+      )}
+    </SellerAuthPanel>
   );
 };
 

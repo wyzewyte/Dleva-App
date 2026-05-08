@@ -40,6 +40,7 @@ const BuyerOrderCard = ({
   
   // Truncate with ellipsis if too long (around 50 chars)
   const displayText = itemAndRestaurant.length > 50 ? itemAndRestaurant.substring(0, 47) + '...' : itemAndRestaurant;
+  const isRateOrderAction = secondaryActionLabel?.toLowerCase() === 'rate order';
 
   return (
     <BuyerCard className="p-4 sm:p-5">
@@ -55,7 +56,7 @@ const BuyerOrderCard = ({
             {displayText}
           </h3>
           <div className="flex items-center gap-2 text-xs text-muted flex-wrap">
-            <Clock3 size={12} />
+            <Clock3 size={12} className="text-accent" />
             <span>{orderDate}{orderTime ? `, ${orderTime}` : ''}</span>
             <span className="text-gray-300">•</span>
             <span>{itemCount} {itemCount === 1 ? 'item' : 'items'}</span>
@@ -83,7 +84,9 @@ const BuyerOrderCard = ({
         {secondaryActionLabel && onSecondaryAction && (
           <BuyerSecondaryButton
             onClick={() => onSecondaryAction(order)}
-            className="flex-1 !min-h-fit px-3 py-1.5 text-xs"
+            className={`flex-1 !min-h-fit px-3 py-1.5 text-xs ${
+              isRateOrderAction ? 'border-accent/30 bg-accent/10 text-accent hover:bg-accent/15' : ''
+            }`}
             icon={actionIconMap[secondaryActionLabel.toLowerCase()] || <Receipt size={12} />}
           >
             {secondaryActionLabel}

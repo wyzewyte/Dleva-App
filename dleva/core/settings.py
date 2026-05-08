@@ -61,10 +61,12 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'anymail',  # ✅ Brevo email notifications
     'core',  # ✅ Phase 1: Location management
     'buyer',
     'seller',
     'rider',
+    'emails',  # ✅ Email notification module
 ]
 
 MEDIA_URL = '/media/'
@@ -198,8 +200,19 @@ STORAGES = {
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CSRF Trusted Origins for Production
-CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='http://localhost:3000,http://127.0.0.1:3000').split(',')
+# Shared local frontend origins for Vite and older dev servers
+LOCAL_FRONTEND_ORIGINS = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+
+# CSRF Trusted Origins for local/prod usage
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS',
+    default=','.join(LOCAL_FRONTEND_ORIGINS)
+).split(',')
 
 # Add CORS settings
 if DEBUG:
@@ -207,7 +220,10 @@ if DEBUG:
     CORS_ALLOW_CREDENTIALS = True
 else:
     CORS_ALLOW_ALL_ORIGINS = False
-    CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:3000').split(',')
+    CORS_ALLOWED_ORIGINS = config(
+        'CORS_ALLOWED_ORIGINS',
+        default=','.join(LOCAL_FRONTEND_ORIGINS)
+    ).split(',')
     CORS_ALLOW_CREDENTIALS = True
 
 # Add REST Framework settings
@@ -264,3 +280,35 @@ else:
             'BACKEND': 'channels.layers.InMemoryChannelLayer'
         }
     }
+
+
+# ✅ Email Configuration - Brevo (Sendinblue) via django-anymail
+# https://anymail.readthedocs.io/en/latest/esps/brevo/
+
+EMAIL_BACKEND = 'anymail.backends.brevo.EmailBackend'
+
+# Brevo API Key - loaded from environment variable
+BREVO_API_KEY = config('BREVO_API_KEY', default=None)
+
+# AnyMail configuration for Brevo
+ANYMAIL = {
+    'BREVO_API_KEY': BREVO_API_KEY,
+    # Optional: Track opens, clicks, bounces, and other events
+    'TRACK_OPENS': True,
+    'TRACK_CLICKS': True,
+}
+
+# Default sender email and name
+DEFAULT_FROM_EMAIL = config(
+    'DEFAULT_FROM_EMAIL',
+    default='noreply@dleva.com'
+)
+
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# Email settings for development/testing
+if DEBUG:
+    # In development, you can use console backend for testing
+    # Uncomment the line below to see emails in console instead of sending them
+    # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    pass

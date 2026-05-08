@@ -7,9 +7,11 @@ urlpatterns = [
     path('login/', auth_views.login_rider, name='login'),
     path('logout/', views.logout_rider, name='logout'),
     path('request-phone-otp/', auth_views.request_phone_otp, name='request-phone-otp'),
+    path('request-email-otp/', auth_views.request_email_otp, name='request-email-otp'),
     path('resend-phone-otp/', auth_views.resend_phone_otp, name='resend-phone-otp'),
     path('resend-registration-otp/', auth_views.resend_registration_otp, name='resend-registration-otp'),
     path('verify-phone-otp/', auth_views.verify_phone_otp, name='verify-phone-otp'),
+    path('verify-email-otp/', auth_views.verify_email_otp, name='verify-email-otp'),
     
     # ==================== PASSWORD RESET ====================
     path('forgot-password/', auth_views.forgot_password_rider, name='forgot-password'),
@@ -39,6 +41,7 @@ urlpatterns = [
     
     # ==================== DELIVERY FEE ESTIMATION ====================
     path('estimate-delivery-fee/', views.estimate_delivery_fee, name='estimate-delivery-fee'),
+    path('pricing-config/', views.get_delivery_pricing_config, name='pricing-config'),
     
     # ==================== WALLET ====================
     path('wallet/', views.WalletView.as_view(), name='wallet'),
@@ -118,8 +121,6 @@ urlpatterns = [
     # Order Subscription
     path('order/<int:order_id>/subscribe/', realtime_views.subscribe_to_order, name='subscribe-to-order'),
     
-    # ==================== SERVICE AREAS ====================
-    path('service-areas/available/', views.get_available_service_areas, name='available-service-areas'),
-    path('service-areas/my-areas/', views.get_rider_service_areas, name='my-service-areas'),
-    path('service-areas/set/', views.set_rider_service_areas, name='set-service-areas'),
+    # ==================== LOCATION SETUP ====================
+    path('location/setup/', views.rider_location_setup, name='location-setup'),
 ]

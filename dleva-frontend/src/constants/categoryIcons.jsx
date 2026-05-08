@@ -11,7 +11,7 @@ export const categoryIconMap = {
   'main-courses': { icon: UtensilsCrossed, bg: 'bg-amber-50',   color: 'text-amber-500' },
   'proteins':     { icon: Drumstick,       bg: 'bg-red-50',     color: 'text-red-500' },
   'sides':        { icon: Cookie,          bg: 'bg-yellow-50',  color: 'text-yellow-500' },
-  'beverages':    { icon: CupSoda,         bg: 'bg-sky-50',     color: 'text-sky-500' },
+  'beverages':    { icon: CupSoda,         bg: 'bg-accent-light', color: 'text-accent' },
   'desserts':     { icon: Cake,            bg: 'bg-pink-50',    color: 'text-pink-500' },
   'spices':       { icon: Flame,           bg: 'bg-red-50',     color: 'text-red-400' },
   'breads':       { icon: Wheat,           bg: 'bg-amber-50',   color: 'text-amber-600' },

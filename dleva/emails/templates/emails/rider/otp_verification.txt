@@ -1,0 +1,12 @@
+{% autoescape off %}
+Hi {{ rider_name }},
+
+Your OTP verification code is: {{ otp }}
+
+This code will expire in 10 minutes. Do not share it with anyone.
+
+If you didn't request this code, please ignore this email.
+
+Best regards,
+The Dleva Team
+{% endautoescape %}

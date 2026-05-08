@@ -5,7 +5,7 @@ from .models import (
     RiderTransaction, RiderRating, RiderOrder,
     RiderBankDetails, RiderOTP, PayoutRequest, Dispute,
     RiderNotification,  # Phase 7
-    RiderServiceArea  # Service area management
+    DeliveryPricingConfig  # Delivery pricing configuration
 )
 from rider.performance_service import PerformanceService
 
@@ -247,30 +247,6 @@ class RiderBankDetailsAdmin(admin.ModelAdmin):
     )
 
 
-@admin.register(RiderServiceArea)
-class RiderServiceAreaAdmin(admin.ModelAdmin):
-    list_display = ('get_rider_name', 'area_name', 'is_selected', 'added_at')
-    list_filter = ('area_code', 'is_selected', 'added_at')
-    search_fields = ('rider__full_name', 'area_name', 'area_code')
-    readonly_fields = ('added_at', 'updated_at')
-    fieldsets = (
-        ('Rider & Area', {
-            'fields': ('rider', 'area_code', 'area_name')
-        }),
-        ('Status', {
-            'fields': ('is_selected',)
-        }),
-        ('Timestamps', {
-            'fields': ('added_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
-    
-    def get_rider_name(self, obj):
-        return obj.rider.full_name
-    get_rider_name.short_description = 'Rider'
-
-
 @admin.register(RiderOTP)
 class RiderOTPAdmin(admin.ModelAdmin):
     list_display = ('rider', 'phone_number', 'is_verified', 'attempts', 'created_at', 'expires_at')
@@ -379,8 +355,63 @@ class DisputeAdmin(admin.ModelAdmin):
         from django.utils import timezone
         queryset.update(status='rejected', resolved_at=timezone.now())
     mark_rejected.short_description = "Reject dispute"
+
+
+@admin.register(DeliveryPricingConfig)
+class DeliveryPricingConfigAdmin(admin.ModelAdmin):
+    list_display = ('get_status', 'buyer_base_fee', 'buyer_per_km_rate', 'rider_base_pay', 'rider_per_km_rate', 'base_distance_km', 'updated_at')
+    list_filter = ('is_active', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'get_pricing_examples')
+    fieldsets = (
+        ('Status', {
+            'fields': ('is_active',)
+        }),
+        ('Buyer Pricing', {
+            'fields': ('buyer_base_fee', 'buyer_per_km_rate'),
+            'description': 'Fees charged to the buyer for delivery'
+        }),
+        ('Rider Compensation', {
+            'fields': ('rider_base_pay', 'rider_per_km_rate'),
+            'description': 'Payment earned by the rider for delivery'
+        }),
+        ('Distance Settings', {
+            'fields': ('base_distance_km',),
+            'description': 'Distance threshold before per-km rates apply'
+        }),
+        ('Pricing Examples', {
+            'fields': ('get_pricing_examples',),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
     
-    actions = [approve_refund, mark_resolved, mark_rejected]
+    def get_status(self, obj):
+        return "✅ Active" if obj.is_active else "⚠️ Inactive"
+    get_status.short_description = 'Status'
+    
+    def get_pricing_examples(self, obj):
+        """Show pricing examples for different distances"""
+        examples = []
+        for distance in [1, 3, 5, 10]:
+            buyer = obj.calculate_buyer_fee(distance)
+            rider = obj.calculate_rider_pay(distance)
+            margin = obj.calculate_platform_margin(distance)
+            examples.append(f"{distance}km: Buyer ₦{buyer:.2f} | Rider ₦{rider:.2f} | Margin ₦{margin:.2f}")
+        return "\n".join(examples)
+    get_pricing_examples.short_description = "Pricing Examples"
+    
+    def has_add_permission(self, request):
+        """Limit to one active config"""
+        return not DeliveryPricingConfig.objects.filter(is_active=True).exists()
+    
+    def has_delete_permission(self, request, obj=None):
+        """Prevent deletion if active"""
+        if obj and obj.is_active:
+            return False
+        return True
 
 
 # ============================================================================

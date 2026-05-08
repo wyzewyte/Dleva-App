@@ -16,6 +16,15 @@ import {
 } from '../components/ui/BuyerPrimitives';
 import BuyerPageLoading from '../components/ui/BuyerPageLoading';
 
+const initials = (value) =>
+  String(value || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'B';
+
 const ProfileModern = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
@@ -49,6 +58,37 @@ const ProfileModern = () => {
     });
     setLoading(false);
   }, [user]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const refreshProfile = async () => {
+      try {
+        const freshProfile = await buyerProfile.getProfile();
+        if (!mounted) return;
+        setProfile(freshProfile);
+        setUser(freshProfile);
+        setFormData((previous) => ({
+          ...previous,
+          name: freshProfile.name || '',
+          email: freshProfile.email || '',
+          phone: freshProfile.phone || '',
+          address: freshProfile.address || '',
+          imagePreview: freshProfile.image || null,
+        }));
+      } catch (err) {
+        logError(err, { context: 'ProfileModern.refreshProfile' });
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    refreshProfile();
+
+    return () => {
+      mounted = false;
+    };
+  }, [setUser]);
 
   const handleSave = async () => {
     // Check if sensitive fields (phone number) have changed
@@ -121,11 +161,17 @@ const ProfileModern = () => {
       <BuyerCard className="p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
           <div className="relative">
-            <img
-              src={formData.imagePreview || 'https://via.placeholder.com/150'}
-              alt="Profile"
-              className="h-24 w-24 rounded-[20px] object-cover shadow-sm"
-            />
+            {formData.imagePreview ? (
+              <img
+                src={formData.imagePreview}
+                alt="Profile"
+                className="h-24 w-24 rounded-[20px] object-cover shadow-sm"
+              />
+            ) : (
+              <div className="flex h-24 w-24 items-center justify-center rounded-[20px] bg-gradient-to-br from-accent to-[#ffb03a] text-2xl font-bold text-white shadow-sm">
+                {initials(profile?.name)}
+              </div>
+            )}
             {isEditing && (
               <>
                 <input
@@ -221,7 +267,7 @@ const ProfileModern = () => {
             onClick={item.action}
             className={`flex w-full items-center gap-3 px-5 py-4 text-left transition-colors hover:bg-gray-50 ${index !== 2 ? 'border-b border-gray-100' : ''}`}
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
               <item.icon size={18} />
             </div>
             <div className="flex-1">
@@ -243,7 +289,6 @@ const ProfileModern = () => {
           </div>
           <div className="flex-1">
             <p className="text-sm font-bold">Logout</p>
-            <p className="text-xs text-red-500/80">Sign out of your buyer account</p>
           </div>
         </button>
       </BuyerCard>

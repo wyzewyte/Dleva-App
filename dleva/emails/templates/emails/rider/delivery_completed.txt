@@ -1,0 +1,18 @@
+{% autoescape off %}
+Hi {{ rider_name }},
+
+✅ Delivery completed!
+
+Delivery Details:
+- Order ID: {{ order_id }}
+- Customer: {{ customer_name }}
+- Delivery Location: {{ delivery_address }}
+- Earnings: ₦{{ rider_earning }}
+
+Your delivery has been successfully completed. The payment will be processed shortly.
+
+Thank you for your great service!
+
+Best regards,
+The Dleva Team
+{% endautoescape %}

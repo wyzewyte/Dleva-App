@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Upload, ChevronDown, Check, Tag } from 'lucide-react'; // Added icons
+import { X, Upload, ChevronDown, Check, Tag, Loader2, AlertCircle } from 'lucide-react';
 import api from '../../../services/axios';
 import { API_ENDPOINTS } from '../../../constants/apiConfig';
 import { logError } from '../../../utils/errorHandler';
+import cloudinaryUpload from '../../../services/cloudinaryUpload';
 
-const MenuModal = ({ isOpen, onClose, onSubmit, initialData }) => {
+const MenuModal = ({ isOpen, onClose, onSubmit, initialData, isSubmitting = false }) => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -12,11 +13,15 @@ const MenuModal = ({ isOpen, onClose, onSubmit, initialData }) => {
     available: true,
     category: null,
     image: null,
-    imagePreview: ''
+    imagePreview: '',
+    cloudinary_image_id: '',
+    cloudinary_image_url: ''
   });
 
   const [categories, setCategories] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState('');
   
   // Custom Dropdown State
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -31,11 +36,24 @@ const MenuModal = ({ isOpen, onClose, onSubmit, initialData }) => {
         available: initialData.available ?? true,
         category: initialData.category || null,
         image: null,
-        imagePreview: initialData.image || ''
+        imagePreview: initialData.cloudinary_image_url || initialData.image || '',
+        cloudinary_image_id: initialData.cloudinary_image_id || '',
+        cloudinary_image_url: initialData.cloudinary_image_url || ''
       });
     } else {
-      setFormData({ name: '', description: '', price: '', available: true, category: null, image: null, imagePreview: '' });
+      setFormData({ 
+        name: '', 
+        description: '', 
+        price: '', 
+        available: true, 
+        category: null, 
+        image: null, 
+        imagePreview: '',
+        cloudinary_image_id: '',
+        cloudinary_image_url: ''
+      });
     }
+    setUploadError('');
   }, [initialData, isOpen]);
 
   // Close dropdown when clicking outside
@@ -66,25 +84,81 @@ const MenuModal = ({ isOpen, onClose, onSubmit, initialData }) => {
     if (isOpen) fetchCategories();
   }, [isOpen]);
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setFormData({
-        ...formData,
-        image: file,
-        imagePreview: URL.createObjectURL(file)
-      });
+    if (!file) return;
+
+    // Validate file
+    const validation = cloudinaryUpload.validateFile(file);
+    if (!validation.valid) {
+      setUploadError(validation.error);
+      return;
+    }
+
+    // Show preview while uploading
+    setFormData(prev => ({
+      ...prev,
+      image: file,
+      imagePreview: URL.createObjectURL(file)
+    }));
+
+    // Upload to Cloudinary
+    try {
+      setUploadingImage(true);
+      setUploadError('');
+      
+      // If editing, include menu ID for upload
+      let uploadResult;
+      if (initialData?.id) {
+        uploadResult = await cloudinaryUpload.uploadMenuItemImage(file, initialData.id);
+      } else {
+        // For new items, we'll upload when saving (need menu ID first)
+        // So just set the file for now
+        return;
+      }
+
+      // Store cloudinary IDs
+      setFormData(prev => ({
+        ...prev,
+        cloudinary_image_id: uploadResult.public_id,
+        cloudinary_image_url: uploadResult.url
+      }));
+    } catch (error) {
+      setUploadError(error.error || 'Failed to upload image');
+      logError(error, { context: 'MenuModal.handleImageChange' });
+    } finally {
+      setUploadingImage(false);
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSubmit({
+    
+    // For new items with images, upload first
+    let finalFormData = {
         ...formData,
         price: parseFloat(formData.price),
         id: initialData?.id 
-    });
-    onClose();
+    };
+
+    // If adding new item with image but no cloudinary ID yet, upload it
+    if (!initialData && formData.image && !formData.cloudinary_image_id) {
+      try {
+        setUploadingImage(true);
+        setUploadError('');
+        // We can't upload to menu-specific endpoint until item exists
+        // So we'll pass the file to parent and let them handle it
+      } catch (error) {
+        setUploadError('Failed to prepare image for upload');
+        setUploadingImage(false);
+        return;
+      } finally {
+        setUploadingImage(false);
+      }
+    }
+
+    const saved = await onSubmit(finalFormData);
+    if (saved) onClose();
   };
 
   // Helper to find selected category object
@@ -93,30 +167,47 @@ const MenuModal = ({ isOpen, onClose, onSubmit, initialData }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose}></div>
 
-      <div className="bg-white rounded-3xl w-full max-w-md relative z-10 shadow-2xl animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh] overflow-hidden">
+      <form onSubmit={handleSubmit} className="bg-white rounded-t-[24px] sm:rounded-[24px] w-full max-w-md relative z-10 shadow-2xl animate-in fade-in zoom-in duration-200 flex flex-col max-h-[92vh] overflow-hidden">
         
         {/* Header */}
         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-white">
             <h3 className="font-bold text-xl text-gray-800">{initialData ? 'Edit Item' : 'New Menu Item'}</h3>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={22}/></button>
+            <button type="button" onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><X size={22}/></button>
         </div>
 
         {/* Scrollable Form */}
-        <div className="p-6 overflow-y-auto space-y-5 custom-scrollbar">
+        <div className="p-6 overflow-y-auto space-y-5 custom-scrollbar bg-[#fbfbfa]">
+            
+            {/* Upload Error */}
+            {uploadError && (
+              <div className="flex items-start gap-3 p-3.5 bg-red-50 border border-red-200 rounded-2xl">
+                <AlertCircle size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-red-900">Upload Error</p>
+                  <p className="text-xs text-red-700 mt-0.5">{uploadError}</p>
+                </div>
+              </div>
+            )}
             
             {/* Image Upload */}
-            <div className="group relative w-full h-44 rounded-2xl border-2 border-dashed border-gray-200 hover:border-primary/50 hover:bg-primary/5 transition-all overflow-hidden flex flex-col items-center justify-center cursor-pointer">
+            <div className="group relative w-full h-44 rounded-2xl border-2 border-dashed border-gray-200 bg-white hover:border-primary/50 hover:bg-primary/5 transition-all overflow-hidden flex flex-col items-center justify-center cursor-pointer">
                 <input 
                     type="file" 
                     accept="image/*"
                     onChange={handleImageChange}
+                    disabled={uploadingImage}
                     className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-pointer"
                 />
                 
-                {formData.imagePreview ? (
+                {uploadingImage ? (
+                  <div className="text-center">
+                    <Loader2 size={28} className="text-primary animate-spin mx-auto mb-2" />
+                    <p className="text-sm font-semibold text-gray-600">Uploading image...</p>
+                  </div>
+                ) : formData.imagePreview ? (
                     <>
                         <img src={formData.imagePreview} className="w-full h-full object-cover" alt="Preview" />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
@@ -249,15 +340,16 @@ const MenuModal = ({ isOpen, onClose, onSubmit, initialData }) => {
         {/* Footer */}
         <div className="p-6 border-t border-gray-100 bg-white">
             <button 
-                onClick={handleSubmit}
-                disabled={!formData.name || !formData.price} 
-                className="w-full bg-primary text-white font-bold py-4 rounded-2xl hover:bg-primary-dark active:scale-[0.98] transition-all shadow-lg shadow-primary/20 disabled:bg-gray-200 disabled:shadow-none disabled:text-gray-400 disabled:cursor-not-allowed"
+                type="submit"
+                disabled={!formData.name || !formData.price || isSubmitting || uploadingImage} 
+                className="inline-flex w-full items-center justify-center gap-2 bg-primary text-white font-bold py-4 rounded-2xl hover:opacity-95 active:scale-[0.98] transition-all shadow-lg shadow-primary/20 disabled:bg-gray-200 disabled:shadow-none disabled:text-gray-400 disabled:cursor-not-allowed"
             >
-                {initialData ? 'Save Changes' : 'Create Item'}
+                {isSubmitting || uploadingImage ? <Loader2 size={18} className="animate-spin" /> : null}
+                {isSubmitting ? 'Saving...' : uploadingImage ? 'Uploading image...' : initialData ? 'Save Changes' : 'Create Item'}
             </button>
         </div>
 
-      </div>
+      </form>
     </div>
   );
 };

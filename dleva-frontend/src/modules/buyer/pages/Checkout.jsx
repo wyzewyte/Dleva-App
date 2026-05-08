@@ -17,6 +17,11 @@ import AddressSearchComponent from '../../../components/address/AddressSearchCom
 
 const GLOBAL_DELIVERY_FEE = 500;
 
+const toMoneyNumber = (value, fallback = 0) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : fallback;
+};
+
 // ─── Step Indicator ──────────────────────────────────────────────────────────
 
 const StepIndicator = ({ step }) => {
@@ -37,9 +42,9 @@ const StepIndicator = ({ step }) => {
             <div className="flex items-center gap-2">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                 isDone
-                  ? 'bg-primary text-white'
+                  ? 'bg-accent text-white'
                   : isActive
-                    ? 'bg-primary text-white'
+                    ? 'bg-accent text-white'
                     : 'bg-gray-100 text-muted'
               }`}>
                 {isDone ? <CheckCircle size={14} /> : i + 1}
@@ -49,7 +54,7 @@ const StepIndicator = ({ step }) => {
               </span>
             </div>
             {i < steps.length - 1 && (
-              <div className={`flex-1 h-px w-8 ${i < currentIndex ? 'bg-primary' : 'bg-gray-200'}`} />
+              <div className={`flex-1 h-px w-8 ${i < currentIndex ? 'bg-accent' : 'bg-gray-200'}`} />
             )}
           </div>
         );
@@ -175,6 +180,13 @@ const Checkout = () => {
     }
   }, [orderSummary, vendorId]);
 
+  useEffect(() => {
+    if (step === 'review') return;
+    if (orderSummary?.delivery_fee != null) {
+      setDeliveryFee(toMoneyNumber(orderSummary.delivery_fee, deliveryFee));
+    }
+  }, [deliveryFee, orderSummary?.delivery_fee, step]);
+
   const handlePlaceOrder = async () => {
     if (!user) { navigate('/login'); return; }
     try {
@@ -186,9 +198,11 @@ const Checkout = () => {
       const summary = {
         items: vendorItems.map(item => ({ ...item })),
         subtotal: checkoutData.subtotal,
+        delivery_fee: checkoutData.delivery_fee,
         total: checkoutData.total,
       };
       sessionStorage.setItem(`checkoutData_${vendorId}`, JSON.stringify(checkoutData));
+      setDeliveryFee(toMoneyNumber(checkoutData.delivery_fee, deliveryFee));
       setOrderSummary(summary);
       setStep('payment');
     } catch (err) {
@@ -209,7 +223,7 @@ const Checkout = () => {
         return;
       }
       const checkoutData = JSON.parse(checkoutDataStr);
-      const paymentData = await buyerCheckout.initializePayment(checkoutData.total);
+      const paymentData = await buyerCheckout.initializePayment(checkoutData);
       if (!paymentData.authorization_url) {
         setError('Failed to initialize payment. Please try again.');
         setLoading(false);
@@ -258,9 +272,14 @@ const Checkout = () => {
   const handleGpsDeny = () => setGpsEnabled(false);
   const handleGpsDismiss = () => setShowGpsDialog(false);
 
-  const displayItems = orderSummary?.items || vendorItems;
-  const displaySubtotal = orderSummary?.subtotal ?? vendorItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const displayTotal = orderSummary?.total ?? displaySubtotal + deliveryFee;
+  const backendSummary = step === 'review' ? null : orderSummary;
+  const displayItems = backendSummary?.items || vendorItems;
+  const displaySubtotal = toMoneyNumber(
+    backendSummary?.subtotal,
+    vendorItems.reduce((sum, i) => sum + toMoneyNumber(i.price) * toMoneyNumber(i.quantity, 1), 0)
+  );
+  const displayDeliveryFee = toMoneyNumber(backendSummary?.delivery_fee, deliveryFee);
+  const displayTotal = toMoneyNumber(backendSummary?.total, displaySubtotal + displayDeliveryFee);
 
   // ── GPS Dialog ──
   if (showGpsDialog && order) {
@@ -414,7 +433,7 @@ const Checkout = () => {
               <span className="font-medium text-dark">
                 {deliveryFeeLoading?.[vendorId]
                   ? 'Calculating...'
-                  : formatCurrency(deliveryFee)
+                  : formatCurrency(displayDeliveryFee)
                 }
               </span>
             </div>
@@ -512,11 +531,13 @@ const Checkout = () => {
         {step === 'review' && (
           <button
             onClick={handlePlaceOrder}
-            disabled={loading || !addressValue}
+            disabled={loading || !addressValue || deliveryFeeLoading?.[vendorId]}
             className="w-full py-4 bg-primary text-white font-bold rounded-2xl hover:bg-primary-hover disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-sm"
           >
             {loading
               ? <><Loader2 className="animate-spin" size={18} /> Processing...</>
+              : deliveryFeeLoading?.[vendorId]
+              ? <><Loader2 className="animate-spin" size={18} /> Calculating Delivery Fee...</>
               : <>Review & Proceed <ChevronRight size={18} /></>
             }
           </button>
@@ -525,11 +546,13 @@ const Checkout = () => {
         {step === 'payment' && (
           <button
             onClick={handlePayment}
-            disabled={loading}
+            disabled={loading || deliveryFeeLoading?.[vendorId]}
             className="w-full py-4 bg-primary text-white font-bold rounded-2xl hover:bg-primary-hover disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-sm"
           >
             {loading
               ? <><Loader2 className="animate-spin" size={18} /> Initializing...</>
+              : deliveryFeeLoading?.[vendorId]
+              ? <><Loader2 className="animate-spin" size={18} /> Calculating Delivery Fee...</>
               : <><CreditCard size={18} /> Pay {formatCurrency(displayTotal)}</>
             }
           </button>

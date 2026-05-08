@@ -81,9 +81,30 @@ export function SellerNotificationsProvider({ children }) {
   /**
    * Remove notification
    */
-  const removeNotification = useCallback((notificationId) => {
-    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+  const removeNotification = useCallback((notificationId, options = {}) => {
+    setNotifications((prev) => prev.filter((notification) => notification.id !== notificationId));
+
+    if (options.wasUnread) {
+      setUnreadCount((current) => Math.max(0, current - 1));
+    }
   }, []);
+
+  /**
+   * Delete notification from API and local state
+   */
+  const deleteNotification = useCallback(
+    async (notificationId) => {
+      try {
+        const target = notifications.find((notification) => notification.id === notificationId);
+        await sellerNotificationsService.deleteNotification(notificationId);
+        removeNotification(notificationId, { wasUnread: Boolean(target && !target.is_read) });
+      } catch (err) {
+        console.error('Failed to delete notification:', err);
+        setError(err.message);
+      }
+    },
+    [notifications, removeNotification]
+  );
 
   /**
    * Connect to WebSocket for real-time notifications
@@ -215,6 +236,7 @@ export function SellerNotificationsProvider({ children }) {
     markAllAsRead,
     addNotification,
     removeNotification,
+    deleteNotification,
     connectWebSocket,
     requestNotificationPermission
   };

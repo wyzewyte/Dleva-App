@@ -83,8 +83,35 @@ class PaymentAdmin(admin.ModelAdmin):
 
 @admin.register(Rating)
 class RatingAdmin(admin.ModelAdmin):
-    list_display = ['id', 'order', 'rating', 'created_at']
-    readonly_fields = ['order', 'rating', 'comment', 'created_at']
+    list_display = ['id', 'restaurant_name', 'buyer_name', 'order', 'rating', 'short_comment', 'created_at']
+    list_filter = ['rating', 'restaurant', 'created_at']
+    search_fields = [
+        'order__id',
+        'comment',
+        'buyer__user__username',
+        'buyer__user__first_name',
+        'buyer__user__last_name',
+        'restaurant__name',
+    ]
+    readonly_fields = ['buyer', 'restaurant', 'order', 'rating', 'comment', 'created_at']
+    date_hierarchy = 'created_at'
+
+    def buyer_name(self, obj):
+        if obj.buyer and obj.buyer.user:
+            full_name = obj.buyer.user.get_full_name().strip()
+            return full_name or obj.buyer.user.username
+        return 'Guest'
+    buyer_name.short_description = 'Buyer'
+
+    def restaurant_name(self, obj):
+        return obj.restaurant.name if obj.restaurant else 'Unknown'
+    restaurant_name.short_description = 'Restaurant'
+
+    def short_comment(self, obj):
+        if not obj.comment:
+            return '—'
+        return obj.comment[:60] + ('...' if len(obj.comment) > 60 else '')
+    short_comment.short_description = 'Comment'
 
 
 @admin.register(LocationHistory)

@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 from math import radians, cos, sin, asin, sqrt
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, parser_classes
@@ -20,6 +20,7 @@ from .serializers import (
 )
 from seller.models import Restaurant, MenuItem, MenuItemCategory
 from seller.serializers import MenuItemCategorySerializer
+from seller.notification_service import SellerPushNotificationService
 from core.push_tokens import register_push_token, unregister_push_token
 
 # ✅ PAYSTACK INTEGRATION
@@ -28,6 +29,43 @@ import uuid
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def calculate_backend_delivery_fee(restaurant, delivery_latitude, delivery_longitude):
+    """Calculate delivery fee from backend-owned restaurant and delivery coordinates."""
+    from core.location_service import LocationService
+    from core.models import Location, LocationValidator
+
+    if not restaurant.latitude or not restaurant.longitude:
+        raise ValueError('Restaurant location is not set')
+    if not delivery_latitude or not delivery_longitude:
+        raise ValueError('Delivery coordinates are required')
+
+    is_valid, error_message = LocationValidator.validate_coordinates(delivery_latitude, delivery_longitude)
+    if not is_valid:
+        raise ValueError(error_message)
+
+    pickup_location = Location(
+        address=restaurant.address or restaurant.name,
+        latitude=restaurant.latitude,
+        longitude=restaurant.longitude,
+    )
+    delivery_location = Location(
+        address='Delivery Location',
+        latitude=delivery_latitude,
+        longitude=delivery_longitude,
+    )
+
+    fee_data = LocationService.estimate_delivery_fee(pickup_location, delivery_location)
+    if fee_data.get('error'):
+        raise ValueError(fee_data['error'])
+
+    money_fields = ('base_fee', 'distance_fee', 'total_fee', 'rider_earning', 'platform_commission')
+    for field in money_fields:
+        fee_data[field] = Decimal(str(fee_data[field])).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    fee_data['distance_km'] = Decimal(str(fee_data['distance_km'])).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    return fee_data
 
 
 
@@ -99,10 +137,12 @@ class ProfileView(APIView):
                 request.user.last_name = name_parts[1] if len(name_parts) > 1 else ''
                 request.user.save()
             
-            # Update User's email
+            # Update User's email and Profile's email
             if 'email' in request.data:
-                request.user.email = request.data.get('email')
+                new_email = request.data.get('email')
+                request.user.email = new_email
                 request.user.save()
+                buyer_profile.email = new_email
             
             # Update Profile fields
             if 'phone' in request.data:
@@ -467,7 +507,6 @@ def checkout(request):
         user = request.user
         restaurant_id = request.data.get('restaurant_id')
         payment_method = request.data.get('payment_method', 'card')
-        delivery_fee = Decimal(request.data.get('delivery_fee', 500))
         delivery_address = request.data.get('delivery_address', '').strip()
 
         print(f"\n{'='*60}")
@@ -483,6 +522,7 @@ def checkout(request):
             )
 
         buyer_profile = BuyerProfile.objects.get(user=user)
+        restaurant = Restaurant.objects.get(id=restaurant_id)
         
         # ✅ GET DELIVERY COORDINATES FROM REQUEST
         delivery_latitude = request.data.get('delivery_latitude')
@@ -502,6 +542,16 @@ def checkout(request):
                 {'error': f'Invalid delivery address: {str(e)}'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+        try:
+            delivery_fee_data = calculate_backend_delivery_fee(restaurant, delivery_latitude, delivery_longitude)
+        except ValueError as e:
+            return Response(
+                {'error': f'Unable to calculate delivery fee: {str(e)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        delivery_fee = delivery_fee_data['total_fee']
         
         print(f"\nDelivery Coordinates:")
         print(f"  Latitude: {delivery_latitude}")
@@ -539,6 +589,18 @@ def checkout(request):
                     {'error': f'Menu item {menu_item_id} not found'},
                     status=status.HTTP_404_NOT_FOUND
                 )
+
+            if menu_item.restaurant_id != restaurant.id:
+                return Response(
+                    {'error': f'Menu item {menu_item_id} does not belong to this restaurant'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if item_quantity < 1:
+                return Response(
+                    {'error': 'Item quantity must be at least 1'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             
             item_price = menu_item.price
             item_subtotal = item_price * item_quantity
@@ -573,6 +635,9 @@ def checkout(request):
             ],
             'subtotal': float(subtotal),
             'delivery_fee': float(delivery_fee),
+            'distance_km': float(delivery_fee_data['distance_km']),
+            'rider_earning': float(delivery_fee_data['rider_earning']),
+            'platform_commission': float(delivery_fee_data['platform_commission']),
             'total': float(total_price),
             'restaurant_id': restaurant_id,
             'delivery_address': delivery_address,
@@ -691,21 +756,34 @@ class RateOrderView(APIView):
             buyer_profile = BuyerProfile.objects.get(user=request.user)
             order = Order.objects.get(id=order_id, buyer=buyer_profile)
             
-            rating_obj, created = Rating.objects.update_or_create(
+            if Rating.objects.filter(order=order, buyer=buyer_profile).exists():
+                return Response(
+                    {'error': 'Restaurant rating already submitted for this order'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            rating_obj = Rating.objects.create(
                 order=order,
                 buyer=buyer_profile,
-                defaults={
-                    'rating': rating,
-                    'comment': comment,
-                    'restaurant': order.restaurant
-                }
+                rating=rating,
+                comment=comment,
+                restaurant=order.restaurant,
             )
-            
-            order.is_rated = True
-            order.save()
+
+            order.refresh_rating_status()
+
+            if hasattr(order.restaurant, 'seller'):
+                buyer_name = request.user.get_full_name().strip() or request.user.username or 'Customer'
+                SellerPushNotificationService.send_new_review(
+                    seller_id=order.restaurant.seller.id,
+                    rating=rating_obj.rating,
+                    review_text=rating_obj.comment or '',
+                    buyer_name=buyer_name,
+                    order_id=order.id,
+                )
             
             serializer = RatingSerializer(rating_obj)
-            return Response(serializer.data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
             
         except BuyerProfile.DoesNotExist:
             return Response(
@@ -778,21 +856,69 @@ class InitializePaymentView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
             else:
-                # New secure flow: Get amount from request
-                logger.info(f"📋 NEW SECURE FLOW: Payment initialization only")
-                amount_naira = Decimal(request.data.get('amount', 0))
+                # New secure flow: calculate payment amount on the backend.
+                logger.info("NEW SECURE FLOW: Backend-calculated payment initialization")
+                restaurant_id = request.data.get('restaurant_id')
+                delivery_latitude = request.data.get('delivery_latitude')
+                delivery_longitude = request.data.get('delivery_longitude')
+                cart_items_data = request.data.get('cartItems', [])
+                amount_naira = Decimal('0')
                 
-                if amount_naira <= 0:
-                    logger.error(f"❌ Invalid amount: {amount_naira}")
+                if not restaurant_id or not cart_items_data:
+                    logger.error("Missing checkout data for payment initialization")
                     return Response(
-                        {'error': 'Amount must be greater than 0'},
+                        {'error': 'Restaurant and cart items are required to initialize payment'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 
-                restaurant_id = request.data.get('restaurant_id')
+                restaurant = Restaurant.objects.get(id=restaurant_id)
+                try:
+                    delivery_fee_data = calculate_backend_delivery_fee(
+                        restaurant,
+                        delivery_latitude,
+                        delivery_longitude
+                    )
+                except ValueError as e:
+                    return Response(
+                        {'error': f'Unable to calculate delivery fee: {str(e)}'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                menu_item_ids = [item_data.get('id') for item_data in cart_items_data]
+                menu_items_db = {item.id: item for item in MenuItem.objects.filter(id__in=menu_item_ids)}
+
+                subtotal = Decimal('0')
+                for item_data in cart_items_data:
+                    menu_item_id = item_data.get('id')
+                    item_quantity = int(item_data.get('quantity', 1))
+                    menu_item = menu_items_db.get(menu_item_id)
+
+                    if not menu_item:
+                        return Response(
+                            {'error': f'Menu item {menu_item_id} not found'},
+                            status=status.HTTP_404_NOT_FOUND
+                        )
+
+                    if menu_item.restaurant_id != restaurant.id:
+                        return Response(
+                            {'error': f'Menu item {menu_item_id} does not belong to this restaurant'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    if item_quantity < 1:
+                        return Response(
+                            {'error': 'Item quantity must be at least 1'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    subtotal += menu_item.price * item_quantity
+
+                amount_naira = subtotal + delivery_fee_data['total_fee']
                 reference = f'DLV_{str(uuid.uuid4())[:16]}'  # No order_id in reference yet
                 metadata = {
                     'restaurant_id': restaurant_id,
+                    'subtotal': str(subtotal),
+                    'delivery_fee': str(delivery_fee_data['total_fee']),
                     'buyer_email': request.user.email,
                     'phone': buyer_profile.phone,
                 }
@@ -1035,7 +1161,6 @@ class PaymentCompleteView(APIView):
             delivery_address = request.data.get('delivery_address', '').strip()
             delivery_latitude = request.data.get('delivery_latitude')
             delivery_longitude = request.data.get('delivery_longitude')
-            delivery_fee = Decimal(request.data.get('delivery_fee', 500))
             cart_items_data = request.data.get('cartItems', [])
             
             if not restaurant_id or not cart_items_data:
@@ -1050,6 +1175,20 @@ class PaymentCompleteView(APIView):
             logger.info(f"📋 Items: {len(cart_items_data)}")
             
             # ✅ FETCH AND VALIDATE MENU ITEMS (prevent price tampering)
+            restaurant = Restaurant.objects.get(id=restaurant_id)
+            try:
+                delivery_fee_data = calculate_backend_delivery_fee(restaurant, delivery_latitude, delivery_longitude)
+            except ValueError as e:
+                return Response(
+                    {'error': f'Unable to calculate delivery fee: {str(e)}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Ignore any client-submitted delivery_fee. The authoritative fee is
+            # recomputed from restaurant and delivery coordinates.
+            delivery_fee = delivery_fee_data['total_fee']
+            logger.info(f"📋 Delivery Fee (backend calculated): ₦{delivery_fee}")
+
             menu_item_ids = [item_data.get('id') for item_data in cart_items_data]
             menu_items_db = {item.id: item for item in MenuItem.objects.filter(id__in=menu_item_ids)}
             
@@ -1068,6 +1207,19 @@ class PaymentCompleteView(APIView):
                         status=status.HTTP_404_NOT_FOUND
                     )
                 
+                if menu_item.restaurant_id != restaurant.id:
+                    logger.error(f"Menu item {menu_item_id} does not belong to restaurant {restaurant.id}")
+                    return Response(
+                        {'error': f'Menu item {menu_item_id} does not belong to this restaurant'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                if item_quantity < 1:
+                    return Response(
+                        {'error': 'Item quantity must be at least 1'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
                 item_price = menu_item.price
                 item_subtotal = item_price * item_quantity
                 subtotal += item_subtotal
@@ -1080,10 +1232,29 @@ class PaymentCompleteView(APIView):
                 logger.info(f"  ✓ {menu_item.name} x {item_quantity} @ ₦{item_price}")
             
             total_price = subtotal + delivery_fee
+            expected_amount_kobo = convert_to_kobo(total_price)
+            paid_amount_kobo = verification_result.get('amount')
+            try:
+                paid_amount_kobo = int(paid_amount_kobo)
+            except (TypeError, ValueError):
+                logger.error(f"Paystack verification did not return a valid amount: {paid_amount_kobo}")
+                return Response(
+                    {'error': 'Could not confirm paid amount from payment gateway'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            if paid_amount_kobo != expected_amount_kobo:
+                logger.error(
+                    f"Payment amount mismatch for {reference}: "
+                    f"paid={paid_amount_kobo} kobo expected={expected_amount_kobo} kobo"
+                )
+                return Response(
+                    {'error': 'Payment amount does not match the verified order total'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             logger.info(f"💰 Totals - Subtotal: ₦{subtotal}, Delivery: ₦{delivery_fee}, Total: ₦{total_price}")
             
             # ✅ CREATE ORDER (only after payment verified)
-            restaurant = Restaurant.objects.get(id=restaurant_id)
             order = Order.objects.create(
                 buyer=buyer_profile,
                 restaurant=restaurant,
@@ -1092,6 +1263,9 @@ class PaymentCompleteView(APIView):
                 delivery_longitude=delivery_longitude,
                 total_price=total_price,
                 delivery_fee=delivery_fee,
+                distance_km=delivery_fee_data['distance_km'],
+                rider_earning=delivery_fee_data['rider_earning'],
+                platform_commission=delivery_fee_data['platform_commission'],
                 payment_method='card',  # ✅ PAYSTACK ONLY
                 status='pending'  # ✅ Payment verified, waiting for seller confirmation
             )
@@ -1109,6 +1283,16 @@ class PaymentCompleteView(APIView):
             ]
             OrderItem.objects.bulk_create(order_items)
             logger.info(f"✅ Order items created: {len(order_items)}")
+            
+            # ✅ NOTIFY SELLER (after items are created)
+            try:
+                from seller.notification_service import SellerPushNotificationService
+                seller = order.restaurant.seller
+                if seller:
+                    SellerPushNotificationService.send_new_order(order, seller.id)
+                    logger.info(f"✅ Seller notification sent for order #{order.id}")
+            except Exception as e:
+                logger.error(f"Error sending seller notification: {str(e)}")
             
             # ✅ CREATE PAYMENT RECORD
             payment = Payment.objects.create(
@@ -1194,7 +1378,16 @@ def save_location(request):
         profile.save()
         
         return Response({
+            'success': True,
             'status': 'ok',
+            'location': {
+                'id': profile.id,
+                'latitude': profile.latitude,
+                'longitude': profile.longitude,
+                'address': profile.address,
+                'city': request.data.get('city'),
+                'area': request.data.get('area'),
+            },
             'profile': {
                 'latitude': profile.latitude,
                 'longitude': profile.longitude,

@@ -1,11 +1,11 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, UtensilsCrossed, History, Settings, LogOut, X, Bell } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, UtensilsCrossed, Wallet, Settings, LogOut, X, Bell } from 'lucide-react';
 
 const MENU_ITEMS = [
   { icon: LayoutDashboard, label: 'Overview', path: '/seller/dashboard' },
   { icon: ShoppingBag, label: 'Orders', path: '/seller/orders' },
   { icon: UtensilsCrossed, label: 'Menu', path: '/seller/menu' },
-  { icon: History, label: 'History & Earnings', path: '/seller/history' },
+  { icon: Wallet, label: 'Wallet', path: '/seller/history' },
   { icon: Bell, label: 'Notifications', path: '/seller/notifications' },
   { icon: Settings, label: 'Settings', path: '/seller/settings' },
 ];

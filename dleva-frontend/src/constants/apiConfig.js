@@ -44,13 +44,30 @@ export const API_ENDPOINTS = {
   // Auth endpoints
   AUTH: {
     BUYER_REGISTER: '/buyer/register/',
+    BUYER_REQUEST_PHONE_OTP: '/buyer/request-phone-otp/',
+    BUYER_VERIFY_PHONE_OTP: '/buyer/verify-phone-otp/',
+    BUYER_REQUEST_EMAIL_OTP: '/buyer/request-email-otp/',
+    BUYER_VERIFY_EMAIL_OTP: '/buyer/verify-email-otp/',
     BUYER_LOGIN: '/buyer/login/',
+    BUYER_FORGOT_PASSWORD: '/buyer/forgot-password/',
+    BUYER_VERIFY_RESET_CODE: '/buyer/verify-reset-code/',
+    BUYER_RESET_PASSWORD: '/buyer/reset-password/',
     BUYER_REFRESH_TOKEN: '/buyer/token/refresh/',
     SELLER_REGISTER: '/seller/register/',
+    SELLER_REQUEST_PHONE_OTP: '/seller/request-phone-otp/',
+    SELLER_VERIFY_PHONE_OTP: '/seller/verify-phone-otp/',
+    SELLER_REQUEST_EMAIL_OTP: '/seller/request-email-otp/',
+    SELLER_VERIFY_EMAIL_OTP: '/seller/verify-email-otp/',
     SELLER_LOGIN: '/seller/login/',
+    SELLER_FORGOT_PASSWORD: '/seller/forgot-password/',
+    SELLER_VERIFY_RESET_CODE: '/seller/verify-reset-code/',
+    SELLER_RESET_PASSWORD: '/seller/reset-password/',
     SELLER_REFRESH_TOKEN: '/seller/token/refresh/',
     RIDER_REGISTER: '/rider/register/',
     RIDER_LOGIN: '/rider/login/',
+    RIDER_FORGOT_PASSWORD: '/rider/forgot-password/',
+    RIDER_VERIFY_RESET_CODE: '/rider/verify-reset-code/',
+    RIDER_RESET_PASSWORD: '/rider/reset-password/',
     RIDER_REFRESH_TOKEN: '/rider/token/refresh/',
   },
 
@@ -94,6 +111,11 @@ export const API_ENDPOINTS = {
     MENU_ADD: '/seller/menu/add/',
     MENU_UPDATE: (menuId) => `/seller/menu/${menuId}/update/`,
     MENU_DELETE: (menuId) => `/seller/menu/${menuId}/delete/`,
+    // Cloudinary image uploads
+    UPLOAD_PROFILE_IMAGE: '/seller/upload-profile-image/',
+    UPLOAD_RESTAURANT_IMAGE: '/seller/upload-restaurant-image/',
+    UPLOAD_MENU_IMAGE: (menuId) => `/seller/menu/${menuId}/upload-image/`,
+    DELETE_IMAGE: '/seller/delete-image/',
   },
 
   // Rider endpoints
@@ -103,8 +125,10 @@ export const API_ENDPOINTS = {
     LOGIN: '/rider/login/',
     LOGOUT: '/rider/logout/',
     REQUEST_PHONE_OTP: '/rider/request-phone-otp/',
+    REQUEST_EMAIL_OTP: '/rider/request-email-otp/',
     RESEND_PHONE_OTP: '/rider/resend-phone-otp/',
     VERIFY_PHONE_OTP: '/rider/verify-phone-otp/',
+    VERIFY_EMAIL_OTP: '/rider/verify-email-otp/',
     
     // Profile
     PROFILE: '/rider/profile/',
@@ -134,6 +158,7 @@ export const API_ENDPOINTS = {
     
     // Deliveries (use ORDERS endpoint with status filter instead)
     ESTIMATE_FEE: '/rider/estimate-delivery-fee/',
+    PRICING_CONFIG: '/rider/pricing-config/',
     
     // PHASE 4: Wallet, Earnings & Payouts
     WALLET: '/rider/wallet/',
@@ -168,9 +193,7 @@ export const API_ENDPOINTS = {
       GET_BANK_DETAILS: '/rider/bank/details/',
       LIST_BANKS: '/rider/bank/banks/',
       RESOLVE_BANK_ACCOUNT: '/rider/bank/resolve/',
-      SERVICE_AREAS_AVAILABLE: '/rider/service-areas/available/',
-      SERVICE_AREAS_GET: '/rider/service-areas/my-areas/',
-      SERVICE_AREAS_SET: '/rider/service-areas/set/',
+      LOCATION_SETUP: '/rider/location/setup/',
     },
   },
 

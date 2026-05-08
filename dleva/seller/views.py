@@ -7,6 +7,7 @@ from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import SellerProfile, MenuItem, Restaurant, Payout, PayoutDetails  # ✅ Add PayoutDetails
 from buyer.models import Order, OrderItem, Payment, Rating
+from .models import SellerOTP
 from .serializers import (
     SellerRegistrationSerializer,
     SellerProfileSerializer, 
@@ -18,7 +19,235 @@ from .serializers import (
 )
 from django.db.models import Sum, Count
 from datetime import datetime, timedelta
+from django.utils import timezone
 from django.utils.timezone import now
+from django.conf import settings
+import logging
+from emails.notifications import send_seller_otp_verification_email, send_seller_password_reset_otp_email
+from utils.password_reset_service import PasswordResetOTPService
+from utils.twilio_service import TwilioService
+import random
+import string
+
+logger = logging.getLogger(__name__)
+
+
+def _get_date_range_from_query(request):
+    period = request.query_params.get('period')
+    start_date = request.query_params.get('start_date')
+    end_date = request.query_params.get('end_date')
+
+    if not period or period == 'all':
+        return None, None, None
+
+    current_time = timezone.now()
+
+    if period == '24_hours':
+        return current_time - timedelta(hours=24), current_time, None
+
+    if period == '7_days':
+        return current_time - timedelta(days=7), current_time, None
+
+    if period == '30_days':
+        return current_time - timedelta(days=30), current_time, None
+
+    if period == 'custom':
+        if not start_date or not end_date:
+            return None, None, 'Custom range requires start_date and end_date.'
+
+        try:
+            parsed_start = datetime.strptime(start_date, '%Y-%m-%d').date()
+            parsed_end = datetime.strptime(end_date, '%Y-%m-%d').date()
+        except ValueError:
+            return None, None, 'Dates must use YYYY-MM-DD format.'
+
+        if parsed_start > parsed_end:
+            return None, None, 'start_date cannot be after end_date.'
+
+        start_dt = timezone.make_aware(datetime.combine(parsed_start, datetime.min.time()))
+        end_dt = timezone.make_aware(datetime.combine(parsed_end, datetime.max.time()))
+        return start_dt, end_dt, None
+
+    return None, None, 'Invalid period. Use all, 24_hours, 7_days, 30_days, or custom.'
+
+
+def _generate_otp():
+    return ''.join(random.choices(string.digits, k=6))
+
+
+def _normalize_phone(phone_number):
+    if not phone_number:
+        return None
+    return str(phone_number).strip().replace(' ', '')
+
+
+def _normalize_email(email):
+    if not email:
+        return None
+    return str(email).strip().lower()
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def request_seller_phone_otp(request):
+    phone_number = _normalize_phone(request.data.get('phone_number'))
+    if not phone_number:
+        return Response({'error': 'Phone number is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if SellerProfile.objects.filter(phone=phone_number).exists():
+        return Response({'error': 'Phone number already registered'}, status=status.HTTP_400_BAD_REQUEST)
+
+    otp_code = _generate_otp()
+    SellerOTP.objects.filter(phone_number=phone_number, purpose='verify_phone').delete()
+    SellerOTP.objects.create(
+        phone_number=phone_number,
+        otp_code=otp_code,
+        purpose='verify_phone',
+        expires_at=timezone.now() + timedelta(minutes=15),
+    )
+
+    TwilioService.send_otp_sms(
+        phone_number=phone_number,
+        otp_code=otp_code,
+        purpose='seller_phone_verification',
+    )
+
+    return Response({
+        'success': True,
+        'message': 'OTP sent to your phone',
+        'phone': phone_number,
+        'expires_in_minutes': 15,
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_seller_phone_otp(request):
+    phone_number = _normalize_phone(request.data.get('phone_number'))
+    otp_code = request.data.get('otp_code') or request.data.get('code')
+
+    if not phone_number or not otp_code:
+        return Response({'error': 'Phone number and OTP code are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    otp_code = str(otp_code).strip()
+
+    try:
+        otp = SellerOTP.objects.get(phone_number=phone_number, purpose='verify_phone', is_verified=False)
+    except SellerOTP.DoesNotExist:
+        return Response({'error': 'Please request an OTP code first'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if otp.expires_at < timezone.now():
+        otp.delete()
+        return Response({'error': 'OTP code has expired. Please request a new one.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if otp.attempts >= 3:
+        otp.delete()
+        return Response({'error': 'Too many failed attempts. Please request a new code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if otp.otp_code != otp_code:
+        otp.attempts += 1
+        otp.save(update_fields=['attempts'])
+        return Response({'error': f'Invalid code. {3 - otp.attempts} attempts remaining.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    otp.is_verified = True
+    otp.save(update_fields=['is_verified'])
+    request.session[f'seller_phone_otp_{phone_number}'] = {
+        'verified': True,
+        'phone': phone_number,
+        'verified_at': timezone.now().isoformat(),
+    }
+
+    return Response({
+        'success': True,
+        'message': 'Phone number verified successfully',
+        'verified': True,
+        'phone': phone_number,
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def request_seller_email_otp(request):
+    email = _normalize_email(request.data.get('email'))
+    seller_name = str(request.data.get('seller_name') or 'Seller').strip() or 'Seller'
+    if not email:
+        return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if User.objects.filter(email=email).exists():
+        return Response({'error': 'Email already registered'}, status=status.HTTP_400_BAD_REQUEST)
+
+    otp_code = _generate_otp()
+    SellerOTP.objects.filter(email=email, purpose='registration').delete()
+    otp = SellerOTP.objects.create(
+        email=email,
+        otp_code=otp_code,
+        purpose='registration',
+        expires_at=timezone.now() + timedelta(minutes=15),
+    )
+
+    try:
+        send_seller_otp_verification_email(
+            user_email=email,
+            seller_name=seller_name,
+            otp=otp_code,
+        )
+    except Exception as e:
+        logger.error(f"Failed to send seller OTP email to {email}: {str(e)}")
+        otp.delete()
+        return Response({'error': 'Failed to send email. Please try again.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    return Response({
+        'success': True,
+        'message': 'OTP sent to your email',
+        'email': email,
+        'expires_in_minutes': 15,
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_seller_email_otp(request):
+    email = _normalize_email(request.data.get('email'))
+    otp_code = request.data.get('otp_code') or request.data.get('code')
+
+    if not email or not otp_code:
+        return Response({'error': 'Email and OTP code are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    otp_code = str(otp_code).strip()
+
+    try:
+        otp = SellerOTP.objects.get(email=email, purpose='registration', is_verified=False)
+    except SellerOTP.DoesNotExist:
+        return Response({'error': 'Please request an OTP code first'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if otp.expires_at < timezone.now():
+        otp.delete()
+        return Response({'error': 'OTP code has expired. Please request a new one.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if otp.attempts >= 3:
+        otp.delete()
+        return Response({'error': 'Too many failed attempts. Please request a new code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if otp.otp_code != otp_code:
+        otp.attempts += 1
+        otp.save(update_fields=['attempts'])
+        return Response({'error': f'Invalid code. {3 - otp.attempts} attempts remaining.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    otp.is_verified = True
+    otp.save(update_fields=['is_verified'])
+    request.session[f'seller_email_otp_{email}'] = {
+        'verified': True,
+        'email': email,
+        'verified_at': timezone.now().isoformat(),
+    }
+
+    return Response({
+        'success': True,
+        'message': 'Email verified successfully',
+        'verified': True,
+        'email': email,
+    }, status=status.HTTP_200_OK)
+
 
 # register seller
 @api_view(['POST'])
@@ -27,19 +256,48 @@ def seller_register(request):
     """
     Register a new seller with username, first_name, last_name, and auto-create restaurant
     """
-    serializer = SellerRegistrationSerializer(data=request.data)
+    data = request.data.copy()
+    data['email'] = _normalize_email(data.get('email'))
+    data['phone'] = _normalize_phone(data.get('phone'))
+    data['username'] = str(data.get('username') or '').strip()
+    serializer = SellerRegistrationSerializer(data=data)
     
     if serializer.is_valid():
         try:
+            phone_number = data.get('phone')
+            email = data.get('email')
+
+            phone_session_key = f'seller_phone_otp_{phone_number}'
+            phone_verified = request.session.get(phone_session_key, {}).get('verified') or SellerOTP.objects.filter(
+                phone_number=phone_number,
+                purpose='verify_phone',
+                is_verified=True,
+            ).exists()
+            if not phone_verified:
+                return Response({'error': 'Phone number must be verified first'}, status=status.HTTP_400_BAD_REQUEST)
+
+            email_session_key = f'seller_email_otp_{email}'
+            email_verified = request.session.get(email_session_key, {}).get('verified') or SellerOTP.objects.filter(
+                email=email,
+                purpose='registration',
+                is_verified=True,
+            ).exists()
+            if not email_verified:
+                return Response({'error': 'Email must be verified first'}, status=status.HTTP_400_BAD_REQUEST)
+
             # Check if username already exists
-            if User.objects.filter(username=request.data.get('username')).exists():
+            if User.objects.filter(username=data.get('username')).exists():
                 return Response({'error': 'Username already exists'}, status=status.HTTP_400_BAD_REQUEST)
             
             # Check if email already exists
-            if User.objects.filter(email=request.data.get('email')).exists():
+            if User.objects.filter(email=email).exists():
                 return Response({'error': 'Email already exists'}, status=status.HTTP_400_BAD_REQUEST)
             
             seller_profile = serializer.save()
+            SellerOTP.objects.filter(phone_number=phone_number, purpose='verify_phone', is_verified=True).delete()
+            SellerOTP.objects.filter(email=email, purpose='registration', is_verified=True).delete()
+            request.session.pop(phone_session_key, None)
+            request.session.pop(email_session_key, None)
             
             # Get tokens
             user = seller_profile.user
@@ -103,8 +361,11 @@ def update_seller_profile(request):
     serializer = SellerProfileSerializer(profile, data=request.data, partial=True)
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # Return updated profile data
+        updated_serializer = SellerProfileSerializer(profile)
+        return Response(updated_serializer.data, status=status.HTTP_200_OK)
+    # Return detailed error messages
+    return Response({'error': 'Validation failed', 'details': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 # list all seller menu items for the current seller
@@ -230,9 +491,20 @@ def seller_orders(request):
         return Response({'error': 'Restaurant not found for this seller'}, status=404)
 
     restaurant = seller_profile.restaurant
+    
+    # Get active commission config
+    from seller.models import RestaurantCommissionConfig
+    from decimal import Decimal
+    commission_config = RestaurantCommissionConfig.get_active_config()
+
+    start_dt, end_dt, date_error = _get_date_range_from_query(request)
+    if date_error:
+        return Response({'error': date_error}, status=status.HTTP_400_BAD_REQUEST)
 
     # filter orders for this restaurant
     orders = Order.objects.filter(restaurant=restaurant).order_by('-created_at')
+    if start_dt and end_dt:
+        orders = orders.filter(created_at__gte=start_dt, created_at__lte=end_dt)
 
     # Build response
     data = []
@@ -263,23 +535,34 @@ def seller_orders(request):
                 "rating": float(order.rider.average_rating) if order.rider.average_rating else 4.8,
             }
 
+        # Calculate food subtotal and commission
+        food_subtotal = Decimal(str(order.total_price - order.delivery_fee))
+        commission_amount = commission_config.calculate_commission_amount(food_subtotal)
+        restaurant_earnings = commission_config.calculate_restaurant_earnings(food_subtotal)
+
         data.append({
             "id": order.id,
             # ✅ BUYER DETAILS
             "customer_name": buyer_user.first_name or buyer_user.username if buyer_user else "Unknown",
             "customer_phone": buyer.phone if buyer else "N/A",
             "customer_address": buyer.address if buyer else "N/A",
+            # ✅ RESTAURANT PAYMENT BREAKDOWN (Commission deducted)
+            "food_subtotal": float(food_subtotal),
+            "commission_amount": float(commission_amount),
+            "commission_percent": float(commission_config.commission_percent),
+            "restaurant_earnings": float(restaurant_earnings),
             # ✅ ORDER INFO
             "status": order.status,
-            "delivery_fee": float(order.delivery_fee),
-            "total_price": float(order.total_price),
             "items": items,
-            # ✅ RIDER INFO (NEW)
+            # ✅ RIDER INFO
             "rider": rider_data,
             "created_at": str(order.created_at),
         })
 
-    return Response(data, status=200)
+    return Response({
+        "results": data,
+        "server_time": now().isoformat(),
+    }, status=200)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -341,6 +624,10 @@ def seller_analytics(request):
         return Response({'error': 'Restaurant not set up'}, status=400)
 
     restaurant = seller_profile.restaurant
+    
+    # Get active commission config
+    from seller.models import RestaurantCommissionConfig
+    commission_config = RestaurantCommissionConfig.get_active_config()
 
     # All orders belonging to seller's restaurant
     orders = Order.objects.filter(restaurant=restaurant)
@@ -351,10 +638,15 @@ def seller_analytics(request):
     # Completed orders: ONLY delivered status
     completed_orders = orders.filter(status='delivered').count()
 
-    # Total earnings: sum of FOOD cost only (total_price - delivery_fee) for delivered orders
-    # delivery_fee is split 60% rider + 40% platform, NOT part of seller earnings
+    # Total earnings: FOOD subtotal MINUS commission for delivered orders
+    # Commission is deducted from food subtotal (order.total_price - order.delivery_fee)
     delivered_orders = orders.filter(status='delivered')
-    total_earnings = sum(order.total_price - order.delivery_fee for order in delivered_orders)
+    total_commission = sum(
+        commission_config.calculate_commission_amount(order.total_price - order.delivery_fee)
+        for order in delivered_orders
+    )
+    total_food_subtotal = sum(order.total_price - order.delivery_fee for order in delivered_orders)
+    total_earnings = total_food_subtotal - total_commission
 
     # Top-selling menu items: ONLY from delivered orders
     top_items = (
@@ -378,21 +670,29 @@ def seller_analytics(request):
     # Today's orders: ALL orders created today (any status)
     todays_orders = orders.filter(created_at__date=today).count()
     
-    # Today's earnings: ONLY from delivered orders created today (food cost minus delivery fee)
+    # Today's earnings: ONLY from delivered orders created today (food cost minus commission)
     todays_delivered = orders.filter(status='delivered', created_at__date=today)
-    todays_earnings = sum(order.total_price - order.delivery_fee for order in todays_delivered)
+    todays_commission = sum(
+        commission_config.calculate_commission_amount(order.total_price - order.delivery_fee)
+        for order in todays_delivered
+    )
+    todays_food_subtotal = sum(order.total_price - order.delivery_fee for order in todays_delivered)
+    todays_earnings = todays_food_subtotal - todays_commission
 
     response_data = {
         "total_orders": active_orders,
         "completed_orders": completed_orders,
         "total_earnings": float(total_earnings),
+        "total_commission_paid": float(total_commission),
         "top_selling_items": list(top_items),
         "repeat_customers": repeat_customers,
         "today": {
             "orders": todays_orders,  # ✅ ALL orders created today, any status
-            "earnings": float(todays_earnings),  # ✅ Only delivered orders earnings
+            "earnings": float(todays_earnings),  # ✅ Only delivered orders earnings minus commission
+            "commission_paid": float(todays_commission),
         },
         "restaurant_name": restaurant.name,
+        "commission_percent": float(commission_config.commission_percent),
     }
 
     return Response(response_data, status=200)
@@ -460,10 +760,21 @@ def seller_reviews(request):
     # Build response
     data = []
     for r in ratings:
+        buyer_name = "Guest"
+        buyer_username = "Guest"
+        if r.order.buyer and r.order.buyer.user:
+            buyer_user = r.order.buyer.user
+            buyer_name = buyer_user.get_full_name().strip() or buyer_user.username
+            buyer_username = buyer_user.username
+
         data.append({
+            "id": r.id,
             "rating": r.rating,                # numeric rating
             "comment": r.comment,              # buyer message
-            "buyer": r.order.buyer.user.username if r.order.buyer and r.order.buyer.user else "Guest",
+            "buyer": buyer_username,
+            "buyer_name": buyer_name,
+            "buyer_username": buyer_username,
+            "restaurant_name": restaurant.name,
             "order_id": r.order.id,
             "order_date": r.order.created_at,
             "created_at": r.created_at
@@ -583,7 +894,13 @@ def seller_payouts(request):
     except SellerProfile.DoesNotExist:
         return Response({'error': 'Seller profile not found'}, status=404)
 
+    start_dt, end_dt, date_error = _get_date_range_from_query(request)
+    if date_error:
+        return Response({'error': date_error}, status=status.HTTP_400_BAD_REQUEST)
+
     payouts = Payout.objects.filter(seller=seller_profile).order_by('-created_at')
+    if start_dt and end_dt:
+        payouts = payouts.filter(created_at__gte=start_dt, created_at__lte=end_dt)
     serializer = PayoutSerializer(payouts, many=True)
     return Response(serializer.data)
 
@@ -809,6 +1126,52 @@ def mark_notification_as_read(request, notification_id):
     }, status=status.HTTP_200_OK)
 
 
+@api_view(['GET', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def seller_notification_detail(request, notification_id):
+    """
+    Get or delete a seller notification
+    """
+    try:
+        seller = SellerProfile.objects.get(user=request.user)
+    except SellerProfile.DoesNotExist:
+        return Response(
+            {'message': 'Seller profile not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    try:
+        notification = SellerNotification.objects.get(
+            id=notification_id,
+            seller=seller
+        )
+    except SellerNotification.DoesNotExist:
+        return Response(
+            {'message': 'Notification not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if request.method == 'GET':
+        return Response({
+            'id': notification.id,
+            'type': notification.notification_type,
+            'title': notification.title,
+            'message': notification.message,
+            'is_read': notification.is_read,
+            'is_sent': notification.is_sent,
+            'order_id': notification.related_order_id,
+            'data': notification.data,
+            'created_at': notification.created_at.isoformat(),
+            'read_at': notification.read_at.isoformat() if notification.read_at else None,
+        }, status=status.HTTP_200_OK)
+
+    notification.delete()
+    return Response({
+        'message': 'Notification deleted',
+        'notification_id': notification_id
+    }, status=status.HTTP_200_OK)
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_unread_notification_count(request):
@@ -876,4 +1239,161 @@ def update_seller_fcm_token(request):
         'token_registered': True,
         'updated_at': seller.fcm_token_updated_at.isoformat()
     }, status=status.HTTP_200_OK)
+
+
+# Restaurant Commission Configuration
+@api_view(['GET'])
+def get_restaurant_commission_config(request):
+    """
+    Get active restaurant commission configuration with example calculations.
+    
+    Returns:
+        commission_percent: Commission percentage deducted from food orders
+        commission_examples: Example calculations showing how commission is applied
+    
+    Example Response:
+    {
+        "commission_percent": 10,
+        "is_active": true,
+        "examples": {
+            "1000": {
+                "food_subtotal": 1000,
+                "commission_amount": 100,
+                "restaurant_earnings": 900
+            },
+            ...
+        }
+    }
+    """
+    from seller.models import RestaurantCommissionConfig
+    from decimal import Decimal
+    
+    config = RestaurantCommissionConfig.get_active_config()
+    
+    # Example calculations for various food amounts
+    example_amounts = [Decimal('1000'), Decimal('3000'), Decimal('5000'), Decimal('10000')]
+    examples = {}
+    
+    for amount in example_amounts:
+        commission = config.calculate_commission_amount(amount)
+        earnings = config.calculate_restaurant_earnings(amount)
+        examples[str(amount)] = {
+            'food_subtotal': float(amount),
+            'commission_amount': float(commission),
+            'restaurant_earnings': float(earnings),
+            'commission_percent': float(config.commission_percent)
+        }
+    
+    return Response({
+        'commission_percent': float(config.commission_percent),
+        'is_active': config.is_active,
+        'examples': examples
+    }, status=status.HTTP_200_OK)
+
+
+# ============================================================================
+# SELLER PASSWORD RESET - OTP-based password recovery
+# ============================================================================
+
+# Initialize seller password reset service
+seller_password_reset_service = PasswordResetOTPService(
+    profile_model=SellerProfile,
+    otp_model=SellerOTP,
+    purpose='password_reset',
+    profile_field_name='seller',
+    profile_phone_field='phone'
+)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password_seller(request):
+    """
+    Request password reset OTP for a seller
+    
+    Requires: phone_number (seller's phone)
+    Returns: OTP sent to phone (in DEBUG mode)
+    """
+    phone_number = request.data.get('phone_number')
+    result = seller_password_reset_service.request_password_reset(phone_number)
+    
+    # Check if successful
+    if not result.get('success', False):
+        return Response({'error': result.get('error', 'Failed to send code')}, status=result.get('code', status.HTTP_400_BAD_REQUEST))
+    
+    # Send password reset OTP email if phone lookup was successful
+    try:
+        seller = SellerProfile.objects.get(phone=phone_number)
+        send_seller_password_reset_otp_email(
+            email=seller.user.email,
+            name=seller.restaurant_name or seller.user.username,
+            otp=result.get('debug_otp') if settings.DEBUG else 'Check your email'
+        )
+    except SellerProfile.DoesNotExist:
+        # Silently continue - phone might not be registered
+        pass
+    except Exception as e:
+        # Log but don't fail the response - SMS was already sent
+        logger.error(f"Failed to send password reset email: {str(e)}")
+    
+    response = {
+        'message': result['message'],
+        'phone': result['phone'],
+        'expires_in_minutes': result.get('expires_in_minutes', 10)
+    }
+    
+    # Include debug OTP in development mode
+    if settings.DEBUG and 'debug_otp' in result:
+        response['debug_otp'] = result['debug_otp']
+    
+    return Response(response, status=result['code'])
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_reset_code_seller(request):
+    """
+    Verify OTP code for password reset
+    
+    Requires: phone_number, code (OTP)
+    Returns: Reset token for next step
+    """
+    phone_number = request.data.get('phone_number')
+    otp_code = request.data.get('code') or request.data.get('otp_code')
+    
+    result = seller_password_reset_service.verify_reset_code(phone_number, otp_code)
+    
+    if not result['success']:
+        return Response({'error': result['error']}, status=result['code'])
+    
+    return Response({
+        'message': result['message'],
+        'phone': phone_number,
+        'verified': result['verified']
+    }, status=result['code'])
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password_seller(request):
+    """
+    Reset seller password after OTP verification
+    
+    Requires: phone_number, code (OTP), password (new password)
+    Returns: Success message
+    """
+    phone_number = request.data.get('phone_number')
+    otp_code = request.data.get('code') or request.data.get('otp_code')
+    new_password = request.data.get('password')
+    
+    result = seller_password_reset_service.reset_password(phone_number, otp_code, new_password)
+    
+    if not result['success']:
+        return Response({'error': result['error']}, status=result['code'])
+    
+    return Response({
+        'message': result['message'],
+        'success': result['success']
+    }, status=result['code'])
+
 

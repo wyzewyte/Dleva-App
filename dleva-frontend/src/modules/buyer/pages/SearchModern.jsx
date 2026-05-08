@@ -14,7 +14,6 @@ import {
   BuyerPageHeader,
   BuyerPrimaryButton,
   BuyerSearchField,
-  BuyerSegmentedTabs,
   BuyerStatusBadge,
 } from '../components/ui/BuyerPrimitives';
 import BuyerPageLoading from '../components/ui/BuyerPageLoading';
@@ -28,6 +27,22 @@ const MENU_RESULTS_LIMIT = 40;
 const PREVIEW_RESTAURANTS_LIMIT = 6;
 const ITEM_RESULTS_LIMIT = 10;
 const RESTAURANT_PREVIEW_LIMIT = 5;
+
+const SearchNoResultsIllustration = () => (
+  <svg viewBox="0 0 200 160" className="mx-auto h-36 w-36" fill="none" aria-hidden="true">
+    <ellipse cx="100" cy="148" rx="55" ry="8" fill="#FFF3E0" />
+    <path d="M58 54 C58 45.2 65.2 38 74 38 H126 C134.8 38 142 45.2 142 54 V118 H58 V54 Z" fill="#FFB562" />
+    <path d="M58 54 C58 45.2 65.2 38 74 38 H100 V118 H58 V54 Z" fill="#F47B00" />
+    <path d="M68 58 H132" stroke="#D96E00" strokeWidth="5" strokeLinecap="round" />
+    <path d="M78 72 H105" stroke="white" strokeWidth="3" strokeLinecap="round" opacity="0.7" />
+    <path d="M78 87 H96" stroke="white" strokeWidth="3" strokeLinecap="round" opacity="0.55" />
+    <circle cx="119" cy="88" r="19" fill="#FFF8EC" stroke="#1A4731" strokeWidth="5" />
+    <path d="M132 102 L148 118" stroke="#1A4731" strokeWidth="6" strokeLinecap="round" />
+    <path d="M111 88 H127" stroke="#F47B00" strokeWidth="4" strokeLinecap="round" />
+    <circle cx="67" cy="31" r="2" fill="#FFF3E0" opacity="0.8" />
+    <circle cx="137" cy="30" r="1.5" fill="#FFF3E0" opacity="0.6" />
+  </svg>
+);
 
 const toResultList = (data) => {
   if (Array.isArray(data)) return data;
@@ -46,17 +61,17 @@ const SearchRestaurantRow = ({ restaurant, onClick }) => {
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-4 border-b border-gray-100 px-1 py-4 text-left last:border-0"
+      className="flex w-full items-center gap-3 rounded-2xl px-2 py-3 text-left transition-colors hover:bg-gray-50 active:scale-[0.99]"
     >
       {imageUrl ? (
-        <img src={imageUrl} alt={restaurant.name} className="h-20 w-20 flex-shrink-0 rounded-2xl object-cover" />
+        <img src={imageUrl} alt={restaurant.name} className="h-16 w-16 flex-shrink-0 rounded-2xl object-cover" />
       ) : (
-        <div className="h-20 w-20 flex-shrink-0 rounded-2xl bg-gray-100" />
+        <div className="h-16 w-16 flex-shrink-0 rounded-2xl bg-gray-100" />
       )}
 
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="truncate text-lg font-semibold text-dark">{restaurant.name}</h3>
+          <h3 className="truncate text-base font-semibold text-dark">{restaurant.name}</h3>
           <BuyerStatusBadge
             status={isOpen ? 'open' : 'closed'}
             className="shrink-0 border border-gray-200 bg-white shadow-sm"
@@ -66,7 +81,7 @@ const SearchRestaurantRow = ({ restaurant, onClick }) => {
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
           <span className="inline-flex items-center gap-1.5 text-muted">
-            <Truck size={14} className="text-primary" />
+            <Truck size={14} className="text-accent" />
             <span>{`From ${formatCurrency(deliveryFee)}`}</span>
           </span>
           {restaurant.delivery_time ? <Dot size={14} className="text-gray-300" /> : null}
@@ -78,6 +93,7 @@ const SearchRestaurantRow = ({ restaurant, onClick }) => {
           </span>
         </div>
       </div>
+      <ChevronRight size={16} className="shrink-0 text-gray-300" />
     </button>
   );
 };
@@ -121,46 +137,55 @@ const SearchMenuItemRow = ({ item, onClick }) => {
       : `${import.meta.env.VITE_BASE_URL}${imagePath}`
     : null;
   const restaurant = item.restaurantData;
+  const deliveryFee = Number(restaurant?.delivery_fee) > 0 ? Number(restaurant.delivery_fee) : STARTING_DELIVERY_FEE;
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-4 border-b border-gray-100 px-1 py-4 text-left last:border-0"
+      className="group flex w-full items-stretch gap-3 rounded-[18px] p-2 text-left transition-colors hover:bg-gray-50 active:scale-[0.99]"
     >
       {imageUrl ? (
-        <img src={imageUrl} alt={item.name} className="h-20 w-20 flex-shrink-0 rounded-2xl object-cover" />
+        <img src={imageUrl} alt={item.name} className="h-24 w-24 flex-shrink-0 rounded-2xl object-cover" />
       ) : (
-        <div className="h-20 w-20 flex-shrink-0 rounded-2xl bg-gray-100" />
+        <div className="h-24 w-24 flex-shrink-0 rounded-2xl bg-gray-100" />
       )}
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h3 className="truncate text-lg font-semibold text-dark">{item.name}</h3>
-            {restaurant?.name ? (
-              <p className="mt-1 truncate text-sm text-muted">{restaurant.name}</p>
-            ) : null}
+      <div className="flex min-w-0 flex-1 flex-col justify-between py-1">
+        <div className="min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="min-w-0 flex-1 truncate text-base font-bold text-dark">{item.name}</h3>
+            <ChevronRight size={16} className="mt-0.5 shrink-0 text-gray-300 transition-colors group-hover:text-accent" />
           </div>
-          <ChevronRight size={16} className="mt-1 shrink-0 text-muted" />
-        </div>
-
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-          <span className="font-semibold text-dark">{formatCurrency(item.price)}</span>
-          {restaurant?.delivery_time ? <Dot size={14} className="text-gray-300" /> : null}
-          {restaurant?.delivery_time ? <span className="text-muted">{restaurant.delivery_time} min</span> : null}
-          {restaurant?.rating ? <Dot size={14} className="text-gray-300" /> : null}
-          {restaurant?.rating ? (
-            <span className="inline-flex items-center gap-1 text-dark">
-              <Star size={14} fill="currentColor" className="text-amber-400" />
-              {restaurant.rating}
-            </span>
+          {restaurant?.name ? (
+            <p className="mt-0.5 truncate text-xs font-medium text-muted">{restaurant.name}</p>
           ) : null}
         </div>
 
-        {item.description ? (
-          <p className="mt-2 line-clamp-2 text-sm text-muted">{item.description}</p>
-        ) : null}
+        {item.description ? <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted">{item.description}</p> : null}
+
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+          <span className="text-sm font-bold text-dark">{formatCurrency(item.price)}</span>
+          <Dot size={14} className="text-gray-300" />
+          <span className="inline-flex items-center gap-1">
+            <Truck size={13} className="text-accent" />
+            {formatCurrency(deliveryFee)}
+          </span>
+          {restaurant?.delivery_time ? (
+            <>
+              <Dot size={14} className="text-gray-300" />
+              <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                <Clock3 size={13} className="shrink-0 text-accent" />
+                <span>{restaurant.delivery_time} min</span>
+              </span>
+            </>
+          ) : null}
+          <Dot size={14} className="text-gray-300" />
+          <span className="inline-flex items-center gap-1 font-semibold text-dark">
+            <Star size={13} fill="currentColor" className="text-amber-400" />
+            {restaurant?.rating || 'New'}
+          </span>
+        </div>
       </div>
     </button>
   );
@@ -476,37 +501,48 @@ const SearchModern = () => {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 pb-6">
-      <BuyerPageHeader title="Search" />
+    <div className="mx-auto max-w-5xl space-y-5 pb-24">
+      <div className="sticky top-0 z-10 -mx-4 space-y-4 border-b border-gray-100 bg-bg/95 px-4 pb-4 pt-3 backdrop-blur sm:-mx-6 sm:px-6 md:-mx-8 md:px-8">
+        <BuyerPageHeader title="Search" className="border-b-0 py-0" />
 
-      <BuyerSearchField
-        value={searchQuery}
-        onChange={(event) => setSearchQuery(event.target.value)}
-        onClear={clearSearch}
-        placeholder={hasLocation ? 'Search for meals and restaurants' : 'Set location to start searching'}
-        readOnly={!hasLocation}
-        onClick={!hasLocation ? openLocationSetup : undefined}
-        className={!hasLocation ? 'cursor-pointer' : 'border-gray-200'}
-      />
+        <BuyerSearchField
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          onClear={clearSearch}
+          placeholder={hasLocation ? 'Search for meals and restaurants' : 'Set location to start searching'}
+          readOnly={!hasLocation}
+          onClick={!hasLocation ? openLocationSetup : undefined}
+          className={`shadow-[0_8px_24px_rgba(15,23,42,0.04)] ${!hasLocation ? 'cursor-pointer' : ''}`}
+        />
 
-      {loadingCategories ? (
-        <div className="flex gap-3 overflow-x-auto pb-1">
-          {[1, 2, 3, 4].map((item) => (
-            <div key={item} className="h-11 w-24 flex-shrink-0 animate-pulse rounded-2xl bg-gray-100" />
-          ))}
-        </div>
-      ) : (
-        <div className="overflow-x-auto pb-1">
-          <div className="min-w-max pr-2">
-            <BuyerSegmentedTabs
-              tabs={allCategories}
-              value={selectedCategory}
-              onChange={setSelectedCategory}
-              className="min-w-max"
-            />
+        {loadingCategories ? (
+          <div className="flex gap-2 overflow-x-auto pt-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {[1, 2, 3, 4].map((item) => (
+              <div key={item} className="h-10 w-24 flex-shrink-0 animate-pulse rounded-full bg-gray-100" />
+            ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex gap-2 overflow-x-auto pt-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {allCategories.map((category) => {
+              const isActive = selectedCategory === category.id;
+              return (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={`min-h-10 flex-shrink-0 rounded-full px-4 text-sm font-semibold transition-all ${
+                    isActive
+                      ? 'bg-dark text-white shadow-sm'
+                      : 'bg-gray-50 text-muted hover:bg-accent/10 hover:text-accent'
+                  }`}
+                >
+                  {category.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
       {showNoLocationState ? (
         <BuyerEmptyState
@@ -523,28 +559,24 @@ const SearchModern = () => {
           action={<BuyerPrimaryButton onClick={openLocationSetup}>Update Location</BuyerPrimaryButton>}
         />
       ) : showLandingState ? (
-        <div className="space-y-5">
-          <BuyerCard className="p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Clock3 size={16} className="text-primary" />
-                <h2 className="text-sm font-bold uppercase tracking-wide text-dark">Recent Searches</h2>
-              </div>
-              {recentSearches.length > 0 ? (
+        <div className="space-y-4">
+          {recentSearches.length > 0 ? (
+            <BuyerCard className="p-4 shadow-none">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Clock3 size={16} className="text-accent" />
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-dark">Recent Searches</h2>
+                </div>
                 <button
                   type="button"
                   onClick={handleClearRecentSearches}
-                  className="inline-flex items-center gap-1 text-sm font-semibold text-primary"
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-accent"
                 >
                   <Trash2 size={14} />
                   Clear all
                 </button>
-              ) : null}
-            </div>
+              </div>
 
-            {recentSearches.length === 0 ? (
-              <p className="text-sm text-muted">Your recent searches will appear here after you search.</p>
-            ) : (
               <div className="space-y-2">
                 {recentSearches.map((query) => (
                   <div
@@ -570,20 +602,20 @@ const SearchModern = () => {
                   </div>
                 ))}
               </div>
-            )}
-          </BuyerCard>
+            </BuyerCard>
+          ) : null}
 
-          <BuyerCard className="p-5">
-            <div className="mb-4 flex items-center justify-between gap-3">
+          <BuyerCard className="p-4">
+            <div className="mb-3 flex items-start justify-between gap-3">
               <div className="flex items-center gap-2">
-                <Store size={16} className="text-primary" />
+                <Store size={16} className="text-accent" />
                 <h2 className="text-sm font-bold uppercase tracking-wide text-dark">Nearby Restaurants</h2>
               </div>
               {currentLocation?.address ? (
                 <button
                   type="button"
                   onClick={openLocationSetup}
-                  className="max-w-[55%] truncate text-xs text-muted"
+                  className="max-w-[48%] truncate rounded-full bg-gray-50 px-2.5 py-1 text-xs text-muted"
                   title={currentLocation.address}
                 >
                   {currentLocation.address}
@@ -592,7 +624,7 @@ const SearchModern = () => {
             </div>
 
             {loadingRestaurants ? (
-              <div className="divide-y divide-gray-100">
+              <div className="space-y-1">
                 {Array.from({ length: 3 }).map((_, index) => (
                   <SearchRowSkeleton key={index} />
                 ))}
@@ -603,7 +635,7 @@ const SearchModern = () => {
                 <p className="mt-1 text-sm text-muted">Try updating your location to see more places nearby.</p>
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="space-y-1">
                 {nearbyRestaurants.slice(0, PREVIEW_RESTAURANTS_LIMIT).map((restaurant) => (
                   <SearchRestaurantRow
                     key={restaurant.id}
@@ -625,7 +657,7 @@ const SearchModern = () => {
         <BuyerFeedbackState type="error" title="Search failed" message={searchError} />
       ) : showEmptyResults ? (
         <BuyerEmptyState
-          icon={<Search size={28} />}
+          illustration={<SearchNoResultsIllustration />}
           title={`No results for "${debouncedQuery}"`}
           description="Try another search term, change your category, or clear the search to browse nearby restaurants."
           action={<BuyerPrimaryButton onClick={clearSearch}>Clear Search</BuyerPrimaryButton>}
@@ -651,7 +683,7 @@ const SearchModern = () => {
           {menuItemResults.length > 0 ? (
             <div className="space-y-3">
               <h3 className="text-lg font-semibold text-dark">Matching Items</h3>
-              <BuyerCard className="px-5 py-1">
+              <BuyerCard className="p-2">
                 {menuItemResults.map((item) => (
                   <SearchMenuItemRow
                     key={`${item.id}-${item.restaurantData?.id || item.restaurant}`}

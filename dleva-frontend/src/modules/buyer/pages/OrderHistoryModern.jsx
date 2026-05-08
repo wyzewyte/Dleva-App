@@ -101,9 +101,13 @@ const OrderHistoryModern = () => {
               order={order}
               primaryActionLabel="View Details"
               onPrimaryAction={(selectedOrder) => navigate(`/tracking/${selectedOrder.id}`)}
-              secondaryActionLabel={order.status === 'delivered' ? 'Rate Order' : null}
+              secondaryActionLabel={
+                order.status === 'delivered' && (!order.has_restaurant_rating || (order.rider_id && !order.has_rider_rating))
+                  ? 'Rate Order'
+                  : null
+              }
               onSecondaryAction={
-                order.status === 'delivered'
+                order.status === 'delivered' && (!order.has_restaurant_rating || (order.rider_id && !order.has_rider_rating))
                   ? (selectedOrder) => {
                       setSelectedOrder(selectedOrder);
                       setIsRatingOpen(true);

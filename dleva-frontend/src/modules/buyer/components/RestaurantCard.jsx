@@ -56,14 +56,14 @@ const RestaurantCard = ({ id, name, image, rating, delivery_time, delivery_fee, 
           <div className="flex flex-wrap items-center gap-2 text-sm text-dark">
             {deliveryFee != null ? (
               <span className="inline-flex items-center gap-1.5 text-muted">
-                <Truck size={14} className="text-primary" />
+                <Truck size={14} className="text-accent" />
                 <span>{`From ${formatCurrency(deliveryFee)}`}</span>
               </span>
             ) : null}
             {deliveryFee != null && delivery_time ? <Dot size={14} className="text-gray-300" /> : null}
             {delivery_time ? (
               <span className="inline-flex items-center gap-1.5 text-muted">
-                <Clock3 size={14} />
+                <Clock3 size={14} className="text-accent" />
                 <span>{delivery_time} min</span>
               </span>
             ) : null}

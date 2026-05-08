@@ -2,9 +2,10 @@
 Centralized Location Models and Validators
 This is the single source of truth for all location data in the backend.
 """
-from django.db import models
+from django.db import models, transaction
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
+from django.db.models import Q
 from decimal import Decimal
 import math
 
@@ -272,4 +273,98 @@ class LocationValidator:
             'lat_max': float(LocationValidator.VALID_LAT_MAX),
             'lon_min': float(LocationValidator.VALID_LON_MIN),
             'lon_max': float(LocationValidator.VALID_LON_MAX),
+        }
+
+
+class DeliveryPricingConfig(models.Model):
+    """
+    Active delivery pricing configuration.
+    The active row is the single source of truth for buyer fees, rider pay,
+    and platform margin.
+    """
+    buyer_base_fee = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('500.00'),
+        help_text='Flat fee charged to the buyer up to the base distance',
+    )
+    buyer_per_km_rate = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('100.00'),
+        help_text='Amount charged to the buyer per km beyond the base distance',
+    )
+    rider_base_pay = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('300.00'),
+        help_text='Flat pay earned by the rider up to the base distance',
+    )
+    rider_per_km_rate = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal('60.00'),
+        help_text='Amount earned by the rider per km beyond the base distance',
+    )
+    base_distance_km = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=Decimal('3.00'),
+        help_text='Distance threshold before per-km rates kick in',
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text='Only one config can be active at a time',
+    )
+    notes = models.TextField(
+        blank=True,
+        null=True,
+        help_text='Internal notes about this pricing config',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Delivery Pricing Config'
+        verbose_name_plural = 'Delivery Pricing Configs'
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['is_active'],
+                condition=Q(is_active=True),
+                name='unique_active_delivery_pricing_config',
+            )
+        ]
+
+    def __str__(self):
+        status = 'active' if self.is_active else 'inactive'
+        return f'Delivery pricing config #{self.pk or "new"} ({status})'
+
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            if self.is_active:
+                DeliveryPricingConfig.objects.filter(is_active=True).exclude(pk=self.pk).update(is_active=False)
+            super().save(*args, **kwargs)
+
+    @classmethod
+    def get_active(cls):
+        config = cls.objects.filter(is_active=True).order_by('-created_at').first()
+        if config:
+            return config
+        return cls.objects.create(is_active=True)
+
+    def calculate_for_distance(self, distance_km):
+        distance = Decimal(str(distance_km or 0))
+        extra_km = max(Decimal('0.00'), distance - self.base_distance_km)
+        buyer_fee = self.buyer_base_fee + (extra_km * self.buyer_per_km_rate)
+        rider_pay = self.rider_base_pay + (extra_km * self.rider_per_km_rate)
+        platform_margin = buyer_fee - rider_pay
+
+        return {
+            'distance_km': distance.quantize(Decimal('0.01')),
+            'base_distance_km': self.base_distance_km,
+            'extra_km': extra_km.quantize(Decimal('0.01')),
+            'buyer_fee': buyer_fee.quantize(Decimal('0.01')),
+            'rider_pay': rider_pay.quantize(Decimal('0.01')),
+            'platform_margin': platform_margin.quantize(Decimal('0.01')),
         }

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #e3f2fd; padding: 20px; border-radius: 5px; }
+        .order-box { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        .order-item { margin: 10px 0; }
+        .label { font-weight: bold; color: #1976d2; }
+        .footer { color: #999; font-size: 12px; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✅ Order Confirmed!</h1>
+        </div>
+        
+        <p>Hi {{ buyer_name }},</p>
+        
+        <p>Great news! Your order has been confirmed and is being prepared.</p>
+        
+        <div class="order-box">
+            <div class="order-item">
+                <span class="label">Order ID:</span> #{{ order_id }}
+            </div>
+            <div class="order-item">
+                <span class="label">Restaurant:</span> {{ restaurant_name }}
+            </div>
+            <div class="order-item">
+                <span class="label">Subtotal:</span> ₦{{ subtotal }}
+            </div>
+            <div class="order-item">
+                <span class="label">Delivery Fee:</span> ₦{{ delivery_fee }}
+            </div>
+            <div class="order-item">
+                <span class="label">Total Amount:</span> ₦{{ total_price }}
+            </div>
+            <div class="order-item">
+                <span class="label">Estimated Delivery:</span> {{ estimated_delivery_time }}
+            </div>
+        </div>
+        
+        <p>The restaurant is now preparing your order. We'll notify you as soon as:</p>
+        <ul>
+            <li>Your order is ready for pickup</li>
+            <li>A rider has been assigned</li>
+            <li>Your order is on the way</li>
+        </ul>
+        
+        <p>Best regards,<br>The Dleva Team</p>
+        
+        <div class="footer">
+            <p>© 2026 Dleva. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -286,7 +286,7 @@ const DocumentVerification = () => {
   };
 
   return (
-    <RiderPageShell maxWidth="max-w-5xl" withBottomNavSpacing={false}>
+    <RiderPageShell maxWidth="max-w-5xl">
       <RiderPageHeader
         title="Document verification"
         subtitle="Upload clear rider documents so identity and vehicle checks can be approved without delays."

@@ -350,19 +350,29 @@ class LocationService:
         try:
             distance_km = pickup_location.distance_to(delivery_location)
             
-            # Calculate fees
-            distance_fee = Decimal(str(distance_km)) * LocationService.COST_PER_KM
-            total_fee = LocationService.BASE_DELIVERY_FEE + distance_fee
-            
-            # Split earnings: 85% to rider, 15% to platform
-            rider_earning = total_fee * Decimal('0.85')
-            platform_commission = total_fee * Decimal('0.15')
+            # Calculate fees from the active admin pricing config so checkout,
+            # rider assignment, and fee previews all share one source of truth.
+            try:
+                from rider.models import DeliveryPricingConfig
+
+                config = DeliveryPricingConfig.get_active_config()
+                total_fee = Decimal(str(config.calculate_buyer_fee(distance_km)))
+                rider_earning = Decimal(str(config.calculate_rider_pay(distance_km)))
+                platform_commission = total_fee - rider_earning
+                distance_fee = total_fee - Decimal(str(config.buyer_base_fee))
+                base_fee = Decimal(str(config.buyer_base_fee))
+            except Exception:
+                distance_fee = Decimal(str(distance_km)) * LocationService.COST_PER_KM
+                total_fee = LocationService.BASE_DELIVERY_FEE + distance_fee
+                rider_earning = total_fee * Decimal('0.85')
+                platform_commission = total_fee * Decimal('0.15')
+                base_fee = LocationService.BASE_DELIVERY_FEE
             
             return {
                 'distance_km': Decimal(str(distance_km)),
-                'base_fee': LocationService.BASE_DELIVERY_FEE,
-                'distance_fee': distance_fee,
-                'total_fee': total_fee,
+                'base_fee': base_fee.quantize(Decimal('0.01')),
+                'distance_fee': distance_fee.quantize(Decimal('0.01')),
+                'total_fee': total_fee.quantize(Decimal('0.01')),
                 'rider_earning': rider_earning.quantize(Decimal('0.01')),
                 'platform_commission': platform_commission.quantize(Decimal('0.01'))
             }

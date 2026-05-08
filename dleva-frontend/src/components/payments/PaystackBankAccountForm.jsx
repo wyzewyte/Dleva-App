@@ -210,7 +210,7 @@ const PaystackBankAccountForm = ({
         </div>
 
         {resolveState.loading ? (
-          <div className="flex gap-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+          <div className="flex gap-2 rounded-xl border border-accent-light bg-accent-light p-3 text-sm text-accent">
             <Loader2 size={16} className="mt-0.5 animate-spin shrink-0" />
             <p>Validating bank account with Paystack...</p>
           </div>

@@ -138,9 +138,43 @@ export const formatDistanceValue = (km) => {
   return formatDistance(km);
 };
 
+/**
+ * Fetch the active delivery pricing configuration from backend
+ * 
+ * @returns {Promise} Response with pricing config
+ */
+export const fetchDeliveryPricingConfig = async () => {
+  try {
+    const response = await fetch(getAPIUrl(API_ENDPOINTS.RIDER.PRICING_CONFIG), {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      config: data,
+    };
+  } catch (error) {
+    const errorMsg = getErrorMessage(error);
+    logError(error, { context: 'fetchDeliveryPricingConfig' });
+    return {
+      success: false,
+      error: errorMsg,
+    };
+  }
+};
+
 export default {
   estimateDeliveryFee,
   estimateDeliveryFeeWithRetry,
+  fetchDeliveryPricingConfig,
   formatDeliveryFee,
   getFeeBreakdownForDistance,
   calculateDistanceFallback,

@@ -13,6 +13,7 @@ class BuyerProfile(models.Model):
     current_location: The buyer's current selected location (for viewing restaurants, etc.)
     """
     user = models.OneToOneField(User, on_delete=models.CASCADE)
+    email = models.EmailField(blank=True, null=True, db_index=True, help_text="Buyer's email address (synced with User)")
     phone = models.CharField(max_length=20, blank=True, null=True)
     address = models.TextField(blank=True, null=True, help_text="Default address (deprecated - use current_location)")
     preferences = models.TextField(blank=True, null=True)
@@ -39,6 +40,21 @@ class BuyerProfile(models.Model):
 
     def __str__(self):
         return self.user.username
+
+    def get_initials(self):
+        """
+        Generate initials from buyer's full name.
+        Returns first letter of first name + first letter of last name (e.g., "WO" for "Williams Okoro")
+        """
+        full_name = self.user.get_full_name().strip()
+        if not full_name:
+            full_name = self.user.username
+        
+        # Split by whitespace and get first letters of first 2 parts
+        parts = full_name.split()[:2]
+        initials = ''.join(part[0].upper() for part in parts if part)
+        
+        return initials or 'B'  # Default to 'B' for Buyer if no initials can be generated
 
     class Meta:
         verbose_name = 'Buyer Profile'
@@ -152,6 +168,21 @@ class Order(models.Model):
         if not self.confirmation_code:
             self.confirmation_code = self.generate_code()
         super().save(*args, **kwargs)
+
+    def has_restaurant_rating(self):
+        return self.ratings.exists()
+
+    def has_rider_rating(self):
+        return self.rider_ratings.filter(rated_by='buyer').exists()
+
+    def refresh_rating_status(self, save=True):
+        restaurant_rated = self.has_restaurant_rating()
+        rider_required = bool(self.rider_id)
+        rider_rated = self.has_rider_rating()
+        self.is_rated = restaurant_rated and (not rider_required or rider_rated)
+        if save:
+            self.save(update_fields=['is_rated'])
+        return self.is_rated
     
     @staticmethod
     def generate_code(length=4):
@@ -203,7 +234,7 @@ class Payment(models.Model):
 
 
 class BuyerOTP(models.Model):
-    """OTP for phone number verification (registration, password reset, and profile updates)"""
+    """OTP for buyer phone and email verification flows."""
     PURPOSE_CHOICES = [
         ('registration', 'Registration'),
         ('password_reset', 'Password Reset'),
@@ -211,8 +242,9 @@ class BuyerOTP(models.Model):
         ('update_profile', 'Update Profile'),
     ]
     
-    buyer = models.ForeignKey(BuyerProfile, on_delete=models.CASCADE, related_name='otps')
-    phone_number = models.CharField(max_length=20)
+    buyer = models.ForeignKey(BuyerProfile, on_delete=models.CASCADE, related_name='otps', null=True, blank=True)
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True, db_index=True)
     otp_code = models.CharField(max_length=6)
     purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES, default='registration')
     is_verified = models.BooleanField(default=False)
@@ -221,7 +253,8 @@ class BuyerOTP(models.Model):
     expires_at = models.DateTimeField()
     
     def __str__(self):
-        return f"OTP for {self.phone_number} ({self.purpose})"
+        destination = self.email or self.phone_number or 'unknown destination'
+        return f"OTP for {destination} ({self.purpose})"
     
     class Meta:
         verbose_name = 'Buyer OTP'

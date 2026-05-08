@@ -27,49 +27,49 @@ const SuccessToast = ({ visible }) => (
 const NoVendorsIllustration = () => (
   <svg viewBox="0 0 200 160" className="w-44 h-44 mx-auto" fill="none">
     {/* Shadow */}
-    <ellipse cx="100" cy="150" rx="52" ry="7" fill="#E8F5E9" opacity="0.8" />
+    <ellipse cx="100" cy="150" rx="52" ry="7" fill="#FFF3E0" opacity="0.95" />
 
     {/* City buildings */}
-    <rect x="30" y="90" width="22" height="50" rx="3" fill="#C8E6C9" opacity="0.5" />
-    <rect x="35" y="98" width="5" height="5" rx="1" fill="#A5D6A7" opacity="0.6" />
-    <rect x="43" y="98" width="5" height="5" rx="1" fill="#A5D6A7" opacity="0.6" />
-    <rect x="35" y="108" width="5" height="5" rx="1" fill="#A5D6A7" opacity="0.6" />
-    <rect x="43" y="108" width="5" height="5" rx="1" fill="#A5D6A7" opacity="0.6" />
+    <rect x="30" y="90" width="22" height="50" rx="3" fill="#FFE0B2" />
+    <rect x="35" y="98" width="5" height="5" rx="1" fill="#F47B00" opacity="0.55" />
+    <rect x="43" y="98" width="5" height="5" rx="1" fill="#F47B00" opacity="0.35" />
+    <rect x="35" y="108" width="5" height="5" rx="1" fill="#F47B00" opacity="0.35" />
+    <rect x="43" y="108" width="5" height="5" rx="1" fill="#F47B00" opacity="0.55" />
 
-    <rect x="56" y="75" width="28" height="65" rx="3" fill="#B2DFDB" opacity="0.5" />
-    <rect x="62" y="83" width="6" height="6" rx="1" fill="#80CBC4" opacity="0.6" />
-    <rect x="71" y="83" width="6" height="6" rx="1" fill="#80CBC4" opacity="0.6" />
-    <rect x="62" y="95" width="6" height="6" rx="1" fill="#80CBC4" opacity="0.6" />
-    <rect x="71" y="95" width="6" height="6" rx="1" fill="#80CBC4" opacity="0.6" />
-    <rect x="62" y="107" width="6" height="6" rx="1" fill="#80CBC4" opacity="0.6" />
-    <rect x="71" y="107" width="6" height="6" rx="1" fill="#80CBC4" opacity="0.6" />
+    <rect x="56" y="75" width="28" height="65" rx="3" fill="#FFB562" />
+    <rect x="62" y="83" width="6" height="6" rx="1" fill="white" opacity="0.7" />
+    <rect x="71" y="83" width="6" height="6" rx="1" fill="white" opacity="0.5" />
+    <rect x="62" y="95" width="6" height="6" rx="1" fill="white" opacity="0.5" />
+    <rect x="71" y="95" width="6" height="6" rx="1" fill="white" opacity="0.7" />
+    <rect x="62" y="107" width="6" height="6" rx="1" fill="white" opacity="0.45" />
+    <rect x="71" y="107" width="6" height="6" rx="1" fill="white" opacity="0.55" />
 
-    <rect x="148" y="85" width="22" height="55" rx="3" fill="#C8E6C9" opacity="0.5" />
-    <rect x="153" y="93" width="5" height="5" rx="1" fill="#A5D6A7" opacity="0.6" />
-    <rect x="161" y="93" width="5" height="5" rx="1" fill="#A5D6A7" opacity="0.6" />
-    <rect x="153" y="103" width="5" height="5" rx="1" fill="#A5D6A7" opacity="0.6" />
-    <rect x="161" y="103" width="5" height="5" rx="1" fill="#A5D6A7" opacity="0.6" />
+    <rect x="148" y="85" width="22" height="55" rx="3" fill="#FFE0B2" />
+    <rect x="153" y="93" width="5" height="5" rx="1" fill="#F47B00" opacity="0.55" />
+    <rect x="161" y="93" width="5" height="5" rx="1" fill="#F47B00" opacity="0.35" />
+    <rect x="153" y="103" width="5" height="5" rx="1" fill="#F47B00" opacity="0.35" />
+    <rect x="161" y="103" width="5" height="5" rx="1" fill="#F47B00" opacity="0.55" />
 
-    <rect x="118" y="70" width="26" height="70" rx="3" fill="#DCEDC8" opacity="0.5" />
-    <rect x="123" y="78" width="6" height="6" rx="1" fill="#AED581" opacity="0.6" />
-    <rect x="132" y="78" width="6" height="6" rx="1" fill="#AED581" opacity="0.6" />
-    <rect x="123" y="90" width="6" height="6" rx="1" fill="#AED581" opacity="0.6" />
-    <rect x="132" y="90" width="6" height="6" rx="1" fill="#AED581" opacity="0.6" />
-    <rect x="123" y="102" width="6" height="6" rx="1" fill="#AED581" opacity="0.6" />
-    <rect x="132" y="102" width="6" height="6" rx="1" fill="#AED581" opacity="0.6" />
+    <rect x="118" y="70" width="26" height="70" rx="3" fill="#F47B00" />
+    <rect x="123" y="78" width="6" height="6" rx="1" fill="white" opacity="0.75" />
+    <rect x="132" y="78" width="6" height="6" rx="1" fill="white" opacity="0.55" />
+    <rect x="123" y="90" width="6" height="6" rx="1" fill="white" opacity="0.55" />
+    <rect x="132" y="90" width="6" height="6" rx="1" fill="white" opacity="0.75" />
+    <rect x="123" y="102" width="6" height="6" rx="1" fill="white" opacity="0.45" />
+    <rect x="132" y="102" width="6" height="6" rx="1" fill="white" opacity="0.6" />
 
     {/* Map pin */}
-    <path d="M100 18 C112 18 122 28 122 42 C122 60 100 82 100 82 C100 82 78 60 78 42 C78 28 88 18 100 18 Z" fill="#E8F5E9" stroke="#1a4731" strokeWidth="2.5" />
+    <path d="M100 18 C112 18 122 28 122 42 C122 60 100 82 100 82 C100 82 78 60 78 42 C78 28 88 18 100 18 Z" fill="#FFF8EC" stroke="#1a4731" strokeWidth="2.5" />
     <circle cx="100" cy="42" r="8" fill="#1a4731" />
     <circle cx="100" cy="42" r="3.5" fill="white" />
 
     {/* Dashed search radius circle */}
-    <circle cx="100" cy="42" r="32" stroke="#1a4731" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.25" />
+    <circle cx="100" cy="42" r="32" stroke="#F47B00" strokeWidth="1.5" strokeDasharray="4 4" opacity="0.45" />
 
     {/* Question marks / dots indicating no vendors */}
-    <circle cx="68" cy="50" r="4" fill="#E8F5E9" stroke="#1a4731" strokeWidth="1.5" opacity="0.5" />
-    <circle cx="132" cy="55" r="4" fill="#E8F5E9" stroke="#1a4731" strokeWidth="1.5" opacity="0.5" />
-    <circle cx="100" cy="18" r="3" fill="#E8F5E9" stroke="#1a4731" strokeWidth="1.5" opacity="0.3" />
+    <circle cx="68" cy="50" r="4" fill="#FFF8EC" stroke="#1a4731" strokeWidth="1.5" opacity="0.85" />
+    <circle cx="132" cy="55" r="4" fill="#FFF8EC" stroke="#1a4731" strokeWidth="1.5" opacity="0.85" />
+    <circle cx="100" cy="18" r="3" fill="#FFF8EC" stroke="#F47B00" strokeWidth="1.5" opacity="0.85" />
   </svg>
 );
 

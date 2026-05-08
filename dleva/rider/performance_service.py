@@ -93,6 +93,8 @@ class PerformanceService:
             comment=comment,
             rated_by='buyer'
         )
+
+        order.refresh_rating_status()
         
         # Update rider's average rating
         PerformanceService._update_average_rating(rider_id)

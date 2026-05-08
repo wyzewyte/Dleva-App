@@ -39,6 +39,7 @@ class RiderProfile(models.Model):
     is_verified = models.BooleanField(default=False)
     verification_status = models.CharField(max_length=20, choices=VERIFICATION_CHOICES, default='pending', db_index=True)
     phone_verified = models.BooleanField(default=False, db_index=True)
+    email_verified = models.BooleanField(default=False, db_index=True)
     account_status = models.CharField(max_length=20, choices=ACCOUNT_STATUS_CHOICES, default='pending_documents', db_index=True)
     profile_completion_percent = models.IntegerField(default=0)
     is_online = models.BooleanField(default=False, db_index=True)
@@ -52,7 +53,7 @@ class RiderProfile(models.Model):
         related_name='rider_current_users',
         help_text="Rider's real-time current location"
     )
-    address = models.TextField(blank=True, null=True, help_text="Rider service area address")
+    address = models.TextField(blank=True, null=True, help_text="Rider location address")
     current_latitude = models.DecimalField(max_digits=10, decimal_places=8, null=True, blank=True, help_text="Current latitude for distance calculations")
     current_longitude = models.DecimalField(max_digits=10, decimal_places=8, null=True, blank=True, help_text="Current longitude for distance calculations")
     location_accuracy = models.FloatField(default=0, help_text="GPS accuracy in meters")
@@ -326,47 +327,17 @@ class RiderBankDetails(models.Model):
         ]
 
 
-class RiderServiceArea(models.Model):
-    """Service areas/zones that a rider can deliver in"""
-    AREA_CHOICES = [
-        ('lekki', 'Lekki'),
-        ('ikoyi', 'Ikoyi'),
-        ('vi', 'Victoria Island'),
-        ('yaba', 'Yaba'),
-        ('ikeja', 'Ikeja'),
-        ('surulere', 'Surulere'),
-        ('mushin', 'Mushin'),
-        ('apapa', 'Apapa'),
-        ('bariga', 'Bariga'),
-        ('mainland', 'Mainland'),
-    ]
-    
-    rider = models.ForeignKey(RiderProfile, on_delete=models.CASCADE, related_name='service_areas')
-    area_code = models.CharField(max_length=50, choices=AREA_CHOICES)
-    area_name = models.CharField(max_length=100)
-    is_selected = models.BooleanField(default=True)
-    added_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    def __str__(self):
-        return f"{self.rider.full_name} - {self.area_name}"
-    
-    class Meta:
-        verbose_name = 'Rider Service Area'
-        verbose_name_plural = 'Rider Service Areas'
-        unique_together = ('rider', 'area_code')
-        ordering = ['added_at']
-
-
 class RiderOTP(models.Model):
-    """OTP for phone number verification (registration and password reset)"""
+    """OTP for rider phone, email, and password reset flows."""
     PURPOSE_CHOICES = [
         ('registration', 'Registration'),
         ('password_reset', 'Password Reset'),
+        ('verify_phone', 'Verify Phone Number'),
     ]
     
-    rider = models.ForeignKey(RiderProfile, on_delete=models.CASCADE, related_name='otps')
-    phone_number = models.CharField(max_length=20)
+    rider = models.ForeignKey(RiderProfile, on_delete=models.CASCADE, related_name='otps', null=True, blank=True)
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True, db_index=True)
     otp_code = models.CharField(max_length=6)
     purpose = models.CharField(max_length=20, choices=PURPOSE_CHOICES, default='registration')  # ✅ NEW
     is_verified = models.BooleanField(default=False)
@@ -375,7 +346,8 @@ class RiderOTP(models.Model):
     expires_at = models.DateTimeField()
     
     def __str__(self):
-        return f"OTP for {self.phone_number} ({self.purpose})"
+        destination = self.email or self.phone_number or 'unknown destination'
+        return f"OTP for {destination} ({self.purpose})"
     
     class Meta:
         verbose_name = 'Rider OTP'
@@ -500,6 +472,7 @@ class RiderNotification(models.Model):
         ('status_update', 'Order Status Update'),
         ('pickup', 'Order Picked Up'),
         ('delivery', 'Order Delivered'),
+        ('rating', 'New Rating Received'),
         ('payout', 'Payout Approved'),
         ('dispute', 'Dispute Update'),
         ('suspension', 'Account Suspension'),
@@ -537,4 +510,125 @@ class RiderNotification(models.Model):
     
     def __str__(self):
         return f"{self.get_notification_type_display()} - {self.rider.full_name}"
+
+
+class DeliveryPricingConfig(models.Model):
+    """
+    Singleton model for delivery pricing configuration
+    Only one active config should exist at a time
+    All distance-based delivery fee calculations use this config
+    """
+    
+    # Buyer pricing
+    buyer_base_fee = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=500.00,
+        help_text="Flat fee charged to buyer up to base distance (in NGN)"
+    )
+    buyer_per_km_rate = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=100.00,
+        help_text="Amount charged to buyer per km beyond base distance (in NGN)"
+    )
+    
+    # Rider compensation
+    rider_base_pay = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=300.00,
+        help_text="Flat pay earned by rider up to base distance (in NGN)"
+    )
+    rider_per_km_rate = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        default=60.00,
+        help_text="Amount earned by rider per km beyond base distance (in NGN)"
+    )
+    
+    # Distance threshold
+    base_distance_km = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=3.00,
+        help_text="Distance threshold before per-km rates kick in (in km)"
+    )
+    
+    # Metadata
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Only one config should be active at a time"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'Delivery Pricing Config'
+        verbose_name_plural = 'Delivery Pricing Config'
+        constraints = [
+            models.CheckConstraint(
+                check=Q(buyer_base_fee__gte=0),
+                name='buyer_base_fee_non_negative'
+            ),
+            models.CheckConstraint(
+                check=Q(buyer_per_km_rate__gte=0),
+                name='buyer_per_km_rate_non_negative'
+            ),
+            models.CheckConstraint(
+                check=Q(rider_base_pay__gte=0),
+                name='rider_base_pay_non_negative'
+            ),
+            models.CheckConstraint(
+                check=Q(rider_per_km_rate__gte=0),
+                name='rider_per_km_rate_non_negative'
+            ),
+            models.CheckConstraint(
+                check=Q(base_distance_km__gte=0),
+                name='base_distance_non_negative'
+            ),
+        ]
+    
+    def __str__(self):
+        return f"Delivery Pricing Config (Active: {self.is_active})"
+    
+    @classmethod
+    def get_active_config(cls):
+        """Get the active config (only one should exist)"""
+        config = cls.objects.filter(is_active=True).first()
+        if not config:
+            # Fallback: create default config if none exists
+            config = cls.objects.create(is_active=True)
+        return config
+    
+    def calculate_buyer_fee(self, distance_km):
+        """
+        Calculate buyer fee based on distance
+        buyer_fee = buyer_base_fee + max(0, distance - base_distance_km) × buyer_per_km_rate
+        """
+        distance = float(distance_km)
+        base = float(self.base_distance_km)
+        extra_km = max(0, distance - base)
+        fee = float(self.buyer_base_fee) + (extra_km * float(self.buyer_per_km_rate))
+        return round(fee, 2)
+    
+    def calculate_rider_pay(self, distance_km):
+        """
+        Calculate rider pay based on distance
+        rider_pay = rider_base_pay + max(0, distance - base_distance_km) × rider_per_km_rate
+        """
+        distance = float(distance_km)
+        base = float(self.base_distance_km)
+        extra_km = max(0, distance - base)
+        pay = float(self.rider_base_pay) + (extra_km * float(self.rider_per_km_rate))
+        return round(pay, 2)
+    
+    def calculate_platform_margin(self, distance_km):
+        """
+        Calculate platform margin (what remains after paying rider)
+        margin = buyer_fee - rider_pay
+        """
+        buyer_fee = self.calculate_buyer_fee(distance_km)
+        rider_pay = self.calculate_rider_pay(distance_km)
+        return round(buyer_fee - rider_pay, 2)
 

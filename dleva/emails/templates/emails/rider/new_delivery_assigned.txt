@@ -1,0 +1,18 @@
+{% autoescape off %}
+Hi {{ rider_name }},
+
+🎉 You have a new delivery assigned!
+
+Delivery Details:
+- Order ID: {{ order_id }}
+- Restaurant: {{ restaurant_name }}
+- Restaurant Address: {{ pickup_address }}
+- Delivery Address: {{ delivery_address }}
+- Estimated Distance: {{ distance_km }} km
+- Your Earning: ₦{{ rider_earning }}
+
+Please head to the restaurant to pick up the order. You'll receive updates as the order progresses.
+
+Best regards,
+The Dleva Team
+{% endautoescape %}

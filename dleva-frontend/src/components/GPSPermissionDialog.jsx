@@ -81,8 +81,8 @@ const GPSPermissionDialog = ({ error, onRetry, onClose, onOpenSettings }) => {
 
           {/* Instructions for Permission Denied */}
           {error.code === 'PERMISSION_DENIED' && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-left text-sm text-gray-700">
-              <p className="font-semibold text-blue-900 mb-2">
+            <div className="bg-accent-light border border-accent-light rounded-lg p-4 mb-6 text-left text-sm text-gray-700">
+              <p className="font-semibold text-accent mb-2">
                 How to enable location:
               </p>
               <ol className="list-decimal list-inside space-y-1">
@@ -102,7 +102,7 @@ const GPSPermissionDialog = ({ error, onRetry, onClose, onOpenSettings }) => {
               onClick={action.onClick}
               className={`flex-1 py-2 px-4 rounded-lg font-medium transition ${
                 action.label === 'Enable in Settings' || action.label === 'Try Again'
-                  ? 'bg-blue-500 text-white hover:bg-blue-600'
+                  ? 'bg-accent text-white hover:bg-accent-hover'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >

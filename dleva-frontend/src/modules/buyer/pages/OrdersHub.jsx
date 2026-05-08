@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { LogIn, Package, Truck } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../../../modules/auth/context/AuthContext';
 import buyerOrders from '../../../services/buyerOrders';
@@ -21,6 +20,55 @@ import {
 import BuyerPageLoading from '../components/ui/BuyerPageLoading';
 
 const VALID_TABS = ['cart', 'ongoing', 'completed'];
+
+const LoggedOutOrdersIllustration = () => (
+  <svg viewBox="0 0 200 160" className="mx-auto h-32 w-32" fill="none" aria-hidden="true">
+    <ellipse cx="100" cy="148" rx="55" ry="8" fill="#FFF3E0" />
+    <path d="M62 56 C62 47.2 69.2 40 78 40 H122 C130.8 40 138 47.2 138 56 V125 H62 V56 Z" fill="#FFB562" />
+    <path d="M62 56 C62 47.2 69.2 40 78 40 H100 V125 H62 V56 Z" fill="#F47B00" />
+    <path d="M70 58 H130" stroke="#D96E00" strokeWidth="5" strokeLinecap="round" />
+    <path d="M82 40 Q82 24 100 24 Q118 24 118 40" stroke="#388E3C" strokeWidth="5" strokeLinecap="round" fill="none" />
+    <path d="M78 75 H104" stroke="white" strokeWidth="3" strokeLinecap="round" opacity="0.7" />
+    <path d="M78 90 H96" stroke="white" strokeWidth="3" strokeLinecap="round" opacity="0.55" />
+    <path d="M117 82 H137" stroke="#1A4731" strokeWidth="4" strokeLinecap="round" />
+    <path d="M130 72 L141 82 L130 92" stroke="#1A4731" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="74" cy="31" r="2" fill="#FFF3E0" opacity="0.8" />
+    <circle cx="132" cy="31" r="1.5" fill="#FFF3E0" opacity="0.6" />
+  </svg>
+);
+
+const OngoingOrdersIllustration = () => (
+  <svg viewBox="0 0 200 160" className="mx-auto h-32 w-32" fill="none" aria-hidden="true">
+    <ellipse cx="100" cy="148" rx="55" ry="8" fill="#FFF3E0" />
+    <path d="M48 94 H116 C123.2 94 129 99.8 129 107 V122 H48 V94 Z" fill="#F47B00" />
+    <path d="M129 104 H150 L163 116 V122 H129 V104 Z" fill="#FFB562" />
+    <path d="M145 108 H152 L158 114 H145 V108 Z" fill="white" opacity="0.75" />
+    <path d="M59 94 H93" stroke="white" strokeWidth="3" strokeLinecap="round" opacity="0.65" />
+    <circle cx="70" cy="126" r="10" fill="#1A4731" />
+    <circle cx="70" cy="126" r="4" fill="#FFF3E0" />
+    <circle cx="143" cy="126" r="10" fill="#1A4731" />
+    <circle cx="143" cy="126" r="4" fill="#FFF3E0" />
+    <path d="M58 70 C80 48 114 48 137 69" stroke="#388E3C" strokeWidth="4" strokeLinecap="round" strokeDasharray="5 8" />
+    <path d="M130 62 L139 70 L128 76" stroke="#388E3C" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="52" cy="74" r="3" fill="#FFF3E0" />
+    <circle cx="150" cy="54" r="2" fill="#FFF3E0" opacity="0.7" />
+  </svg>
+);
+
+const CompletedOrdersIllustration = () => (
+  <svg viewBox="0 0 200 160" className="mx-auto h-32 w-32" fill="none" aria-hidden="true">
+    <ellipse cx="100" cy="148" rx="55" ry="8" fill="#FFF3E0" />
+    <path d="M62 62 L100 42 L138 62 V120 L100 140 L62 120 V62 Z" fill="#FFB562" />
+    <path d="M62 62 L100 82 V140 L62 120 V62 Z" fill="#F47B00" />
+    <path d="M138 62 L100 82 V140 L138 120 V62 Z" fill="#D96E00" />
+    <path d="M62 62 L100 82 L138 62" stroke="#FFF3E0" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" opacity="0.8" />
+    <circle cx="137" cy="48" r="20" fill="#1A4731" />
+    <path d="M127 48 L134 55 L148 40" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M78 95 L92 102" stroke="white" strokeWidth="3" strokeLinecap="round" opacity="0.55" />
+    <circle cx="64" cy="38" r="2" fill="#FFF3E0" opacity="0.8" />
+    <circle cx="153" cy="85" r="1.5" fill="#FFF3E0" opacity="0.6" />
+  </svg>
+);
 
 const OrdersHub = () => {
   const navigate = useNavigate();
@@ -160,11 +208,18 @@ const OrdersHub = () => {
     if (!isAuthenticated) {
       return (
         <BuyerEmptyState
-          icon={<LogIn size={28} />}
+          illustration={<LoggedOutOrdersIllustration />}
           title="Login to view your orders"
           description="Your cart stays available as a guest, but you need an account to track active and completed orders."
           action={<BuyerPrimaryButton onClick={() => navigate('/login')}>Login</BuyerPrimaryButton>}
-          secondaryAction={<BuyerSecondaryButton onClick={() => navigate('/signup')}>Create Account</BuyerSecondaryButton>}
+          secondaryAction={
+            <BuyerSecondaryButton
+              onClick={() => navigate('/signup')}
+              className="border-accent/30 bg-accent/10 text-accent hover:bg-accent/15"
+            >
+              Create Account
+            </BuyerSecondaryButton>
+          }
         />
       );
     }
@@ -187,7 +242,7 @@ const OrdersHub = () => {
     if (activeTab === 'ongoing' && ongoingOrders.length === 0) {
       return (
         <BuyerEmptyState
-          icon={<Truck size={28} />}
+          illustration={<OngoingOrdersIllustration />}
           title="No ongoing orders yet"
           description="Once you place an order, live status updates and rider progress will show up here."
           action={<BuyerPrimaryButton onClick={() => navigate('/restaurants')}>Order Now</BuyerPrimaryButton>}
@@ -198,7 +253,7 @@ const OrdersHub = () => {
     if (activeTab === 'completed' && completedOrders.length === 0) {
       return (
         <BuyerEmptyState
-          icon={<Package size={28} />}
+          illustration={<CompletedOrdersIllustration />}
           title="No completed orders yet"
           description="Your delivered and cancelled orders will appear here, along with quick actions to reorder."
           action={<BuyerPrimaryButton onClick={() => navigate('/restaurants')}>Start Ordering</BuyerPrimaryButton>}

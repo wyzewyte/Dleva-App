@@ -1,100 +1,111 @@
-import { Clock, User, Loader2, Truck, CheckCircle2, ChevronRight, UtensilsCrossed, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Clock3, Loader2, Truck, User, UtensilsCrossed, XCircle } from 'lucide-react';
 import { getStatusLabel } from '../../../constants/statusLabels';
 import { formatCurrency } from '../../../utils/formatters';
+import { cn } from '../../../utils/cn';
+import { SellerPrimaryButton, SellerSecondaryButton, SellerStatusBadge } from './ui/SellerPrimitives';
 
-// ─── Status Action Button ─────────────────────────────────────────────────────
+const formatElapsedTime = (value) => {
+  if (!value) return 'Time unavailable';
 
-const ActionButton = ({ onClick, children, variant = 'primary', disabled = false, pulse = false }) => {
-  const variants = {
-    primary:   'bg-dark text-white hover:opacity-90',
-    orange:    'bg-accent text-white hover:bg-accent-hover',
-    blue:      'bg-sky-500 text-white hover:bg-sky-600',
-    ghost:     'bg-sky-50 border border-sky-200 text-sky-700 hover:bg-sky-100',
-    purple:    'bg-violet-50 border border-violet-200 text-violet-700',
-    success:   'bg-gray-100 text-gray-500',
-    danger:    'bg-red-50 border border-red-200 text-red-500',
-    waiting:   'bg-emerald-50 border border-emerald-200 text-emerald-700',
-  };
+  const parsed = new Date(String(value).replace(' ', 'T'));
+  if (Number.isNaN(parsed.getTime())) return 'Time unavailable';
 
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-bold transition-all min-h-[44px] active:scale-[0.98] ${variants[variant]} ${pulse ? 'animate-pulse' : ''} ${disabled ? 'cursor-default' : ''}`}
-    >
-      {children}
-    </button>
-  );
+  const diffMs = Date.now() - parsed.getTime();
+  if (diffMs < 60000) return 'Just now';
+
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+
+  return parsed.toLocaleDateString('en-NG', { month: 'short', day: 'numeric' });
 };
 
-// ─── Main Component ───────────────────────────────────────────────────────────
-
-const OrderCard = ({ order, onStatusChange, onViewDetails }) => {
+const OrderCard = ({ order, onStatusChange, onViewDetails, isUpdating = false, compact = false }) => {
   const statusInfo = getStatusLabel(order.status);
-
-  const itemNames = order.items?.map(i => i.menu_item).filter(Boolean).join(', ') || 'No items';
+  const itemNames = order.items?.map((item) => item.menu_item).filter(Boolean).join(', ') || 'No items';
   const itemCount = order.items?.length || 0;
-  const foodSubtotal = order.total_price - (order.delivery_fee || 0);
+  
+  // Seller earnings come from the backend commission calculation.
+  const restaurantEarnings = Number(order.restaurant_earnings ?? 0);
+  
+  const createdTime = new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const elapsedTime = order.time_elapsed || formatElapsedTime(order.created_at);
 
   const renderAction = () => {
     switch (order.status) {
       case 'pending':
         return (
-          <ActionButton variant="primary" onClick={() => onStatusChange(order.id, 'confirming')}>
-            Accept & Start Cooking
-            <ChevronRight size={14} />
-          </ActionButton>
+          <SellerPrimaryButton
+            className="text-sm"
+            loading={isUpdating}
+            onClick={() => onStatusChange(order.id, 'confirming')}
+            icon={!isUpdating ? <ChevronRight size={16} /> : null}
+          >
+            Accept order
+          </SellerPrimaryButton>
         );
       case 'confirming':
         return (
-          <ActionButton variant="blue" onClick={() => onStatusChange(order.id, 'preparing')}>
-            <UtensilsCrossed size={13} />
-            Start Cooking
-          </ActionButton>
+          <SellerSecondaryButton
+            className="text-sm disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isUpdating}
+            onClick={() => onStatusChange(order.id, 'preparing')}
+            icon={isUpdating ? <Loader2 size={16} className="animate-spin" /> : <UtensilsCrossed size={16} />}
+          >
+            Start cooking
+          </SellerSecondaryButton>
         );
       case 'preparing':
         return (
-          <ActionButton variant="orange" onClick={() => onStatusChange(order.id, 'available_for_pickup')}>
-            <CheckCircle2 size={13} />
-            Mark as Ready
-          </ActionButton>
+          <SellerPrimaryButton
+            className="bg-amber-500 text-sm hover:bg-amber-600"
+            loading={isUpdating}
+            onClick={() => onStatusChange(order.id, 'available_for_pickup')}
+            icon={!isUpdating ? <CheckCircle2 size={16} /> : null}
+          >
+            Mark ready
+          </SellerPrimaryButton>
         );
       case 'available_for_pickup':
       case 'awaiting_rider':
       case 'assigned':
         return (
-          <ActionButton variant="waiting" disabled pulse>
-            <Loader2 size={13} className="animate-spin" />
-            Waiting for Rider...
-          </ActionButton>
+          <button type="button" disabled className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700">
+            <Loader2 size={14} className="animate-spin" />
+            Waiting for rider
+          </button>
         );
       case 'arrived_at_pickup':
         return (
-          <ActionButton variant="ghost" onClick={() => onViewDetails(order)}>
-            <Truck size={13} />
-            Verify & Hand Over
-          </ActionButton>
+          <SellerSecondaryButton className="text-sm" onClick={() => onViewDetails(order)} icon={<Truck size={16} />}>
+            Verify handoff
+          </SellerSecondaryButton>
         );
       case 'picked_up':
         return (
-          <ActionButton variant="purple" disabled>
-            <Truck size={13} />
-            On the Way
-          </ActionButton>
+          <button type="button" disabled className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-xs font-bold text-violet-700">
+            <Truck size={14} />
+            On the way
+          </button>
         );
       case 'delivered':
         return (
-          <ActionButton variant="success" disabled>
-            <CheckCircle2 size={13} />
+          <button type="button" disabled className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-gray-100 px-4 py-3 text-xs font-bold text-gray-600">
+            <CheckCircle2 size={14} />
             Delivered
-          </ActionButton>
+          </button>
         );
       case 'cancelled':
         return (
-          <ActionButton variant="danger" disabled>
-            <XCircle size={13} />
+          <button type="button" disabled className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs font-bold text-red-600">
+            <XCircle size={14} />
             Cancelled
-          </ActionButton>
+          </button>
         );
       default:
         return null;
@@ -102,66 +113,51 @@ const OrderCard = ({ order, onStatusChange, onViewDetails }) => {
   };
 
   return (
-    <div
-      className={`bg-surface rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all active:scale-[0.99] cursor-pointer border-l-4 ${statusInfo.borderColor}`}
+    <article
+      className={cn(
+        'cursor-pointer rounded-[20px] border border-gray-100 bg-white p-4 shadow-[0_2px_10px_rgba(15,23,42,0.04)] transition-all hover:-translate-y-0.5 hover:border-primary/15 hover:shadow-[0_8px_22px_rgba(15,23,42,0.07)]',
+        compact && 'p-3'
+      )}
       onClick={() => onViewDetails(order)}
     >
-      {/* ── Card Header ── */}
-      <div className="flex items-center justify-between px-3.5 pt-3.5 pb-2.5 gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm font-bold text-dark">#{order.id}</span>
-          {/* Status pill */}
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full truncate ${statusInfo.bgColor || 'bg-gray-100'} ${statusInfo.textColor || 'text-gray-600'}`}>
-            {statusInfo.label}
-          </span>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-bold text-dark">#{order.id}</p>
+            <SellerStatusBadge status={order.status}>{statusInfo.label}</SellerStatusBadge>
+          </div>
+          <p className="mt-2 text-xs font-medium text-muted">{createdTime}</p>
         </div>
-        {/* Time elapsed */}
-        <div className="flex items-center gap-1 text-[11px] font-semibold text-muted bg-gray-50 px-2 py-1 rounded-lg flex-shrink-0">
-          <Clock size={11} />
-          <span>{order.time_elapsed || 'Just now'}</span>
+        <div className="shrink-0 rounded-xl border border-gray-100 bg-[#fbfbfa] px-3 py-2 text-xs font-semibold text-muted">
+          <span className="inline-flex items-center gap-1"><Clock3 size={12} /> {elapsedTime}</span>
         </div>
       </div>
 
-      {/* ── Divider ── */}
-      <div className="h-px bg-gray-50 mx-3.5" />
-
-      {/* ── Order Details ── */}
-      <div className="px-3.5 py-2.5 space-y-2">
-
-        {/* Customer */}
+      <div className="mt-4 space-y-3">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-            <User size={12} className="text-muted" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <User size={14} />
           </div>
-          <span className="text-xs font-bold text-dark truncate">{order.buyer || 'Customer'}</span>
-        </div>
-
-        {/* Items */}
-        <div className="flex items-start gap-2">
-          <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-            <UtensilsCrossed size={11} className="text-muted" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-muted line-clamp-2 leading-relaxed">{itemNames}</p>
-            <p className="text-[11px] text-muted mt-0.5">{itemCount} {itemCount === 1 ? 'item' : 'items'}</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold text-dark">{order.customer_name || order.buyer || 'Customer'}</p>
+            <p className="text-xs text-muted">{itemCount} item{itemCount === 1 ? '' : 's'}</p>
           </div>
         </div>
 
-        {/* Price */}
-        <div className="flex items-center justify-between pt-1">
-          <span className="text-xs text-muted font-medium">Order total</span>
-          <span className="text-sm font-bold text-primary">{formatCurrency(foodSubtotal)}</span>
+        <div className="rounded-2xl border border-gray-100 bg-[#fbfbfa] px-3 py-3">
+          <p className="line-clamp-2 text-sm font-medium leading-6 text-dark">{itemNames}</p>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-gray-500">You Earn</span>
+          <span className="text-base font-bold text-primary">{formatCurrency(restaurantEarnings)}</span>
         </div>
       </div>
 
-      {/* ── Action ── */}
-      <div
-        className="px-3.5 pb-3.5"
-        onClick={e => e.stopPropagation()}
-      >
+      <div className="mt-4" onClick={(event) => event.stopPropagation()}>
         {renderAction()}
       </div>
-    </div>
+    </article>
   );
 };
 

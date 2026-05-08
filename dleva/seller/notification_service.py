@@ -73,8 +73,9 @@ class SellerPushNotificationService:
     def send_new_order(order, seller_id):
         """
         Send notification when new order received
+        Shows seller's earnings after commission deduction
         """
-        from seller.models import SellerProfile
+        from seller.models import SellerProfile, RestaurantCommissionConfig
         
         try:
             seller = SellerProfile.objects.get(id=seller_id)
@@ -82,15 +83,22 @@ class SellerPushNotificationService:
             logger.error(f"Seller {seller_id} not found")
             return None
         
+        # Calculate commission and earnings
+        food_subtotal = order.total_price - order.delivery_fee
+        commission_config = RestaurantCommissionConfig.get_active_config()
+        restaurant_earnings = commission_config.calculate_restaurant_earnings(food_subtotal)
+        
         # Format order summary
         items_count = order.items.count()
-        message = f"New order from {order.buyer.user.first_name or 'Customer'} - {items_count} items • ₦{order.total_price}"
+        message = f"New order from {order.buyer.user.first_name or 'Customer'} - {items_count} items • You earn ₦{restaurant_earnings}"
         
         data = {
             'order_id': order.id,
             'buyer_name': order.buyer.user.first_name or 'Customer',
             'items_count': items_count,
-            'total_price': str(order.total_price),
+            'food_subtotal': str(food_subtotal),
+            'commission_percent': str(commission_config.commission_percent),
+            'restaurant_earnings': str(restaurant_earnings),
             'delivery_address': order.delivery_address,
         }
         
@@ -166,11 +174,16 @@ class SellerPushNotificationService:
         )
     
     @staticmethod
-    def send_new_review(seller_id, rating, review_text, buyer_name='Customer'):
+    def send_new_review(seller_id, rating, review_text, buyer_name='Customer', order_id=None):
         """
         Send notification when new review received
         """
-        message = f"New {rating}⭐ review from {buyer_name}: \"{review_text[:50]}...\""
+        preview = (review_text or '').strip()
+        if preview:
+            preview = preview[:50] + ('...' if len(preview) > 50 else '')
+            message = f'New {rating} star review from {buyer_name}: "{preview}"'
+        else:
+            message = f'New {rating} star review from {buyer_name}'
         data = {
             'rating': str(rating),
             'buyer_name': buyer_name,
@@ -180,9 +193,10 @@ class SellerPushNotificationService:
         SellerPushNotificationService.send_notification(
             seller_id=seller_id,
             notification_type='new_review',
-            title='⭐ New Review',
+            title='New Review',
             message=message,
             data=data,
+            order_id=order_id,
         )
     
     @staticmethod

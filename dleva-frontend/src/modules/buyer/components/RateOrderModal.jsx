@@ -19,7 +19,9 @@ const RateOrderModal = ({ isOpen, onClose, order, onSubmit }) => {
     order.rider_id || 
     (order.rider && (order.rider.id || order.rider > 0))
   );
-  const canSubmit = restaurantRating > 0 || riderRating > 0;
+  const canRateRestaurant = !order.has_restaurant_rating;
+  const canRateRider = hasRider && !order.has_rider_rating;
+  const canSubmit = (canRateRestaurant && restaurantRating > 0) || (canRateRider && riderRating > 0);
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -30,8 +32,8 @@ const RateOrderModal = ({ isOpen, onClose, order, onSubmit }) => {
     try {
       const results = await onSubmit({
         orderId: order.id,
-        restaurantRating,
-        riderRating,
+        restaurantRating: canRateRestaurant ? restaurantRating : 0,
+        riderRating: canRateRider ? riderRating : 0,
         restaurantComment,
         riderComment,
       });
@@ -40,7 +42,7 @@ const RateOrderModal = ({ isOpen, onClose, order, onSubmit }) => {
       const succeededItems = [];
       const failedItems = [];
       
-      if (restaurantRating > 0) {
+      if (canRateRestaurant && restaurantRating > 0) {
         if (results?.restaurantError) {
           failedItems.push('restaurant');
         } else {
@@ -48,7 +50,7 @@ const RateOrderModal = ({ isOpen, onClose, order, onSubmit }) => {
         }
       }
       
-      if (riderRating > 0) {
+      if (canRateRider && riderRating > 0) {
         if (results?.riderError) {
           failedItems.push('rider');
         } else {
@@ -61,11 +63,11 @@ const RateOrderModal = ({ isOpen, onClose, order, onSubmit }) => {
         setSuccessMessage(`${succeededItems.join(' and ')} submitted!`);
         
         // Clear only the successful fields from the form
-        if (restaurantRating > 0 && !results?.restaurantError) {
+        if (canRateRestaurant && restaurantRating > 0 && !results?.restaurantError) {
           setRestaurantRating(0);
           setRestaurantComment("");
         }
-        if (riderRating > 0 && !results?.riderError) {
+        if (canRateRider && riderRating > 0 && !results?.riderError) {
           setRiderRating(0);
           setRiderComment("");
         }
@@ -154,22 +156,30 @@ const RateOrderModal = ({ isOpen, onClose, order, onSubmit }) => {
                 <Store size={16} className="text-primary shrink-0" />
                 <p className="text-xs font-semibold sm:text-sm">Restaurant</p>
               </div>
-              {renderStars({
-                value: restaurantRating,
-                hoveredValue: hoveredRestaurantStar,
-                setValue: setRestaurantRating,
-                setHoveredValue: setHoveredRestaurantStar,
-                label: 'How was the food?'
-              })}
-              <div className="mt-3 sm:mt-4">
-                <BuyerTextInput
-                  multiline
-                  rows={2}
-                  value={restaurantComment}
-                  onChange={(e) => setRestaurantComment(e.target.value)}
-                  placeholder="Tell us about the food, packaging..."
-                />
-              </div>
+              {canRateRestaurant ? (
+                <>
+                  {renderStars({
+                    value: restaurantRating,
+                    hoveredValue: hoveredRestaurantStar,
+                    setValue: setRestaurantRating,
+                    setHoveredValue: setHoveredRestaurantStar,
+                    label: 'How was the food?'
+                  })}
+                  <div className="mt-3 sm:mt-4">
+                    <BuyerTextInput
+                      multiline
+                      rows={2}
+                      value={restaurantComment}
+                      onChange={(e) => setRestaurantComment(e.target.value)}
+                      placeholder="Tell us about the food, packaging..."
+                    />
+                  </div>
+                </>
+              ) : (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm font-medium text-emerald-700">
+                  Restaurant rating already submitted for this order.
+                </div>
+              )}
             </div>
 
             {hasRider ? (
@@ -178,22 +188,30 @@ const RateOrderModal = ({ isOpen, onClose, order, onSubmit }) => {
                   <Bike size={16} className="text-primary shrink-0" />
                   <p className="text-xs font-semibold sm:text-sm">Rider</p>
                 </div>
-                {renderStars({
-                  value: riderRating,
-                  hoveredValue: hoveredRiderStar,
-                  setValue: setRiderRating,
-                  setHoveredValue: setHoveredRiderStar,
-                  label: order.rider_name ? `How was delivery with ${order.rider_name}?` : 'How was the delivery?'
-                })}
-                <div className="mt-3 sm:mt-4">
-                  <BuyerTextInput
-                    multiline
-                    rows={2}
-                    value={riderComment}
-                    onChange={(e) => setRiderComment(e.target.value)}
-                    placeholder="Tell us about delivery time, condition..."
-                  />
-                </div>
+                {canRateRider ? (
+                  <>
+                    {renderStars({
+                      value: riderRating,
+                      hoveredValue: hoveredRiderStar,
+                      setValue: setRiderRating,
+                      setHoveredValue: setHoveredRiderStar,
+                      label: order.rider_name ? `How was delivery with ${order.rider_name}?` : 'How was the delivery?'
+                    })}
+                    <div className="mt-3 sm:mt-4">
+                      <BuyerTextInput
+                        multiline
+                        rows={2}
+                        value={riderComment}
+                        onChange={(e) => setRiderComment(e.target.value)}
+                        placeholder="Tell us about delivery time, condition..."
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm font-medium text-emerald-700">
+                    Rider rating already submitted for this order.
+                  </div>
+                )}
               </div>
             ) : null}
           </div>

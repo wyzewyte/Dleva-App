@@ -7,10 +7,10 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MapPin, Search, Loader2, Navigation, AlertCircle, Clock, ChevronRight, X, PlusCircle } from 'lucide-react';
+import { MapPin, Search, Loader2, Navigation, AlertCircle, ChevronRight, X } from 'lucide-react';
 import useLocation from '../../../hooks/useLocation';
 import addressSearchService from '../../../services/addressSearchService';
-import { saveUserLocation, getRecentLocations } from '../../../services/location';
+import { getRecentLocations } from '../../../services/location';
 import locationManager from '../../../services/locationManager';
 import { logError } from '../../../utils/errorHandler';
 
@@ -188,20 +188,7 @@ const LocationSetupModal = ({ message = null, isModal = true, onClose = null }) 
     try {
       const token = localStorage.getItem('buyer_access_token');
 
-      if (token) {
-        // Logged-in user: save to backend
-        await saveUserLocation({
-          locationType: 'buyer_delivery',
-          address: selectedLocation.address,
-          latitude: selectedLocation.latitude,
-          longitude: selectedLocation.longitude,
-          city: selectedLocation.city,
-          area: selectedLocation.area,
-        });
-
-        // Clear guest cart if user is logged in
-        localStorage.removeItem('dleva_cart');
-      } else {
+      if (!token) {
         // Guest user: save only to localStorage AND update context
         localStorage.setItem('dleva_guest_delivery_location', JSON.stringify(selectedLocation));
       }
@@ -218,8 +205,11 @@ const LocationSetupModal = ({ message = null, isModal = true, onClose = null }) 
       // Close modal using context
       closeLocationSetup();
 
-      // If modal, also call onClose callback
-      if (isModal && onClose) {
+      if (token) {
+        localStorage.removeItem('dleva_cart');
+      }
+
+      if (onClose) {
         onClose();
       }
     } catch (error) {
